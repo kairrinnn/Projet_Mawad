@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle, Camera, ImagePlus, X } from "lucide-react";
+import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle, Camera, ImagePlus, X, Barcode, ScanLine, Loader2 } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,8 @@ export default function ProductsPage() {
   const [openEdit, setOpenEdit] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [openQR, setOpenQR] = useState(false);
+  const [openBarcodeScanner, setOpenBarcodeScanner] = useState(false);
+  const [scanningBarcode, setScanningBarcode] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -63,6 +66,87 @@ export default function ProductsPage() {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+
+  const startBarcodeScanner = async () => {
+    try {
+      setOpenBarcodeScanner(true);
+      setScanningBarcode(true);
+      
+      // Petit délai pour laisser le modal s'ouvrir
+      setTimeout(async () => {
+        const scanner = new Html5Qrcode("barcode-scanner-ui");
+        html5QrCodeRef.current = scanner;
+        
+        await scanner.start(
+          { facingMode: "environment" },
+          { 
+            fps: 10, 
+            qrbox: { width: 250, height: 150 }, // Format rectangulaire pour barcodes
+            aspectRatio: 1.0 
+          },
+          (decodedText) => {
+            handleBarcodeDetected(decodedText);
+            stopBarcodeScanner();
+          },
+          () => {}
+        );
+      }, 300);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erreur d'accès à la caméra.");
+      setOpenBarcodeScanner(false);
+    }
+  };
+
+  const stopBarcodeScanner = async () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      await html5QrCodeRef.current.stop();
+    }
+    setOpenBarcodeScanner(false);
+    setScanningBarcode(false);
+  };
+
+  const handleBarcodeDetected = async (barcode: string) => {
+    toast.info(`Code détecté: ${barcode}. Recherche...`);
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+      const data = await res.json();
+      
+      if (data.status === 1 && data.product) {
+        const prod = data.product;
+        setFormData(prev => ({
+          ...prev,
+          name: prod.product_name || prev.name,
+          category: prod.categories_tags?.[0]?.split(':')[1]?.replace(/-/g, ' ') || prev.category,
+          description: prod.generic_name || prev.description,
+          image: prod.image_url || prev.image
+        }));
+        if (prod.image_url) setPreview(prod.image_url);
+        toast.success("Produit trouvé sur Open Food Facts !");
+      } else {
+        // Essayer Open Products Facts si pas trouvé sur Food
+        const res2 = await fetch(`https://world.openproductsfacts.org/api/v0/product/${barcode}.json`);
+        const data2 = await res2.json();
+        if (data2.status === 1 && data2.product) {
+          const prod = data2.product;
+          setFormData(prev => ({
+            ...prev,
+            name: prod.product_name || prev.name,
+            category: prev.category,
+            image: prod.image_url || prev.image
+          }));
+          if (prod.image_url) setPreview(prod.image_url);
+          toast.success("Produit trouvé sur Open Products Facts !");
+        } else {
+          toast.error("Produit non répertorié. Saisie manuelle requise.");
+          setFormData(prev => ({ ...prev, name: `Produit ${barcode}` }));
+        }
+      }
+    } catch (error) {
+      toast.error("Erreur de recherche API.");
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -297,13 +381,24 @@ export default function ProductsPage() {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right text-slate-600">Nom *</Label>
-                  <Input 
-                    id="name" 
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="col-span-3 border-slate-200" 
-                    required 
-                  />
+                  <div className="col-span-3 flex gap-2">
+                    <Input 
+                      id="name" 
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="flex-1 border-slate-200" 
+                      required 
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={startBarcodeScanner}
+                      className="shrink-0 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                      title="Scanner un code-barres"
+                    >
+                      <Barcode className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -804,6 +899,48 @@ export default function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        {/* Modal Scanner de Code-Barres Universel */}
+        <Dialog open={openBarcodeScanner} onOpenChange={(val) => { if(!val) stopBarcodeScanner(); }}>
+          <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black border-none">
+            <div className="relative h-[400px] flex flex-col items-center justify-center">
+              <div id="barcode-scanner-ui" className="w-full h-full" />
+              
+              {/* Overlay Viseur Barcode */}
+              <div className="absolute inset-0 border-[60px] border-black/60 pointer-events-none flex items-center justify-center">
+                <div className="w-[280px] h-[160px] border-2 border-dashed border-white/40 rounded-lg relative">
+                  <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-indigo-400" />
+                  <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-indigo-400" />
+                  <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-2 border-l-2 border-indigo-400" />
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-2 border-r-2 border-indigo-400" />
+                </div>
+              </div>
+
+              <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none">
+                <Badge variant="secondary" className="bg-indigo-600 text-white border-none px-3 py-1 flex items-center gap-2">
+                   <ScanLine className="h-3 w-3 animate-pulse" />
+                   Visez un code-barres
+                </Badge>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="bg-black/50 text-white hover:bg-black pointer-events-auto rounded-full"
+                  onClick={stopBarcodeScanner}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {scanningBarcode && (
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
+                   <div className="bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10 flex items-center gap-2 text-white/80 text-xs">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Recherche universelle active...
+                   </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }
