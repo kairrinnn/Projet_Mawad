@@ -79,6 +79,7 @@ export async function PATCH(
   try {
     const p = await params;
     const json = await request.json();
+    console.log("PATCH Product Data received:", json);
     
     // Vérification de propriété
     const existing = await prisma.product.findFirst({
@@ -93,10 +94,24 @@ export async function PATCH(
     if (json.salePrice !== undefined) json.salePrice = Number(json.salePrice);
     if (json.costPrice !== undefined) json.costPrice = Number(json.costPrice);
     if (json.stock !== undefined) json.stock = Number(json.stock);
+    
+    // S'assurer que supplierId est null si "none"
+    if (json.supplierId === "none") json.supplierId = null;
+
+    const updateData = {
+      name: json.name,
+      category: json.category,
+      description: json.description,
+      stock: json.stock,
+      salePrice: json.salePrice,
+      costPrice: json.costPrice,
+      supplierId: json.supplierId,
+      image: json.image,
+    };
 
     const product = await prisma.product.update({
       where: { id: p.id },
-      data: json,
+      data: updateData,
       include: { supplier: true }
     });
     

@@ -8,6 +8,7 @@ const adapter = new PrismaBetterSqlite3({
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
+// Forcer une nouvelle instance pour s'assurer que le nouveau schéma (image, userId) est pris en compte
+export const prisma = new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

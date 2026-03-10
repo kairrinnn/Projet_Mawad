@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle } from "lucide-react";
+import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle, Camera, ImagePlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,10 @@ export default function ProductsPage() {
   
   const [searchTerm, setSearchTerm] = useState("");
   const qrRef = useRef<SVGSVGElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedViewImage, setSelectedViewImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({ 
     name: "", 
     salePrice: "", 
@@ -54,8 +57,11 @@ export default function ProductsPage() {
     stock: "", 
     category: "", 
     description: "", 
-    supplierId: "none" 
+    supplierId: "none",
+    image: "" 
   });
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = async () => {
@@ -93,6 +99,35 @@ export default function ProductsPage() {
     fetchData();
   }, []);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formDataUpload,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFormData(prev => ({ ...prev, image: data.url }));
+        setPreview(data.url);
+        toast.success("Image téléchargée !");
+      } else {
+        toast.error(data.error || "Erreur lors de l'upload");
+      }
+    } catch (error) {
+      console.error("Upload failed", error);
+      toast.error("Échec de l'upload");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -109,7 +144,8 @@ export default function ProductsPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setFormData({ name: "", salePrice: "", costPrice: "", stock: "", category: "", description: "", supplierId: "none" });
+        setFormData({ name: "", salePrice: "", costPrice: "", stock: "", category: "", description: "", supplierId: "none", image: "" });
+        setPreview(null);
         setOpenAdd(false);
         toast.success("Produit ajouté !");
         fetchData();
@@ -186,8 +222,10 @@ export default function ProductsPage() {
       stock: product.stock.toString(),
       category: product.category || "",
       description: product.description || "",
-      supplierId: product.supplierId || "none"
+      supplierId: product.supplierId || "none",
+      image: product.image || ""
     });
+    setPreview(product.image || null);
     setOpenEdit(true);
   };
 
@@ -267,6 +305,58 @@ export default function ProductsPage() {
                     required 
                   />
                 </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right text-slate-600">Photo</Label>
+                  <div className="col-span-3 flex items-center gap-4">
+                    <div 
+                      className="relative h-24 w-24 rounded-lg bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {preview ? (
+                        <>
+                          <img src={preview} alt="Aperçu" className="h-full w-full object-cover" />
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreview(null);
+                              setFormData(prev => ({ ...prev, image: "" }));
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400">
+                          {uploading ? (
+                            <div className="h-5 w-5 border-2 border-indigo-500 border-t-transparent animate-spin rounded-full" />
+                          ) : (
+                            <>
+                              <Camera className="h-6 w-6 mb-1" />
+                              <span className="text-[10px]">Photo / Cam</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <Input 
+                      type="file" 
+                      ref={fileInputRef}
+                      className="hidden" 
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileUpload}
+                      disabled={uploading}
+                    />
+                    {!preview && (
+                      <div className="text-xs text-slate-500">
+                        Cliquez pour prendre une photo ou choisir un fichier.
+                      </div>
+                    )}
+                  </div>
+                </div>
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="category" className="text-right text-slate-600">Catégorie</Label>
@@ -345,6 +435,29 @@ export default function ProductsPage() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Modal d'agrandissement d'image */}
+        <Dialog open={!!selectedViewImage} onOpenChange={() => setSelectedViewImage(null)}>
+          <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-none shadow-none flex items-center justify-center">
+            {selectedViewImage && (
+              <div className="relative group max-h-[80vh] max-w-full">
+                <img 
+                  src={selectedViewImage} 
+                  alt="Agrandissement" 
+                  className="rounded-lg shadow-2xl max-h-[80vh] w-auto h-auto object-contain bg-white" 
+                />
+                <Button 
+                  onClick={() => setSelectedViewImage(null)}
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute top-2 right-2 bg-white/50 hover:bg-white text-slate-900 rounded-full"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex items-center space-x-2">
@@ -391,11 +504,25 @@ export default function ProductsPage() {
               filteredProducts.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell className="font-medium">
-                    <div className="flex flex-col">
-                      <span className="text-slate-900">{product.name}</span>
-                      {product.supplier && (
-                        <span className="text-xs text-slate-500 line-clamp-1">{product.supplier.name}</span>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="h-10 w-10 rounded bg-slate-100 border overflow-hidden flex-shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
+                        onClick={() => product.image && setSelectedViewImage(product.image)}
+                      >
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                             <PackageSearch className="h-5 w-5 text-slate-300" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-slate-900">{product.name}</span>
+                        {product.supplier && (
+                          <span className="text-xs text-slate-500 line-clamp-1">{product.supplier.name}</span>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -520,6 +647,53 @@ export default function ProductsPage() {
                   className="col-span-3 border-slate-200" 
                   required 
                 />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right text-slate-600">Photo</Label>
+                <div className="col-span-3 flex items-center gap-4">
+                  <div 
+                    className="relative h-24 w-24 rounded-lg bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-slate-100 transition-colors"
+                    onClick={() => editFileInputRef.current?.click()}
+                  >
+                    {preview ? (
+                      <>
+                        <img src={preview} alt="Aperçu" className="h-full w-full object-cover" />
+                        <button 
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreview(null);
+                            setFormData(prev => ({ ...prev, image: "" }));
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        {uploading ? (
+                          <div className="h-5 w-5 border-2 border-indigo-500 border-t-transparent animate-spin rounded-full" />
+                        ) : (
+                          <>
+                            <Camera className="h-6 w-6 mb-1" />
+                            <span className="text-[10px]">Photo / Cam</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <Input 
+                    type="file" 
+                    ref={editFileInputRef}
+                    className="hidden" 
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                  />
+                </div>
               </div>
               
               <div className="grid grid-cols-4 items-center gap-4">

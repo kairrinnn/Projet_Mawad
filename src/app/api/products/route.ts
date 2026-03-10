@@ -49,25 +49,26 @@ export async function POST(request: Request) {
     }
 
     const json = await request.json();
-    const { name, salePrice, costPrice, stock, category, description, supplierId } = json;
+    const { name, salePrice, costPrice, stock, category, description, supplierId, image } = json;
 
-    if (!name || salePrice === undefined || costPrice === undefined) {
+    if (!name || !salePrice || !costPrice) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const product = await prisma.product.create({
       data: {
         name,
-        salePrice: Number(salePrice),
-        costPrice: Number(costPrice),
-        stock: Number(stock) || 0,
+        salePrice: parseFloat(salePrice),
+        costPrice: parseFloat(costPrice),
+        stock: parseInt(stock) || 0,
         category,
         description,
-        supplierId: supplierId || null,
+        image,
+        supplierId: supplierId === "none" ? null : supplierId,
         userId: session.user.id,
       },
       include: {
-        supplier: true
+        supplier: true,
       }
     });
     

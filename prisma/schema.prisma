@@ -74,6 +74,7 @@ model Product {
   stock       Int       @default(0)
   category    String?
   description String?
+  image       String?
   supplierId  String?
   userId      String?
   isArchived  Boolean   @default(false)
