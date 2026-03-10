@@ -61,20 +61,36 @@ export default function ProductsPage() {
     category: "", 
     description: "", 
     supplierId: "none",
-    image: "" 
+    image: "",
+    barcode: "" 
   });
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const isInitializingScanner = useRef(false);
 
   const startBarcodeScanner = async () => {
+    if (isInitializingScanner.current) return;
+    isInitializingScanner.current = true;
+    
     try {
       setOpenBarcodeScanner(true);
       setScanningBarcode(true);
       
       // Petit délai pour laisser le modal s'ouvrir
       setTimeout(async () => {
+        // Nettoyage préventif pour éviter le dédoublage caméra
+        const container = document.getElementById("barcode-scanner-ui");
+        if (container) container.innerHTML = "";
+        
+        if (html5QrCodeRef.current) {
+          try {
+            if (html5QrCodeRef.current.isScanning) await html5QrCodeRef.current.stop();
+            html5QrCodeRef.current.clear();
+          } catch (e) { console.warn(e); }
+        }
+
         const scanner = new Html5Qrcode("barcode-scanner-ui");
         html5QrCodeRef.current = scanner;
         
@@ -96,6 +112,8 @@ export default function ProductsPage() {
       console.error(err);
       toast.error("Erreur d'accès à la caméra.");
       setOpenBarcodeScanner(false);
+    } finally {
+      isInitializingScanner.current = false;
     }
   };
 
@@ -118,6 +136,7 @@ export default function ProductsPage() {
         setFormData(prev => ({
           ...prev,
           name: prod.product_name || prev.name,
+          barcode: barcode || prev.barcode,
           category: prod.categories_tags?.[0]?.split(':')[1]?.replace(/-/g, ' ') || prev.category,
           description: prod.generic_name || prev.description,
           image: prod.image_url || prev.image
@@ -130,18 +149,19 @@ export default function ProductsPage() {
         const data2 = await res2.json();
         if (data2.status === 1 && data2.product) {
           const prod = data2.product;
-          setFormData(prev => ({
-            ...prev,
-            name: prod.product_name || prev.name,
-            category: prev.category,
-            image: prod.image_url || prev.image
-          }));
+        setFormData(prev => ({
+          ...prev,
+          name: prod.product_name || prev.name,
+          barcode: barcode || prev.barcode,
+          category: prev.category,
+          image: prod.image_url || prev.image
+        }));
           if (prod.image_url) setPreview(prod.image_url);
           toast.success("Produit trouvé sur Open Products Facts !");
         } else {
-          toast.error("Produit non répertorié. Saisie manuelle requise.");
-          setFormData(prev => ({ ...prev, name: `Produit ${barcode}` }));
-        }
+        toast.error("Produit non répertorié. Saisie manuelle requise.");
+        setFormData(prev => ({ ...prev, name: `Produit ${barcode}`, barcode: barcode }));
+      }
       }
     } catch (error) {
       toast.error("Erreur de recherche API.");
@@ -307,7 +327,8 @@ export default function ProductsPage() {
       category: product.category || "",
       description: product.description || "",
       supplierId: product.supplierId || "none",
-      image: product.image || ""
+      image: product.image || "",
+      barcode: product.barcode || ""
     });
     setPreview(product.image || null);
     setOpenEdit(true);
@@ -453,6 +474,17 @@ export default function ProductsPage() {
                   </div>
                 </div>
                 
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="barcode" className="text-right text-slate-600">Code-Barre</Label>
+                  <Input 
+                    id="barcode" 
+                    value={formData.barcode}
+                    onChange={(e) => setFormData({...formData, barcode: e.target.value})}
+                    placeholder="EAN-13, UPC..."
+                    className="col-span-3 border-slate-200" 
+                  />
+                </div>
+
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="category" className="text-right text-slate-600">Catégorie</Label>
                   <Input 
@@ -798,6 +830,17 @@ export default function ProductsPage() {
                 </div>
               </div>
               
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-barcode" className="text-right text-slate-600">Code-Barre</Label>
+                <Input 
+                  id="edit-barcode" 
+                  value={formData.barcode}
+                  onChange={(e) => setFormData({...formData, barcode: e.target.value})}
+                  placeholder="EAN-13, UPC..."
+                  className="col-span-3 border-slate-200" 
+                />
+              </div>
+
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-category" className="text-right text-slate-600">Catégorie</Label>
                 <Input 

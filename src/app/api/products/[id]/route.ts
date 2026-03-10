@@ -17,7 +17,10 @@ export async function GET(
     // On utilise findFirst car findUnique ne permet pas de filtrer par userId sur une clé id unique
     const product = await prisma.product.findFirst({
       where: { 
-        id: p.id,
+        OR: [
+          { id: p.id },
+          { barcode: p.id }
+        ],
         userId: session.user.id
       },
       include: {
@@ -98,8 +101,9 @@ export async function PATCH(
     // S'assurer que supplierId est null si "none"
     if (json.supplierId === "none") json.supplierId = null;
 
-    const updateData = {
+    const updateData: any = {
       name: json.name,
+      barcode: json.barcode && json.barcode.trim() !== "" ? json.barcode : null,
       category: json.category,
       description: json.description,
       stock: json.stock,

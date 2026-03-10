@@ -234,20 +234,25 @@ export default function DashboardPage() {
                 <div className="text-center text-slate-500 py-8">Aucune vente enregistrée.</div>
               ) : (
                 data.topSales.map((sale, i) => (
-                  <div key={i} className="flex items-center">
-                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-slate-100 mr-4">
-                      <Box className="h-5 w-5 text-slate-600" />
+                  <div key={i} className="flex items-center gap-3 sm:gap-4">
+                    <div className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-full bg-slate-100 flex-shrink-0">
+                      <Box className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium leading-none">
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <p className="text-sm font-semibold truncate text-slate-900 leading-tight">
                         {sale.product?.name || "Produit inconnu"}
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-[10px] sm:text-xs text-slate-500 truncate">
                         {sale.product?.category || "Sans catégorie"}
                       </p>
                     </div>
-                    <div className="ml-auto font-medium">
-                      {sale._sum.quantity} <span className="text-xs text-slate-500 font-normal">vendu(s)</span>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-sm font-bold text-indigo-600">
+                        {sale._sum.quantity}
+                      </div>
+                      <div className="text-[9px] text-slate-400 font-normal uppercase tracking-wider">
+                        vendu(s)
+                      </div>
                     </div>
                   </div>
                 ))

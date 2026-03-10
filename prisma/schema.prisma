@@ -68,6 +68,7 @@ model Supplier {
 
 model Product {
   id          String    @id @default(cuid())
+  barcode     String?   @unique
   name        String
   salePrice   Float
   costPrice   Float

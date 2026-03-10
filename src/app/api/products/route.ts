@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const json = await request.json();
-    const { name, salePrice, costPrice, stock, category, description, supplierId, image } = json;
+    const { name, barcode, salePrice, costPrice, stock, category, description, supplierId, image } = json;
 
     if (!name || !salePrice || !costPrice) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
     const product = await prisma.product.create({
       data: {
         name,
+        barcode: barcode && barcode.trim() !== "" ? barcode : null,
         salePrice: parseFloat(salePrice),
         costPrice: parseFloat(costPrice),
         stock: parseInt(stock) || 0,
@@ -73,8 +74,11 @@ export async function POST(request: Request) {
     });
     
     return NextResponse.json(product, { status: 201 });
-  } catch (error) {
-    console.error("Create product error:", error);
-    return NextResponse.json({ error: "Failed to create product" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Create product error details:", error);
+    return NextResponse.json({ 
+      error: error.message || "Failed to create product",
+      details: error.code || "UNKNOWN"
+    }, { status: 500 });
   }
 }

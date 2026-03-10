@@ -34,15 +34,29 @@ export default function ScanPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const isInitializingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const startScanner = async () => {
+    if (isInitializingRef.current) return;
+    isInitializingRef.current = true;
+
     try {
+      // Nettoyage de l'instance existante
       if (html5QrCodeRef.current) {
-        if (html5QrCodeRef.current.isScanning) {
+        try {
+          if (html5QrCodeRef.current.isScanning) {
             await html5QrCodeRef.current.stop();
+          }
+          html5QrCodeRef.current.clear();
+        } catch (e) {
+          console.warn("Erreur lors du nettoyage préliminaire:", e);
         }
       }
+
+      // Nettoyage forcé du DOM
+      const container = document.getElementById("qr-reader");
+      if (container) container.innerHTML = "";
 
       const html5QrCode = new Html5Qrcode("qr-reader");
       html5QrCodeRef.current = html5QrCode;
@@ -65,6 +79,8 @@ export default function ScanPage() {
       );
     } catch (err: any) {
       console.error("Erreur scanner:", err);
+    } finally {
+      isInitializingRef.current = false;
     }
   };
 
@@ -97,11 +113,25 @@ export default function ScanPage() {
   };
 
   useEffect(() => {
-    startScanner();
+    let currentScanner: Html5Qrcode | null = null;
+
+    const init = async () => {
+      await startScanner();
+      currentScanner = html5QrCodeRef.current;
+    };
+
+    init();
     fetchAllProducts();
+
     return () => {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch(() => {});
+      if (currentScanner) {
+        if (currentScanner.isScanning) {
+          currentScanner.stop().then(() => {
+            currentScanner?.clear();
+          }).catch(err => console.error("Error stopping scanner on unmount", err));
+        } else {
+          currentScanner.clear();
+        }
       }
     };
   }, []);
@@ -278,9 +308,9 @@ export default function ScanPage() {
                                 <button 
                                     key={p.id}
                                     onClick={() => handleSelectProduct(p)}
-                                    className="w-full p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left"
+                                    className="w-full p-3 sm:p-4 flex items-center gap-2 sm:gap-4 hover:bg-slate-50 transition-colors text-left"
                                 >
-                                    <div className="h-12 w-12 rounded bg-slate-100 border flex-shrink-0 overflow-hidden">
+                                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded bg-slate-100 border flex-shrink-0 overflow-hidden">
                                         {p.image ? (
                                             <img src={p.image} className="h-full w-full object-cover" />
                                         ) : (
@@ -290,17 +320,17 @@ export default function ScanPage() {
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="font-semibold text-slate-900 truncate">{p.name}</h4>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <Badge variant="outline" className="text-[10px] h-4 font-normal py-0">{p.category || 'Général'}</Badge>
-                                            <span className="text-xs text-slate-500">{formatCurrency(p.salePrice)}</span>
+                                        <h4 className="font-semibold text-slate-900 truncate text-sm sm:text-base">{p.name}</h4>
+                                        <div className="flex flex-wrap items-center gap-1 sm:gap-2 mt-0.5">
+                                            <Badge variant="outline" className="text-[9px] sm:text-[10px] h-3.5 sm:h-4 font-normal py-0">{p.category || 'Général'}</Badge>
+                                            <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{formatCurrency(p.salePrice)}</span>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-end gap-1">
-                                        <span className={`text-xs font-medium ${p.stock <= 5 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                            Stock: {p.stock}
+                                    <div className="flex flex-col items-end gap-0.5 sm:gap-1 pl-2">
+                                        <span className={`text-[10px] sm:text-xs font-bold leading-none ${p.stock <= 5 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                            Stock {p.stock}
                                         </span>
-                                        <ChevronRight className="h-4 w-4 text-slate-300" />
+                                        <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 text-slate-300" />
                                     </div>
                                 </button>
                             ))
