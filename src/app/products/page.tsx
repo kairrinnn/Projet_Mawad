@@ -419,7 +419,7 @@ export default function ProductsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Aucun fournisseur (Interne)</SelectItem>
-                        {suppliers.map(sup => (
+                        {suppliers.length > 0 && suppliers.map(sup => (
                            <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -604,15 +604,22 @@ export default function ProductsPage() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="bg-white p-6 rounded-xl shadow-sm border mb-6 flex items-center justify-center">
-            {selectedProduct && selectedProduct.id && typeof selectedProduct.id === "string" && (
-              <QRCodeSVG 
-                value={selectedProduct.id as string} 
-                size={200}
-                level="H"
-                includeMargin={false}
-                ref={qrRef}
-              />
+          <div className="bg-white p-8 rounded-xl shadow-md border-2 border-slate-100 mb-6 flex flex-col items-center justify-center">
+            {selectedProduct && selectedProduct.id && (
+              <>
+                <div className="mb-4">
+                  <QRCodeSVG 
+                    value={selectedProduct.id} 
+                    size={220}
+                    level="H"
+                    includeMargin={true}
+                    ref={qrRef}
+                  />
+                </div>
+                <div className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded">
+                  ID: {selectedProduct.id}
+                </div>
+              </>
             )}
           </div>
           
@@ -757,7 +764,7 @@ export default function ProductsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Aucun fournisseur (Interne)</SelectItem>
-                      {suppliers.map(sup => (
+                      {suppliers.length > 0 && suppliers.map(sup => (
                          <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
                       ))}
                     </SelectContent>
