@@ -1,0 +1,628 @@
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableBody
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { QRCodeSVG } from "qrcode.react";
+
+export default function ProductsPage() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [openAdd, setOpenAdd] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [openDelete, setOpenDelete] = useState(false);
+  const [openQR, setOpenQR] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  
+  const [searchTerm, setSearchTerm] = useState("");
+  const qrRef = useRef<SVGSVGElement>(null);
+
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    salePrice: "", 
+    costPrice: "", 
+    stock: "", 
+    category: "", 
+    description: "", 
+    supplierId: "none" 
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      const [prodRes, suppRes] = await Promise.all([
+        fetch("/api/products"),
+        fetch("/api/suppliers")
+      ]);
+      const [prodData, suppData] = await Promise.all([
+        prodRes.json(),
+        suppRes.json()
+      ]);
+      
+      if (Array.isArray(prodData)) {
+        setProducts(prodData);
+      } else if (prodData.error) {
+        console.error("Products error:", prodData.error);
+        setProducts([]);
+      }
+
+      if (Array.isArray(suppData)) {
+        setSuppliers(suppData);
+      } else if (suppData.error) {
+        console.error("Suppliers error:", suppData.error);
+        setSuppliers([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    
+    const payload = {
+        ...formData,
+        supplierId: formData.supplierId === "none" ? null : formData.supplierId
+    }
+
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setFormData({ name: "", salePrice: "", costPrice: "", stock: "", category: "", description: "", supplierId: "none" });
+        setOpenAdd(false);
+        toast.success("Produit ajouté !");
+        fetchData();
+      } else {
+        const errorData = await res.json();
+        toast.error(errorData.error || "Erreur lors de l'ajout.");
+      }
+    } catch (error) {
+      console.error("Error creating product", error);
+      toast.error("Erreur lors de l'ajout.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProduct) return;
+    setSubmitting(true);
+
+    const payload = {
+        ...formData,
+        supplierId: formData.supplierId === "none" ? null : formData.supplierId
+    };
+
+    try {
+      const res = await fetch(`/api/products/${selectedProduct.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setOpenEdit(false);
+        toast.success("Produit mis à jour !");
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Error updating product", error);
+      toast.error("Erreur lors de la mise à jour.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedProduct) return;
+    setSubmitting(true);
+
+    try {
+      const res = await fetch(`/api/products/${selectedProduct.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setOpenDelete(false);
+        toast.success("Produit supprimé !");
+        fetchData();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Erreur lors de la suppression.");
+      }
+    } catch (error) {
+      console.error("Error deleting product", error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openEditModal = (product: any) => {
+    setSelectedProduct(product);
+    setFormData({
+      name: product.name,
+      salePrice: product.salePrice.toString(),
+      costPrice: product.costPrice.toString(),
+      stock: product.stock.toString(),
+      category: product.category || "",
+      description: product.description || "",
+      supplierId: product.supplierId || "none"
+    });
+    setOpenEdit(true);
+  };
+
+  const handlePrintQR = () => {
+    if (!qrRef.current || !selectedProduct) return;
+    
+    // Convertir le SVG en URL de données (Data URI)
+    const svgData = new XMLSerializer().serializeToString(qrRef.current);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      if (ctx) {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        
+        // Créer l'URL du PNG et déclencher le téléchargement
+        const pngFile = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `QR_${selectedProduct.name.replace(/\s+/g, "_")}.png`;
+        downloadLink.href = pngFile;
+        downloadLink.click();
+      }
+    };
+    
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
+  const filteredProducts = (Array.isArray(products) ? products : []).filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('fr-FR', { 
+      style: 'currency', 
+      currency: 'MAD' 
+    }).format(val);
+  };
+
+  return (
+    <div className="flex-1 space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Produits & Stock</h2>
+          <p className="text-slate-500">Gérez votre inventaire et générez vos QR codes.</p>
+        </div>
+        
+        <Dialog open={openAdd} onOpenChange={setOpenAdd}>
+          <DialogTrigger render={(props) => (
+            <Button className="bg-indigo-600 hover:bg-indigo-700" {...props}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouveau Produit
+            </Button>
+          )} />
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Ajouter un produit</DialogTitle>
+              <DialogDescription>
+                Remplissez les informations essentielles du produit. Le QR code sera généré automatiquement.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="name" className="text-right text-slate-600">Nom *</Label>
+                  <Input 
+                    id="name" 
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="col-span-3 border-slate-200" 
+                    required 
+                  />
+                </div>
+                
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="category" className="text-right text-slate-600">Catégorie</Label>
+                  <Input 
+                    id="category" 
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    className="col-span-3 border-slate-200" 
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="stock" className="text-right text-slate-600">Stock initial</Label>
+                  <Input 
+                    id="stock" 
+                    type="number"
+                    value={formData.stock}
+                    onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                    className="col-span-3 border-slate-200" 
+                    min="0"
+                  />
+                </div>
+                
+                <div className="grid gap-4 grid-cols-2 mt-2 border-t border-slate-100 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="costPrice" className="text-slate-600">Prix d'Achat (DH) *</Label>
+                      <Input 
+                        id="costPrice" 
+                        type="number" 
+                        step="0.01"
+                        value={formData.costPrice}
+                        onChange={(e) => setFormData({...formData, costPrice: e.target.value})}
+                        className="border-slate-200"
+                        required 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                       <Label htmlFor="salePrice" className="text-slate-600">Prix de Vente (DH) *</Label>
+                      <Input 
+                        id="salePrice" 
+                        type="number" 
+                        step="0.01"
+                        value={formData.salePrice}
+                        onChange={(e) => setFormData({...formData, salePrice: e.target.value})}
+                        className="border-slate-200"
+                        required 
+                      />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4 mt-2">
+                  <Label htmlFor="supplier" className="text-right text-slate-600">Fournisseur</Label>
+                  <div className="col-span-3">
+                    <Select 
+                      value={formData.supplierId} 
+                      onValueChange={(val: string | null) => setFormData({...formData, supplierId: val || "none"})}
+                    >
+                      <SelectTrigger className="border-slate-200">
+                        <SelectValue placeholder="Sélectionner un fournisseur" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucun fournisseur (Interne)</SelectItem>
+                        {suppliers.map(sup => (
+                           <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={submitting} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                  {submitting ? "Création en cours..." : "Créer le produit"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+          <Input 
+            className="pl-9 bg-white" 
+            placeholder="Rechercher un produit..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+        <Table>
+          <TableHeader className="bg-slate-50/50">
+            <TableRow>
+              <TableHead>Produit</TableHead>
+              <TableHead>Catégorie</TableHead>
+              <TableHead className="text-right">Prix Achat</TableHead>
+              <TableHead className="text-right">Prix Vente</TableHead>
+              <TableHead className="text-center">Stock</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                  Chargement de l'inventaire...
+                </TableCell>
+              </TableRow>
+            ) : filteredProducts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12">
+                   <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
+                      <PackageSearch className="h-10 w-10 text-slate-300" />
+                      <p>Aucun produit trouvé.</p>
+                   </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredProducts.map((product) => (
+                <TableRow key={product.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex flex-col">
+                      <span className="text-slate-900">{product.name}</span>
+                      {product.supplier && (
+                        <span className="text-xs text-slate-500 line-clamp-1">{product.supplier.name}</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {product.category ? (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 font-normal">
+                         {product.category}
+                      </Badge>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right text-slate-500">
+                     {formatCurrency(product.costPrice)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium text-slate-900">
+                     {formatCurrency(product.salePrice)}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge 
+                      variant="outline" 
+                      className={product.stock <= 5 
+                        ? "border-red-200 bg-red-50 text-red-700" 
+                        : "border-emerald-200 bg-emerald-50 text-emerald-700"}
+                    >
+                      {product.stock}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => {
+                          setSelectedProduct(product);
+                          setOpenQR(true);
+                        }}
+                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-8 w-8 p-0"
+                        title="Voir QR Code"
+                      >
+                        <QrCode className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => openEditModal(product)}
+                        className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 h-8 w-8 p-0"
+                        title="Modifier"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => {
+                          setSelectedProduct(product);
+                          setOpenDelete(true);
+                        }}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Modal QR Code */}
+      <Dialog open={openQR} onOpenChange={setOpenQR}>
+        <DialogContent className="sm:max-w-md flex flex-col items-center justify-center py-10">
+          <DialogHeader className="text-center mb-6">
+            <DialogTitle className="text-2xl text-center">QR Code Produit</DialogTitle>
+            <DialogDescription className="text-center">
+              {selectedProduct?.name} ({formatCurrency(selectedProduct?.salePrice || 0)})
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="bg-white p-6 rounded-xl shadow-sm border mb-6 flex items-center justify-center">
+            {selectedProduct && selectedProduct.id && typeof selectedProduct.id === "string" && (
+              <QRCodeSVG 
+                value={selectedProduct.id as string} 
+                size={200}
+                level="H"
+                includeMargin={false}
+                ref={qrRef}
+              />
+            )}
+          </div>
+          
+          <DialogFooter className="w-full gap-2 sm:flex-row !flex-col !items-stretch">
+            <Button onClick={handlePrintQR} className="bg-indigo-600 hover:bg-indigo-700">
+              Télécharger l'étiquette
+            </Button>
+            <Button variant="outline" onClick={() => setOpenQR(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Édition */}
+      <Dialog open={openEdit} onOpenChange={setOpenEdit}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Modifier le produit</DialogTitle>
+            <DialogDescription>
+              Mettez à jour les informations du produit. Les changements seront instantanés.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEdit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-name" className="text-right text-slate-600">Nom *</Label>
+                <Input 
+                  id="edit-name" 
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="col-span-3 border-slate-200" 
+                  required 
+                />
+              </div>
+              
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-category" className="text-right text-slate-600">Catégorie</Label>
+                <Input 
+                  id="edit-category" 
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  className="col-span-3 border-slate-200" 
+                />
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-stock" className="text-right text-slate-600">Stock</Label>
+                <Input 
+                  id="edit-stock" 
+                  type="number"
+                  value={formData.stock}
+                  onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                  className="col-span-3 border-slate-200" 
+                  min="0"
+                />
+              </div>
+              
+              <div className="grid gap-4 grid-cols-2 mt-2 border-t border-slate-100 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-costPrice" className="text-slate-600">Prix d'Achat (DH) *</Label>
+                    <Input 
+                      id="edit-costPrice" 
+                      type="number" 
+                      step="0.01"
+                      value={formData.costPrice}
+                      onChange={(e) => setFormData({...formData, costPrice: e.target.value})}
+                      className="border-slate-200"
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                     <Label htmlFor="edit-salePrice" className="text-slate-600">Prix de Vente (DH) *</Label>
+                    <Input 
+                      id="edit-salePrice" 
+                      type="number" 
+                      step="0.01"
+                      value={formData.salePrice}
+                      onChange={(e) => setFormData({...formData, salePrice: e.target.value})}
+                      className="border-slate-200"
+                      required 
+                    />
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-4 items-center gap-4 mt-2">
+                <Label htmlFor="edit-supplier" className="text-right text-slate-600">Fournisseur</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={formData.supplierId} 
+                    onValueChange={(val: string | null) => setFormData({...formData, supplierId: val || "none"})}
+                  >
+                    <SelectTrigger className="border-slate-200">
+                      <SelectValue placeholder="Sélectionner un fournisseur" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucun fournisseur (Interne)</SelectItem>
+                      {suppliers.map(sup => (
+                         <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={submitting} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                {submitting ? "Mise à jour..." : "Enregistrer les modifications"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Suppression */}
+      <Dialog open={openDelete} onOpenChange={setOpenDelete}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="rounded-full bg-red-100 p-3">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+            </div>
+            <DialogTitle className="text-center">Confirmer la suppression</DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              Êtes-vous sûr de vouloir supprimer le produit **{selectedProduct?.name}** ? <br/>
+              Cette action est irréversible et pourrait affecter vos historiques.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-center mt-4">
+            <Button variant="outline" onClick={() => setOpenDelete(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
+              {submitting ? "Suppression..." : "Supprimer définitivement"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
