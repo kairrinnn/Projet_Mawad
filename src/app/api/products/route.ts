@@ -55,6 +55,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Vérifier si le code-barres existe déjà
+    if (barcode && barcode.trim() !== "") {
+      const existingProduct = await prisma.product.findUnique({
+        where: { barcode: barcode.trim() }
+      });
+
+      if (existingProduct) {
+        return NextResponse.json({ error: "Ce code-barres est déjà utilisé par un autre produit." }, { status: 400 });
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         name,

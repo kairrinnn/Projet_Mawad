@@ -101,6 +101,21 @@ export async function PATCH(
     // S'assurer que supplierId est null si "none"
     if (json.supplierId === "none") json.supplierId = null;
 
+    // Vérifier si le nouveau code-barres existe déjà pour un AUTRE produit
+    if (json.barcode && json.barcode.trim() !== "") {
+      const barcodeClean = json.barcode.trim();
+      const duplicate = await prisma.product.findFirst({
+        where: { 
+          barcode: barcodeClean,
+          NOT: { id: p.id }
+        }
+      });
+
+      if (duplicate) {
+        return NextResponse.json({ error: "Ce code-barres est déjà utilisé par un autre produit." }, { status: 400 });
+      }
+    }
+
     const updateData: any = {
       name: json.name,
       barcode: json.barcode && json.barcode.trim() !== "" ? json.barcode : null,
