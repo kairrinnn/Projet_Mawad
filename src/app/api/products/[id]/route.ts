@@ -21,7 +21,8 @@ export async function GET(
           { id: p.id },
           { barcode: p.id }
         ],
-        userId: session.user.id
+        userId: session.user.id,
+        isArchived: false
       },
       include: {
         supplier: true,
@@ -61,7 +62,10 @@ export async function DELETE(
 
     await prisma.product.update({
       where: { id: p.id },
-      data: { isArchived: true }
+      data: {
+        isArchived: true,
+        barcode: null // On libère le code-barres pour réutilisation
+      }
     });
     return NextResponse.json({ message: "Product archived" });
   } catch (error) {

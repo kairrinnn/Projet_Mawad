@@ -5,8 +5,18 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Fermage automatique du menu mobile lors du changement de page
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Desktop sidebar */}
@@ -17,8 +27,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile topbar */}
-        <header className="flex h-16 flex-shrink-0 items-center border-b bg-white px-4 md:hidden shadow-sm">
-          <Sheet>
+        <header className="flex h-16 flex-shrink-0 items-center border-b bg-white px-4 md:hidden shadow-sm z-50">
+          <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger render={(props) => (
               <Button variant="ghost" size="icon" className="-ml-2 text-slate-600" {...props}>
                 <span className="sr-only">Ouvrir le menu</span>
