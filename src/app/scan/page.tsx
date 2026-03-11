@@ -3,39 +3,34 @@
 import { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Html5Qrcode } from "html5-qrcode";
-import { ShoppingCart, CheckCircle2, ScanLine, Tag, Search, Box, RefreshCw, Upload, PackageSearch, ChevronRight, TrendingUp, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, CheckCircle2, ScanLine, Tag, Search, Box, RefreshCw, Upload, PackageSearch, ChevronRight, TrendingUp, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter
-} from "@/components/ui/dialog";
 import { useMobile } from "@/lib/hooks/use-mobile";
 
+interface CartItem {
+  product: any;
+  quantity: number;
+  discount: number;
+}
+
 export default function ScanPage() {
-  const [scannedId, setScannedId] = useState<string | null>(null);
-  const [product, setProduct] = useState<any>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
-  const [openSale, setOpenSale] = useState(false);
   const isMobile = useMobile();
   
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Sale details
-  const [quantity, setQuantity] = useState(1);
-  const [discount, setDiscount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [cashReceived, setCashReceived] = useState<number>(0);
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const isInitializingRef = useRef(false);
@@ -46,19 +41,15 @@ export default function ScanPage() {
     isInitializingRef.current = true;
 
     try {
-      // Nettoyage de l'instance existante
       if (html5QrCodeRef.current) {
         try {
           if (html5QrCodeRef.current.isScanning) {
             await html5QrCodeRef.current.stop();
           }
           html5QrCodeRef.current.clear();
-        } catch (e) {
-          console.warn("Erreur lors du nettoyage préliminaire:", e);
-        }
+        } catch (e) { console.warn(e); }
       }
 
-      // Nettoyage forcé du DOM
       const container = document.getElementById("qr-reader");
       if (container) container.innerHTML = "";
 
@@ -67,17 +58,14 @@ export default function ScanPage() {
 
       const config = { 
         fps: 20, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
+        qrbox: { width: 260, height: 180 }
       };
 
       await html5QrCode.start(
         { facingMode: "environment" }, 
         config, 
         (decodedText: string) => {
-          setScannedId(decodedText);
-          fetchProductDetails(decodedText);
-          html5QrCode.stop().catch(() => {});
+          handleScanSuccess(decodedText);
         },
         () => {}
       );
@@ -91,6 +79,21 @@ export default function ScanPage() {
     }
   };
 
+  const lastScannedRef = useRef<string | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
+
+  const handleScanSuccess = (decodedText: string) => {
+    const now = Date.now();
+    // Throttle scan de 2 secondes pour le même produit pour éviter les ajouts accidentels multiples
+    if (decodedText === lastScannedRef.current && now - lastScanTimeRef.current < 2000) {
+      return;
+    }
+    
+    lastScannedRef.current = decodedText;
+    lastScanTimeRef.current = now;
+    fetchProductDetails(decodedText);
+  };
+
   const fetchAllProducts = async () => {
     try {
       const res = await fetch("/api/products");
@@ -98,11 +101,7 @@ export default function ScanPage() {
         const data = await res.json();
         setAllProducts(data);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingProducts(false);
-    }
+    } catch (err) { console.error(err); } finally { setLoadingProducts(false); }
   };
 
   const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,33 +111,26 @@ export default function ScanPage() {
     try {
       const html5QrCode = new Html5Qrcode("qr-reader");
       const decodedText = await html5QrCode.scanFile(file, true);
-      setScannedId(decodedText);
-      fetchProductDetails(decodedText);
+      handleScanSuccess(decodedText);
     } catch (err) {
-      toast.error("Aucun code QR détecté sur l'image.");
+      toast.error("Aucun code QR détecté.");
     }
   };
 
   useEffect(() => {
     let currentScanner: Html5Qrcode | null = null;
-
     const init = async () => {
       await startScanner();
       currentScanner = html5QrCodeRef.current;
     };
-
     init();
     fetchAllProducts();
 
     return () => {
       if (currentScanner) {
         if (currentScanner.isScanning) {
-          currentScanner.stop().then(() => {
-            currentScanner?.clear();
-          }).catch(err => console.error("Error stopping scanner on unmount", err));
-        } else {
-          currentScanner.clear();
-        }
+          currentScanner.stop().then(() => currentScanner?.clear()).catch(e => console.error(e));
+        } else { currentScanner.clear(); }
       }
     };
   }, []);
@@ -148,67 +140,83 @@ export default function ScanPage() {
     try {
       const res = await fetch(`/api/products/${id}`);
       if (!res.ok) {
-        toast.error("Produit introuvable.");
-        resumeScanner();
         return;
       }
       const data = await res.json();
-      setProduct(data);
-      setQuantity(1);
-      setDiscount(0);
-      setOpenSale(true);
-      toast.success("Produit détecté !");
+      addToCart(data, true);
     } catch (error) {
       console.error(error);
       toast.error("Erreur de connexion.");
-      resumeScanner();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectProduct = (prod: any) => {
-      setProduct(prod);
-      setQuantity(1);
-      setDiscount(0);
-      setOpenSale(true);
-      // Optionnel: arrêter le scanner si actif
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-          html5QrCodeRef.current.stop().catch(() => {});
+  const addToCart = (product: any, isScan: boolean = false) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) {
+        // Si c'est un scan et que le produit est déjà là, on ignore pour éviter les doubles scans accidentels
+        if (isScan) return prev;
+        
+        return prev.map(item => 
+          item.product.id === product.id 
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
       }
+      return [...prev, { product, quantity: 1, discount: 0 }];
+    });
   };
 
-  const resumeScanner = async () => {
-      setProduct(null);
-      setScannedId(null);
-      if (html5QrCodeRef.current && !html5QrCodeRef.current.isScanning) {
-          startScanner();
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.product.id === productId) {
+        const newQty = Math.max(1, item.quantity + delta);
+        if (newQty > item.product.stock) {
+          toast.warning(`Stock insuffisant (${item.product.stock})`);
+          return item;
+        }
+        return { ...item, quantity: newQty };
       }
+      return item;
+    }));
   };
 
-  const handleConfirmSale = async () => {
-    if (!product) return;
+  const updateDiscount = (productId: string, discount: number) => {
+    setCart(prev => prev.map(item => 
+      item.product.id === productId ? { ...item, discount } : item
+    ));
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const finalizeOrder = async () => {
+    if (cart.length === 0) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/sales", {
+      const res = await fetch("/api/sales/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: product.id,
-          quantity: Number(quantity),
-          discount: Number(discount)
+          items: cart.map(item => ({
+            productId: item.product.id,
+            quantity: item.quantity,
+            discount: item.discount
+          }))
         }),
       });
 
       if (res.ok) {
-        toast.success(`Vente enregistrée !`);
-        setOpenSale(false);
-        resumeScanner();
-        // Rafraîchir les produits pour le stock
+        toast.success("Commande validée avec succès !");
+        setCart([]);
+        setCashReceived(0);
         fetchAllProducts();
       } else {
         const errorData = await res.json();
-        toast.error(errorData.error || "Erreur lors de la vente.");
+        toast.error(errorData.error || "Erreur lors de la validation.");
       }
     } catch (error) {
       toast.error("Erreur système.");
@@ -217,6 +225,15 @@ export default function ScanPage() {
     }
   };
 
+  const calculateTotal = () => {
+    return cart.reduce((sum, item) => sum + (item.product.salePrice * item.quantity) - item.discount, 0);
+  };
+
+  const filteredProducts = allProducts.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.category && p.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  ).slice(0, 10);
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('fr-FR', { 
       style: 'currency', 
@@ -224,254 +241,259 @@ export default function ScanPage() {
     }).format(val);
   };
 
-  const filteredProducts = allProducts.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.category && p.category.toLowerCase().includes(searchQuery.toLowerCase()))
-  ).slice(0, 10); // Limiter pour l'UX mobile
-
-  const topProducts = allProducts
-    .sort((a, b) => (b.sales?.length || 0) - (a.sales?.length || 0))
-    .slice(0, 5);
-
-  const total = product ? (product.salePrice * quantity) - discount : 0;
-
   return (
-    <div className="flex-1 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="flex-1 space-y-4 sm:space-y-6 flex flex-col h-full">
+      <div className="flex justify-between items-center px-1">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Scanner & Vente</h2>
-          <p className="text-slate-500">Scannez ou recherchez un produit pour vendre.</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Scanner & POS</h2>
+          <p className="hidden sm:block text-slate-500 text-sm">Vente rapide en session.</p>
         </div>
+        {cart.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setCart([])} className="text-red-500 border-red-100 hover:bg-red-50">
+                Vider le panier ({cart.length})
+            </Button>
+        )}
       </div>
 
       {permissionDenied && (
-        <Card className="bg-amber-50 border-amber-200 shadow-none mb-6">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-amber-800 text-lg flex items-center">
-              <AlertTriangle className="mr-2 h-5 w-5" />
-              Caméra bloquée
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-amber-700">
-            <p>L'accès à la caméra est refusé. Pour scanner :</p>
-            <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>Assurez-vous d'utiliser une connexion sécurisée (HTTPS).</li>
-              <li>Autorisez la caméra dans les paramètres de votre navigateur.</li>
-              <li>Ou utilisez l'option <strong>Scanner photo</strong> ci-dessous.</li>
-            </ul>
+        <Card className="bg-amber-50 border-amber-200 shadow-none">
+          <CardContent className="p-4 text-sm text-amber-700 flex items-center justify-between">
+            <div className="flex items-center">
+                <AlertTriangle className="mr-2 h-4 w-4 shrink-0" />
+                <span>Caméra bloquée. Utilisez le scanner photo ou HTTPS.</span>
+            </div>
+            <Button variant="ghost" size="sm" className="text-amber-800 p-0 h-auto underline" onClick={() => {setPermissionDenied(false); startScanner();}}>Réessayer</Button>
           </CardContent>
-          <CardFooter>
-            <Button 
-                variant="outline" 
-                className="bg-white border-amber-200 text-amber-800 hover:bg-amber-100"
-                onClick={() => {
-                    setPermissionDenied(false);
-                    startScanner();
-                }}
-            >
-                Réessayer
-            </Button>
-          </CardFooter>
         </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Colonne Scanner */}
-        <Card className="shadow-sm border-slate-200 overflow-hidden lg:col-span-5 self-start">
-          <CardHeader className="bg-slate-50 border-b border-slate-100 p-4">
-             <div className="flex items-center text-indigo-900 font-semibold">
-                <ScanLine className="mr-2 h-5 w-5" />
-                Scanner de produits
-             </div>
-          </CardHeader>
-          <CardContent className="p-0 flex flex-col items-center">
-            <div className="w-full bg-black relative flex items-center justify-center min-h-[250px] sm:min-h-[300px]">
-                {permissionDenied ? (
-                    <div className="flex flex-col items-center justify-center p-8 text-white/60 text-center space-y-4">
-                        <ScanLine className="h-12 w-12 opacity-20" />
-                        <p className="text-xs uppercase tracking-widest font-bold">Caméra indisponible</p>
-                    </div>
-                ) : (
-                    <>
-                        <div id="qr-reader" className="w-full max-w-sm aspect-square" />
-                        <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none flex items-center justify-center">
-                            <div className="w-[180px] h-[180px] border-2 border-dashed border-white/50 rounded-lg relative">
-                                <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-indigo-400" />
-                                <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-indigo-400" />
-                                <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-indigo-400" />
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-indigo-400" />
-                            </div>
+      <div className="grid gap-4 lg:grid-cols-12 flex-1 min-h-0">
+        {/* Colonne Gauche: Scanner et Recherche */}
+        <div className="lg:col-span-4 space-y-4 flex flex-col">
+            <Card className="shadow-sm border-slate-200 overflow-hidden shrink-0">
+                <div className="bg-black relative flex items-center justify-center aspect-video sm:aspect-square overflow-hidden">
+                    {permissionDenied ? (
+                        <div className="flex flex-col items-center justify-center p-8 text-white/40 text-center">
+                            <ScanLine className="h-10 w-10 opacity-20 mb-2" />
+                            <p className="text-[10px] uppercase tracking-widest">Scanner Inactif</p>
                         </div>
-                    </>
-                )}
-            </div>
+                    ) : (
+                        <>
+                            <div id="qr-reader" className="w-full h-full [&_video]:object-cover [&_#qr-shaded-region]:!border-none [&_#qr-shaded-region_div]:!border-none flex items-center justify-center overflow-hidden" />
+                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                                <div className="relative w-[260px] h-[180px]">
+                                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500" />
+                                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-500" />
+                                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500" />
+                                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500" />
+                                    
+                                    {/* Ligne de scan fine */}
+                                    <div className="absolute top-1/2 left-2 right-2 h-[1px] bg-indigo-500/30 animate-pulse" />
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    {loading && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
+                        </div>
+                    )}
+                </div>
+                <div className="flex border-t border-slate-100">
+                    <Button variant="ghost" className="flex-1 rounded-none h-10 text-[10px] sm:text-xs text-slate-500" onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="h-3 w-3 mr-1.5" /> Photo
+                    </Button>
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileScan} />
+                    <Button variant="ghost" className="flex-1 rounded-none h-10 text-[10px] sm:text-xs text-slate-500" onClick={() => startScanner()}>
+                        <RefreshCw className="h-3 w-3 mr-1.5" /> Relancer
+                    </Button>
+                </div>
+            </Card>
 
-            <div className="flex w-full border-t border-slate-100">
-                <Button 
-                    variant="ghost" 
-                    className="flex-1 rounded-none h-12 text-slate-600 hover:text-indigo-600 border-r border-slate-100 text-xs"
-                    onClick={() => fileInputRef.current?.click()}
-                >
-                    <Upload className="h-4 w-4 mr-2" /> Scanner photo
-                </Button>
-                <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/*" 
-                    onChange={handleFileScan}
-                />
-                <Button 
-                    variant="ghost" 
-                    className="flex-1 rounded-none h-12 text-slate-600 hover:text-indigo-600 text-xs"
-                    onClick={() => startScanner()}
-                >
-                    <RefreshCw className="h-4 w-4 mr-2" /> Redémarrer
-                </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Colonne Recherche Directe */}
-        <div className="lg:col-span-7 space-y-6">
-            <Card className="shadow-sm border-slate-200">
-                <CardHeader className="p-4 border-b border-slate-100">
+            <Card className="shadow-sm border-slate-200 flex-1 flex flex-col min-h-[250px] overflow-hidden">
+                <div className="p-3 border-b border-slate-100 bg-slate-50/50">
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                         <Input 
-                            placeholder="Chercher par nom de produit ou catégorie..." 
-                            className="pl-10 h-11 bg-slate-50 border-slate-200 focus:bg-white transition-colors"
+                            placeholder="Chercher un produit..." 
+                            className="pl-8 h-9 text-xs bg-white"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className={cn(
-                        "overflow-y-auto divide-y divide-slate-100",
-                        isMobile ? "max-h-[300px]" : "max-h-[450px]"
-                    )}>
-                        {loadingProducts ? (
-                            <div className="p-8 text-center text-slate-400">Chargement des produits...</div>
-                        ) : filteredProducts.length > 0 ? (
-                            filteredProducts.map((p) => (
-                                <button 
-                                    key={p.id}
-                                    onClick={() => handleSelectProduct(p)}
-                                    className="w-full p-3 sm:p-4 flex items-center gap-2 sm:gap-4 hover:bg-slate-50 transition-colors text-left"
-                                >
-                                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded bg-slate-100 border flex-shrink-0 overflow-hidden">
-                                        {p.image ? (
-                                            <img src={p.image} className="h-full w-full object-cover" />
-                                        ) : (
-                                            <div className="h-full w-full flex items-center justify-center">
-                                                <PackageSearch className="h-5 w-5 text-slate-300" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-semibold text-slate-900 truncate text-sm sm:text-base">{p.name}</h4>
-                                        <div className="flex flex-wrap items-center gap-1 sm:gap-2 mt-0.5">
-                                            <Badge variant="outline" className="text-[9px] sm:text-[10px] h-3.5 sm:h-4 font-normal py-0">{p.category || 'Général'}</Badge>
-                                            <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{formatCurrency(p.salePrice)}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-0.5 sm:gap-1 pl-2">
-                                        <span className={`text-[10px] sm:text-xs font-bold leading-none ${p.stock <= 5 ? 'text-red-500' : 'text-emerald-600'}`}>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {loadingProducts ? (
+                        <div className="p-4 text-center text-slate-400 text-xs">Chargement...</div>
+                    ) : filteredProducts.length > 0 ? (
+                        filteredProducts.map((p) => (
+                            <button 
+                                key={p.id}
+                                onClick={() => addToCart(p)}
+                                className="w-full p-2.5 flex items-center gap-3 hover:bg-slate-50 border-b border-slate-50 text-left transition-colors"
+                            >
+                                <div className="h-8 w-8 rounded bg-slate-100 flex-shrink-0 overflow-hidden border border-slate-200">
+                                    {p.image ? <img src={p.image} className="h-full w-full object-cover" /> : <PackageSearch className="h-full w-full p-1.5 text-slate-300" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-xs font-semibold text-slate-900 truncate">{p.name}</h4>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-slate-500 font-medium">{formatCurrency(p.salePrice)}</span>
+                                        <Badge variant="outline" className={`text-[8px] h-3 px-1 font-normal ${p.stock <= 5 ? 'text-red-500 bg-red-50' : 'text-emerald-600 bg-emerald-50'}`}>
                                             Stock {p.stock}
-                                        </span>
-                                        <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 text-slate-300" />
+                                        </Badge>
                                     </div>
-                                </button>
-                            ))
-                        ) : (
-                            <div className="p-8 text-center text-slate-400">
-                                <PackageSearch className="h-10 w-10 mx-auto mb-2 opacity-20" />
-                                Aucun produit trouvé pour "{searchQuery}"
-                            </div>
-                        )}
-                    </div>
-                </CardContent>
-                {searchQuery === "" && allProducts.length > 0 && (
-                    <CardFooter className="bg-slate-50/50 p-4 border-t border-slate-100 flex flex-col items-start gap-3">
-                        <div className="flex items-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            <TrendingUp className="h-3 w-3 mr-1" /> Top Ventes
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {topProducts.map(p => (
-                                <Badge 
-                                    key={p.id} 
-                                    variant="secondary" 
-                                    className="cursor-pointer hover:bg-indigo-100 transition-colors py-1 px-3"
-                                    onClick={() => handleSelectProduct(p)}
-                                >
-                                    {p.name}
-                                </Badge>
-                            ))}
-                        </div>
-                    </CardFooter>
-                )}
+                                </div>
+                                <Plus className="h-3 w-3 text-indigo-400" />
+                            </button>
+                        ))
+                    ) : (
+                        <div className="p-8 text-center text-slate-400 text-xs">Aucun résultat.</div>
+                    )}
+                </div>
             </Card>
         </div>
-      </div>
-      <div className="h-10 md:hidden" /> {/* Extra space for mobile */}
 
-      <Dialog open={openSale} onOpenChange={setOpenSale}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center text-2xl font-bold">
-                <ShoppingCart className="mr-2 h-6 w-6 text-indigo-600" />
-                Vendre ce produit
-            </DialogTitle>
-          </DialogHeader>
-          
-          {product && (
-            <div className="space-y-6 pt-4">
-                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 text-center sm:text-left flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-lg overflow-hidden border bg-white flex-shrink-0">
-                        {product.image ? (
-                            <img src={product.image} className="h-full w-full object-cover" />
-                        ) : (
-                            <div className="h-full w-full flex items-center justify-center">
-                                <PackageSearch className="h-6 w-6 text-slate-200" />
-                            </div>
-                        )}
+        {/* Colonne Droite: Panier (POS) */}
+        <Card className="lg:col-span-8 flex flex-col shadow-md border-slate-200 overflow-hidden min-h-[400px]">
+            <CardHeader className="p-4 bg-indigo-900 text-white shrink-0">
+                <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <ShoppingCart className="h-5 w-5" />
+                        <CardTitle className="text-lg">Panier Client</CardTitle>
                     </div>
-                    <div>
-                        <h4 className="font-bold text-xl text-indigo-900">{product.name}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary" className="bg-white border-indigo-100">Stock: {product.stock}</Badge>
-                            <span className="text-sm font-bold text-indigo-600">{formatCurrency(product.salePrice)}</span>
+                    <Badge variant="secondary" className="bg-indigo-800 text-indigo-100 border-none px-3">
+                        {cart.length} article{cart.length > 1 ? 's' : ''}
+                    </Badge>
+                </div>
+            </CardHeader>
+            <CardContent className="flex-1 p-0 overflow-hidden flex flex-col bg-slate-50/30">
+                {cart.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center space-y-3">
+                        <div className="h-16 w-16 rounded-full bg-slate-50 flex items-center justify-center">
+                            <ShoppingCart className="h-8 w-8 opacity-20" />
+                        </div>
+                        <p className="text-sm">Le panier est vide.<br/>Scannez un produit pour commencer.</p>
+                    </div>
+                ) : (
+                    <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                        {cart.map((item) => (
+                            <div key={item.product.id} className="p-3 sm:p-4 bg-white border-b border-slate-50 last:border-0 grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-3 sm:flex sm:items-center sm:gap-6">
+                                {/* Image */}
+                                <div className="h-10 w-10 sm:h-12 sm:w-12 rounded border bg-slate-50 flex-shrink-0 overflow-hidden self-start sm:self-center">
+                                    {item.product.image ? <img src={item.product.image} className="h-full w-full object-cover" /> : <PackageSearch className="h-full w-full p-2 text-slate-200" />}
+                                </div>
+
+                                {/* Infos */}
+                                <div className="min-w-0 pr-2 self-start sm:self-center">
+                                    <h4 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">{item.product.name}</h4>
+                                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium">{formatCurrency(item.product.salePrice)} / u</p>
+                                </div>
+
+                                {/* Delete button (mobile only position) */}
+                                <div className="sm:hidden self-start pt-0.5">
+                                    <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.product.id)} className="h-8 w-8 text-slate-300 hover:text-red-500">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                
+                                {/* Controls Row */}
+                                <div className="col-span-2 sm:flex-1 flex items-center justify-between sm:justify-end gap-3 sm:gap-8 mt-1 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-50">
+                                    {/* Quantité */}
+                                    <div className="flex flex-col gap-1">
+                                        <Label className="text-[9px] text-slate-400 uppercase font-bold sm:hidden">Qté</Label>
+                                        <div className="flex items-center border rounded-lg overflow-hidden bg-slate-50 h-9 sm:h-10">
+                                            <button onClick={() => updateQuantity(item.product.id, -1)} className="h-full px-3 hover:bg-slate-100 transition-colors text-slate-600 border-r border-slate-200">
+                                                <Minus className="h-3.5 w-3.5" />
+                                            </button>
+                                            <div className="w-12 h-full flex items-center justify-center font-black text-sm text-slate-900 bg-white">
+                                                {item.quantity}
+                                            </div>
+                                            <button onClick={() => updateQuantity(item.product.id, 1)} className="h-full px-3 hover:bg-slate-100 transition-colors text-slate-600 border-l border-slate-200">
+                                                <Plus className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Remise */}
+                                    <div className="flex flex-col gap-1 min-w-[70px] sm:min-w-[100px]">
+                                        <Label className="text-[9px] text-slate-400 uppercase font-bold">Remise</Label>
+                                        <Input 
+                                            type="number" 
+                                            value={item.discount} 
+                                            onChange={(e) => updateDiscount(item.product.id, Number(e.target.value))}
+                                            className="h-8 sm:h-9 text-xs font-bold focus-visible:ring-indigo-500 bg-white"
+                                        />
+                                    </div>
+
+                                    {/* Sous-total */}
+                                    <div className="text-right min-w-[70px] sm:min-w-[90px]">
+                                        <p className="text-[9px] text-slate-400 uppercase font-bold">Total</p>
+                                        <p className="font-bold text-indigo-900 text-sm sm:text-base">{formatCurrency((item.product.salePrice * item.quantity) - item.discount)}</p>
+                                    </div>
+
+                                    {/* Delete button (desktop position) */}
+                                    <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.product.id)} className="hidden sm:flex text-slate-300 hover:text-red-500 hover:bg-red-50">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+            <CardFooter className="p-6 bg-white border-t border-slate-100 flex-col gap-4 shrink-0">
+                <div className="w-full space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] text-slate-400 uppercase font-bold">Espèces Reçues (DH)</Label>
+                            <Input 
+                                type="number" 
+                                placeholder="0.00" 
+                                className="h-10 text-lg font-bold"
+                                value={cashReceived || ""}
+                                onChange={(e) => setCashReceived(Number(e.target.value))}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] text-slate-400 uppercase font-bold">Monnaie à rendre</Label>
+                            <div className="h-10 flex items-center px-3 bg-slate-50 rounded-md border border-slate-200 text-lg font-black text-emerald-600">
+                                {formatCurrency(Math.max(0, cashReceived - calculateTotal()))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-50 space-y-2">
+                        <div className="flex justify-between text-slate-500 text-sm">
+                            <span>Nombre d'articles</span>
+                            <span>{cart.reduce((s, i) => s + i.quantity, 0)}</span>
+                        </div>
+                        <div className="flex justify-between items-end">
+                            <span className="text-lg font-bold text-slate-900">Total à payer</span>
+                            <span className="text-3xl font-black text-indigo-600">{formatCurrency(calculateTotal())}</span>
                         </div>
                     </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>Quantité</Label>
-                        <Input type="number" min="1" max={product.stock} value={quantity} onChange={e => setQuantity(Number(e.target.value))} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Réduction (DH)</Label>
-                        <Input type="number" min="0" value={discount} onChange={e => setDiscount(Number(e.target.value))} />
-                    </div>
-                </div>
-
-                <div className="flex justify-between items-center text-xl font-bold border-t pt-4">
-                    <span>Total</span>
-                    <span className="text-indigo-600">{formatCurrency(total)}</span>
-                </div>
-            </div>
-          )}
-          
-          <DialogFooter className="mt-6 flex sm:justify-between items-center gap-2">
-            <Button variant="ghost" onClick={() => setOpenSale(false)}>Annuler</Button>
-            <Button onClick={handleConfirmSale} disabled={submitting} className="bg-indigo-600 hover:bg-indigo-700 font-bold px-8">
-              {submitting ? "Validation..." : "Valider la vente"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                <Button 
+                    className="w-full h-14 text-lg font-bold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-50"
+                    disabled={cart.length === 0 || submitting}
+                    onClick={finalizeOrder}
+                >
+                    {submitting ? (
+                        <div className="flex items-center gap-2">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>Traitement...</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-6 w-6" />
+                            <span>VALIDER LA VENTE</span>
+                        </div>
+                    )}
+                </Button>
+            </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 }
