@@ -126,7 +126,41 @@ export default function ScanPage() {
     init();
     fetchAllProducts();
 
+    // Logic for Hardware Scanner (USB/Bluetooth douchette)
+    let buffer = "";
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignorer si l'utilisateur est en train de taper dans un champ de texte (recherche, quantité, remise, etc.)
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+
+      const currentTime = Date.now();
+      
+      // Si le délai entre deux touches est trop long (>50ms), on reset le buffer (évite les saisies manuelles lentes)
+      // Note: Les douchettes tirent les caractères très rapidement.
+      if (currentTime - lastKeyTime > 50) {
+        buffer = "";
+      }
+
+      lastKeyTime = currentTime;
+
+      if (e.key === "Enter") {
+        if (buffer.length > 2) {
+          handleScanSuccess(buffer);
+          buffer = "";
+        }
+      } else if (e.key.length === 1) { // Caractère imprimable
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
     return () => {
+      window.removeEventListener("keydown", handleKeyDown);
       if (currentScanner) {
         if (currentScanner.isScanning) {
           currentScanner.stop().then(() => currentScanner?.clear()).catch(e => console.error(e));
