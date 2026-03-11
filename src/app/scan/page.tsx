@@ -32,6 +32,7 @@ export default function ScanPage() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [lastSale, setLastSale] = useState<{ items: CartItem[], total: number, cash: number, change: number } | null>(null);
+  const [shopName, setShopName] = useState("Mawad Scan");
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const isInitializingRef = useRef(false);
@@ -125,6 +126,10 @@ export default function ScanPage() {
     };
     init();
     fetchAllProducts();
+
+    // Charger le nom de la boutique
+    const savedName = localStorage.getItem("shop_name");
+    if (savedName) setShopName(savedName);
 
     let buffer = "";
     let lastKeyTime = Date.now();
@@ -318,7 +323,7 @@ export default function ScanPage() {
       {lastSale && (
         <div id="printable-receipt" className="hidden">
             <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                <h2 style={{ fontSize: '14pt', margin: '0' }}>MAWAD SCAN</h2>
+                <h2 style={{ fontSize: '14pt', margin: '0' }}>{shopName.toUpperCase()}</h2>
                 <p style={{ fontSize: '8pt', margin: '2px 0' }}>{new Date().toLocaleString()}</p>
                 <div style={{ borderBottom: '1px dashed black', margin: '5px 0' }} />
             </div>
@@ -497,7 +502,7 @@ export default function ScanPage() {
                                   <p className="text-sm text-slate-500">La commande a été enregistrée avec succès.</p>
                               </div>
                               
-                              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm sm:max-w-md">
                                   <Button onClick={handlePrint} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 h-12">
                                       <Printer className="h-5 w-5" />
                                       Imprimer le ticket
