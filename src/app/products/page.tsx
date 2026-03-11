@@ -248,7 +248,17 @@ export default function ProductsPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setFormData({ name: "", salePrice: "", costPrice: "", stock: "", category: "", description: "", supplierId: "none", image: "" });
+        setFormData({ 
+          name: "", 
+          salePrice: "", 
+          costPrice: "", 
+          stock: "", 
+          category: "", 
+          description: "", 
+          supplierId: "none", 
+          image: "",
+          barcode: ""
+        });
         setPreview(null);
         setOpenAdd(false);
         toast.success("Produit ajouté !");

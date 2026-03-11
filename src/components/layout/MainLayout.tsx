@@ -39,7 +39,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
         {/* Main section */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden focus:outline-none">
-          <div className="container mx-auto max-w-7xl px-4 py-8 sm:px-6 md:px-8">
+          <div className="container mx-auto max-w-7xl px-4 py-8 pb-20 md:pb-8 sm:px-6 md:px-8">
             {children}
           </div>
         </main>

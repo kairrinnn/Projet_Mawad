@@ -12,6 +12,7 @@ model User {
   email         String?    @unique
   emailVerified DateTime?
   image         String?
+  pinCode       String?    @default("1234")
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   accounts      Account[]
@@ -19,6 +20,17 @@ model User {
   sales         Sale[]
   sessions      Session[]
   suppliers     Supplier[]
+  cashDrawers   CashDrawer[]
+}
+
+model CashDrawer {
+  id           String   @id @default(cuid())
+  userId       String
+  startingCash Float    @default(500)
+  date         DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
 }
 
 model Account {

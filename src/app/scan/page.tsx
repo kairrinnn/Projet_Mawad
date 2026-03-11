@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { Html5Qrcode } from "html5-qrcode";
-import { ShoppingCart, CheckCircle2, ScanLine, Tag, Search, Box, RefreshCw, Upload, PackageSearch, ChevronRight, TrendingUp } from "lucide-react";
+import { ShoppingCart, CheckCircle2, ScanLine, Tag, Search, Box, RefreshCw, Upload, PackageSearch, ChevronRight, TrendingUp, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
+import { useMobile } from "@/lib/hooks/use-mobile";
 
 export default function ScanPage() {
   const [scannedId, setScannedId] = useState<string | null>(null);
@@ -24,6 +26,7 @@ export default function ScanPage() {
   const [loading, setLoading] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [openSale, setOpenSale] = useState(false);
+  const isMobile = useMobile();
   
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,6 +35,7 @@ export default function ScanPage() {
   const [quantity, setQuantity] = useState(1);
   const [discount, setDiscount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const isInitializingRef = useRef(false);
@@ -79,6 +83,9 @@ export default function ScanPage() {
       );
     } catch (err: any) {
       console.error("Erreur scanner:", err);
+      if (err?.toString().includes("NotAllowedError") || err?.toString().includes("Permission denied")) {
+        setPermissionDenied(true);
+      }
     } finally {
       isInitializingRef.current = false;
     }
@@ -237,6 +244,37 @@ export default function ScanPage() {
         </div>
       </div>
 
+      {permissionDenied && (
+        <Card className="bg-amber-50 border-amber-200 shadow-none mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-amber-800 text-lg flex items-center">
+              <AlertTriangle className="mr-2 h-5 w-5" />
+              Caméra bloquée
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-amber-700">
+            <p>L'accès à la caméra est refusé. Pour scanner :</p>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>Assurez-vous d'utiliser une connexion sécurisée (HTTPS).</li>
+              <li>Autorisez la caméra dans les paramètres de votre navigateur.</li>
+              <li>Ou utilisez l'option <strong>Scanner photo</strong> ci-dessous.</li>
+            </ul>
+          </CardContent>
+          <CardFooter>
+            <Button 
+                variant="outline" 
+                className="bg-white border-amber-200 text-amber-800 hover:bg-amber-100"
+                onClick={() => {
+                    setPermissionDenied(false);
+                    startScanner();
+                }}
+            >
+                Réessayer
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Colonne Scanner */}
         <Card className="shadow-sm border-slate-200 overflow-hidden lg:col-span-5 self-start">
@@ -248,15 +286,24 @@ export default function ScanPage() {
           </CardHeader>
           <CardContent className="p-0 flex flex-col items-center">
             <div className="w-full bg-black relative flex items-center justify-center min-h-[250px] sm:min-h-[300px]">
-                <div id="qr-reader" className="w-full max-w-sm aspect-square" />
-                <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none flex items-center justify-center">
-                    <div className="w-[180px] h-[180px] border-2 border-dashed border-white/50 rounded-lg relative">
-                        <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-indigo-400" />
-                        <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-indigo-400" />
-                        <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-indigo-400" />
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-indigo-400" />
+                {permissionDenied ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-white/60 text-center space-y-4">
+                        <ScanLine className="h-12 w-12 opacity-20" />
+                        <p className="text-xs uppercase tracking-widest font-bold">Caméra indisponible</p>
                     </div>
-                </div>
+                ) : (
+                    <>
+                        <div id="qr-reader" className="w-full max-w-sm aspect-square" />
+                        <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none flex items-center justify-center">
+                            <div className="w-[180px] h-[180px] border-2 border-dashed border-white/50 rounded-lg relative">
+                                <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-indigo-400" />
+                                <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-indigo-400" />
+                                <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-indigo-400" />
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-indigo-400" />
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
 
             <div className="flex w-full border-t border-slate-100">
@@ -300,7 +347,10 @@ export default function ScanPage() {
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-100">
+                    <div className={cn(
+                        "overflow-y-auto divide-y divide-slate-100",
+                        isMobile ? "max-h-[300px]" : "max-h-[450px]"
+                    )}>
                         {loadingProducts ? (
                             <div className="p-8 text-center text-slate-400">Chargement des produits...</div>
                         ) : filteredProducts.length > 0 ? (
@@ -364,6 +414,7 @@ export default function ScanPage() {
             </Card>
         </div>
       </div>
+      <div className="h-10 md:hidden" /> {/* Extra space for mobile */}
 
       <Dialog open={openSale} onOpenChange={setOpenSale}>
         <DialogContent className="sm:max-w-md">
