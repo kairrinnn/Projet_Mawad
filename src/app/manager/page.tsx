@@ -79,6 +79,18 @@ const getExpenseIcon = (type: string) => {
   }
 };
 
+const getExpenseColor = (type: string): string => {
+  switch (type) {
+    case "Salary":   return "bg-violet-500";
+    case "Utility":  return "bg-amber-500";
+    case "Rent":     return "bg-blue-500";
+    case "Internet": return "bg-indigo-500";
+    case "Stock":    return "bg-orange-500";
+    case "Daily":    return "bg-slate-400";
+    default:         return "bg-slate-400";
+  }
+};
+
 const fmt = (val: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MAD" }).format(val || 0);
 
@@ -124,14 +136,35 @@ export default function ManagerPage() {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
 
-    // Map day-of-month → expenses (non-Daily only)
+    // Map day-of-month → expenses
+    // Monthly (non-Daily) expenses RECUR on the same day every month
     const dayMap: Record<number, Expense[]> = {};
-    expenses.filter(e => e.type !== "Daily").forEach(e => {
+    const monthlyTypes = expenses.filter(e => e.type !== "Daily");
+
+    // Group by day-of-month (recurring projection)
+    const seenKeys = new Set<string>();
+    monthlyTypes.forEach(e => {
       const d = new Date(e.date);
+      const dayOfMonth = d.getDate();
+      const key = `${e.type}-${e.description}-${dayOfMonth}`;
+      // For the CURRENT viewed month, show actual expenses
       if (d.getFullYear() === year && d.getMonth() === month) {
-        const day = d.getDate();
-        if (!dayMap[day]) dayMap[day] = [];
-        dayMap[day].push(e);
+        if (!dayMap[dayOfMonth]) dayMap[dayOfMonth] = [];
+        dayMap[dayOfMonth].push(e);
+        seenKeys.add(key);
+      }
+    });
+
+    // Project recurring charges from other months into this month
+    monthlyTypes.forEach(e => {
+      const d = new Date(e.date);
+      const dayOfMonth = d.getDate();
+      const key = `${e.type}-${e.description}-${dayOfMonth}`;
+      if (!seenKeys.has(key) && dayOfMonth <= daysInMonth) {
+        seenKeys.add(key);
+        if (!dayMap[dayOfMonth]) dayMap[dayOfMonth] = [];
+        // Create a projected expense (same data, different visual cue later if needed)
+        dayMap[dayOfMonth].push({ ...e, id: `proj-${e.id}` });
       }
     });
 
@@ -511,26 +544,34 @@ export default function ManagerPage() {
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))}>
                   <span className="text-lg">‹</span>
                 </Button>
-                <CardTitle className="text-base font-semibold capitalize">
+                <CardTitle className="text-base font-semibold capitalize min-w-[160px] text-center">
                   {calMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
                 </CardTitle>
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))}>
                   <span className="text-lg">›</span>
                 </Button>
               </div>
-              <CardDescription>Survolez un jour coloré pour voir les détails.</CardDescription>
+              {/* Legend */}
+              <div className="hidden sm:flex items-center gap-3 text-[10px] text-slate-500">
+                {EXPENSE_TYPES.filter(t => t.value !== "Daily").map(t => (
+                  <span key={t.value} className="flex items-center gap-1">
+                    <span className={`h-2 w-2 rounded-full ${getExpenseColor(t.value)}`} />
+                    {t.label.split("(")[0].trim()}
+                  </span>
+                ))}
+              </div>
             </CardHeader>
             <CardContent>
               {/* Day-of-week header */}
-              <div className="grid grid-cols-7 gap-1 mb-1">
+              <div className="grid grid-cols-7 mb-1">
                 {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(d => (
-                  <div key={d} className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-1">{d}</div>
+                  <div key={d} className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2">{d}</div>
                 ))}
               </div>
               {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7">
                 {/* Empty cells before 1st */}
-                {Array.from({ length: calendarGrid.firstDow }).map((_, i) => <div key={`e${i}`} className="aspect-square" />)}
+                {Array.from({ length: calendarGrid.firstDow }).map((_, i) => <div key={`e${i}`} className="h-14 border border-transparent" />)}
                 {/* Day cells */}
                 {Array.from({ length: calendarGrid.daysInMonth }).map((_, i) => {
                   const day = i + 1;
@@ -538,29 +579,34 @@ export default function ManagerPage() {
                   const hasPayment = !!exps;
                   const total = hasPayment ? exps.reduce((s, e) => s + e.amount, 0) : 0;
                   const isToday = day === new Date().getDate() && calMonth.getMonth() === new Date().getMonth() && calMonth.getFullYear() === new Date().getFullYear();
+                  // Unique expense types for dots
+                  const uniqueTypes = hasPayment ? [...new Set(exps.map(e => e.type))] : [];
 
                   return (
                     <div
                       key={day}
-                      className={`relative aspect-square rounded-lg flex flex-col items-center justify-center text-sm cursor-default transition-all
-                        ${hasPayment ? "bg-red-50 border-2 border-red-200 hover:bg-red-100 hover:scale-105 hover:shadow-md hover:z-10" : "bg-slate-50/50 hover:bg-slate-100"}
-                        ${isToday ? "ring-2 ring-indigo-400 ring-offset-1" : ""}
+                      className={`relative h-14 border border-slate-100 flex flex-col items-center pt-1.5 cursor-default transition-colors
+                        ${hasPayment ? "bg-red-50/60 hover:bg-red-50" : "hover:bg-slate-50"}
+                        ${isToday ? "ring-2 ring-inset ring-indigo-400 bg-indigo-50/30" : ""}
                       `}
                       onMouseEnter={() => hasPayment && setHoveredDay(day)}
                       onMouseLeave={() => setHoveredDay(null)}
                     >
-                      <span className={`font-medium ${hasPayment ? "text-red-700" : "text-slate-600"} ${isToday ? "text-indigo-600 font-bold" : ""}`}>
+                      <span className={`text-sm ${isToday ? "font-bold text-indigo-600" : hasPayment ? "font-semibold text-slate-800" : "text-slate-500"}`}>
                         {day}
                       </span>
+                      {/* Colored dots */}
                       {hasPayment && (
-                        <span className="text-[8px] font-bold text-red-500 leading-none mt-0.5">
-                          {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toFixed(0)}
-                        </span>
+                        <div className="flex items-center gap-0.5 mt-1">
+                          {uniqueTypes.slice(0, 4).map(t => (
+                            <span key={t} className={`h-1.5 w-1.5 rounded-full ${getExpenseColor(t)}`} />
+                          ))}
+                        </div>
                       )}
 
                       {/* Hover tooltip */}
                       {hoveredDay === day && hasPayment && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 pointer-events-none">
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 pointer-events-none">
                           <p className="text-xs font-bold text-slate-800 mb-2 border-b pb-1">
                             {new Date(calMonth.getFullYear(), calMonth.getMonth(), day).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
                           </p>
@@ -568,8 +614,8 @@ export default function ManagerPage() {
                             {exps.map(exp => (
                               <div key={exp.id} className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
-                                  {getExpenseIcon(exp.type)}
-                                  <span className="text-[11px] text-slate-700 truncate max-w-[120px]">{exp.description}</span>
+                                  <span className={`h-2 w-2 rounded-full ${getExpenseColor(exp.type)}`} />
+                                  <span className="text-[11px] text-slate-700 truncate max-w-[130px]">{exp.description}</span>
                                 </div>
                                 <span className="text-[11px] font-bold text-red-600">−{fmt(exp.amount)}</span>
                               </div>
