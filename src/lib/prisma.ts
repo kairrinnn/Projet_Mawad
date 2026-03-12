@@ -1,14 +1,7 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
-
-// Configuration pour Prisma 7 avec adaptateur SQLite
-const adapter = new PrismaBetterSqlite3({
-  url: 'file:prisma/dev.db',
-})
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
-// Forcer une nouvelle instance pour s'assurer que le nouveau schéma (image, userId) est pris en compte
-export const prisma = new PrismaClient({ adapter });
+export const prisma = globalForPrisma.prisma || new PrismaClient();
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
