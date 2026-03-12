@@ -33,7 +33,8 @@ import {
   Zap,
   Globe,
   Home,
-  AlertCircle
+  AlertCircle,
+  Edit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -64,6 +65,12 @@ export default function ManagerPage() {
   const [empForm, setEmpForm] = useState({ name: "", salary: "" });
   const [expForm, setExpForm] = useState({ type: "Daily", amount: "", description: "", date: "" });
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit states
+  const [editingEmployee, setEditingEmployee] = useState<any>(null);
+  const [editingExpense, setEditingExpense] = useState<any>(null);
+  const [isEmpEditOpen, setIsEmpEditOpen] = useState(false);
+  const [isExpEditOpen, setIsExpEditOpen] = useState(false);
 
   // PIN Security
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -144,6 +151,40 @@ export default function ManagerPage() {
       if (res.ok) {
         toast.success("Dépense enregistrée");
         setExpForm({ type: "Daily", amount: "", description: "", date: "" });
+        fetchData();
+      }
+    } catch (e) { toast.error("Erreur"); } finally { setSubmitting(false); }
+  };
+
+  const handleUpdateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/employees/${editingEmployee.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingEmployee)
+      });
+      if (res.ok) {
+        toast.success("Salarié mis à jour");
+        setIsEmpEditOpen(false);
+        fetchData();
+      }
+    } catch (e) { toast.error("Erreur"); } finally { setSubmitting(false); }
+  };
+
+  const handleUpdateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/expenses/${editingExpense.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingExpense)
+      });
+      if (res.ok) {
+        toast.success("Dépense mise à jour");
+        setIsExpEditOpen(false);
         fetchData();
       }
     } catch (e) { toast.error("Erreur"); } finally { setSubmitting(false); }
@@ -455,9 +496,22 @@ export default function ManagerPage() {
                       </div>
                       <div className="flex items-center gap-4">
                         <span className="text-sm font-black text-red-600">-{formatCurrency(exp.amount)}</span>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteExpense(exp.id)} className="h-8 w-8 text-slate-300 hover:text-red-500">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => {
+                              setEditingExpense({...exp});
+                              setIsExpEditOpen(true);
+                            }} 
+                            className="h-8 w-8 text-slate-300 hover:text-indigo-600"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteExpense(exp.id)} className="h-8 w-8 text-slate-300 hover:text-red-500">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -535,7 +589,18 @@ export default function ManagerPage() {
                          <span className="font-black text-indigo-600">{formatCurrency(emp.salary)}</span>
                        </div>
                     </CardContent>
-                    <CardFooter className="pt-0 pb-4 justify-center">
+                    <CardFooter className="pt-0 pb-4 flex gap-2 justify-center">
+                       <Button 
+                         variant="ghost" 
+                         size="sm" 
+                         className="text-[10px] text-indigo-600 hover:text-indigo-700"
+                         onClick={() => {
+                            setEditingEmployee({...emp});
+                            setIsEmpEditOpen(true);
+                         }}
+                       >
+                         Modifier
+                       </Button>
                        <Button variant="ghost" size="sm" className="text-[10px] text-slate-400">
                          Voir fiche complète <Calendar className="ml-1 h-3 w-3" />
                        </Button>
@@ -546,6 +611,96 @@ export default function ManagerPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* --- EDIT EMPLOYEE DIALOG --- */}
+      <Dialog open={isEmpEditOpen} onOpenChange={setIsEmpEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier le Salarié</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateEmployee} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Nom complet</Label>
+              <Input 
+                required 
+                value={editingEmployee?.name || ""} 
+                onChange={(e) => setEditingEmployee({...editingEmployee, name: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Salaire Mensuel (DH)</Label>
+              <Input 
+                type="number" 
+                required 
+                value={editingEmployee?.salary || ""} 
+                onChange={(e) => setEditingEmployee({...editingEmployee, salary: e.target.value})}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full bg-indigo-600" disabled={submitting}>
+                {submitting ? "Mise à jour..." : "Mettre à jour"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- EDIT EXPENSE DIALOG --- */}
+      <Dialog open={isExpEditOpen} onOpenChange={setIsExpEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier la Dépense</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateExpense} className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={editingExpense?.type} onValueChange={(v) => setEditingExpense({...editingExpense, type: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="Daily">Quotidien</SelectItem>
+                    <SelectItem value="Salary">Salaires</SelectItem>
+                    <SelectItem value="Utility">Electricité / Eau</SelectItem>
+                    <SelectItem value="Rent">Loyer</SelectItem>
+                    <SelectItem value="Internet">Internet / Téléphone</SelectItem>
+                    <SelectItem value="Stock">Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Montant (DH)</Label>
+                <Input 
+                  type="number" 
+                  required 
+                  value={editingExpense?.amount || ""} 
+                  onChange={(e) => setEditingExpense({...editingExpense, amount: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input 
+                required 
+                value={editingExpense?.description || ""} 
+                onChange={(e) => setEditingExpense({...editingExpense, description: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Input 
+                type="date" 
+                value={editingExpense?.date ? new Date(editingExpense.date).toISOString().split('T')[0] : ""} 
+                onChange={(e) => setEditingExpense({...editingExpense, date: e.target.value})}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full bg-indigo-600" disabled={submitting}>
+                {submitting ? "Mise à jour..." : "Mettre à jour"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

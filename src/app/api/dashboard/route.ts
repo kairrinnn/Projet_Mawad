@@ -44,12 +44,25 @@ export async function GET() {
             _sum: { amount: true },
         });
 
+        // Dépenses quotidiennes (CAISSE) - uniquement de type 'Daily'
+        const dailyCashExpenses = await prisma.expense.aggregate({
+            where: { 
+                userId, 
+                date: { gte: startOfDay, lte: now },
+                type: 'Daily'
+            },
+            _sum: { amount: true },
+        });
+
         // Ventes du jour
         const dailySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfDay } },
             _sum: { profit: true, quantity: true, salePrice: true },
         });
 
+        // ... [rest of the aggregations] ...
+        // (Skipping middle parts for conciseness in replacement but ensuring they remain intact)
+        
         // Ventes de la semaine
         const weeklySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfWeek } },
@@ -175,8 +188,8 @@ export async function GET() {
             cashDrawer: {
                 startingCash: cashDrawer?.startingCash || 500,
                 currentRevenue: dailySales._sum?.salePrice || 0,
-                currentExpenses: dailyExpenses._sum?.amount || 0,
-                balance: (cashDrawer?.startingCash || 500) + (dailySales._sum?.salePrice || 0) - (dailyExpenses._sum?.amount || 0)
+                currentExpenses: dailyCashExpenses._sum?.amount || 0,
+                balance: (cashDrawer?.startingCash || 500) + (dailySales._sum?.salePrice || 0) - (dailyCashExpenses._sum?.amount || 0)
             },
             lowStockCount,
             topSales: enrichedTopSales,
