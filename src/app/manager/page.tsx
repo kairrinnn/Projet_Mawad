@@ -114,21 +114,29 @@ export default function ManagerPage() {
     return expenses.filter((e) => e.type === expFilter);
   }, [expenses, expFilter]);
 
-  // ── calendar data ───────────────────────────────────────────
-  const calendarExpenses = useMemo(() => {
-    const monthly = expenses.filter(e => e.type !== "Daily");
-    const byDate: Record<string, Expense[]> = {};
-    monthly.forEach(e => {
-      const d = new Date(e.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-      if (!byDate[d]) byDate[d] = [];
-      byDate[d].push(e);
+  // ── calendar ────────────────────────────────────────────────
+  const [calMonth, setCalMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
+  const [hoveredDay, setHoveredDay] = useState<number | null>(null);
+
+  const calendarGrid = useMemo(() => {
+    const year = calMonth.getFullYear();
+    const month = calMonth.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
+
+    // Map day-of-month → expenses (non-Daily only)
+    const dayMap: Record<number, Expense[]> = {};
+    expenses.filter(e => e.type !== "Daily").forEach(e => {
+      const d = new Date(e.date);
+      if (d.getFullYear() === year && d.getMonth() === month) {
+        const day = d.getDate();
+        if (!dayMap[day]) dayMap[day] = [];
+        dayMap[day].push(e);
+      }
     });
-    return Object.entries(byDate).sort((a, b) => {
-      const da = new Date(a[1][0].date).getTime();
-      const db = new Date(b[1][0].date).getTime();
-      return db - da;
-    });
-  }, [expenses]);
+
+    return { daysInMonth, firstDow, dayMap };
+  }, [expenses, calMonth]);
 
   // ── pin ────────────────────────────────────────────────────
   const [authorized, setAuthorized] = useState(false);
@@ -141,7 +149,7 @@ export default function ManagerPage() {
   const periodData = dashboardData?.[bilanPeriod] ?? {};
 
   const chartConfig = {
-    revenue: { label: "Revenus", color: "#4f46e5" },
+    profit: { label: "Bénéfice", color: "#10b981" },
     expenses: { label: "Dépenses", color: "#ef4444" },
   };
 
@@ -341,15 +349,15 @@ export default function ManagerPage() {
             </Card>
           </div>
 
-          {/* Chart: Revenus vs Dépenses */}
+          {/* Chart: Bénéfice vs Dépenses */}
           <Card className="shadow-sm overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Revenus vs Dépenses</CardTitle>
+                <CardTitle className="text-lg">Bénéfice vs Dépenses</CardTitle>
                 <CardDescription>Comparaison journalière sur 7 jours.</CardDescription>
               </div>
               <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-indigo-500" /> Revenus</span>
+                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Bénéfice</span>
                 <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Dépenses</span>
               </div>
             </CardHeader>
@@ -361,11 +369,11 @@ export default function ManagerPage() {
                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(s) => new Date(s).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(v) => `${v} DH`} />
                     <Tooltip
-                      formatter={(value: any, name: string) => [`${Number(value).toFixed(2)} DH`, name === "revenue" ? "Revenus" : "Dépenses"]}
+                      formatter={(value: any, name: string) => [`${Number(value).toFixed(2)} DH`, name === "profit" ? "Bénéfice" : "Dépenses"]}
                       labelFormatter={(l) => new Date(l).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
                       contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 12px rgb(0 0 0 / 0.08)" }}
                     />
-                    <Bar dataKey="revenue" fill="#4f46e5" radius={[4, 4, 0, 0]} animationDuration={1000} />
+                    <Bar dataKey="profit" fill="#10b981" radius={[4, 4, 0, 0]} animationDuration={1000} />
                     <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} animationDuration={1000} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -497,57 +505,88 @@ export default function ManagerPage() {
 
         {/* ════════════════ TAB: CALENDRIER ════════════════ */}
         <TabsContent value="calendar" className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800">Calendrier des Paiements</h2>
-            <p className="text-sm text-slate-500 mt-1">Charges mensuelles groupées par date de paiement.</p>
-          </div>
+          <Card className="shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <div className="flex items-center gap-3">
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))}>
+                  <span className="text-lg">‹</span>
+                </Button>
+                <CardTitle className="text-base font-semibold capitalize">
+                  {calMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                </CardTitle>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))}>
+                  <span className="text-lg">›</span>
+                </Button>
+              </div>
+              <CardDescription>Survolez un jour coloré pour voir les détails.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Day-of-week header */}
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(d => (
+                  <div key={d} className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-1">{d}</div>
+                ))}
+              </div>
+              {/* Calendar grid */}
+              <div className="grid grid-cols-7 gap-1">
+                {/* Empty cells before 1st */}
+                {Array.from({ length: calendarGrid.firstDow }).map((_, i) => <div key={`e${i}`} className="aspect-square" />)}
+                {/* Day cells */}
+                {Array.from({ length: calendarGrid.daysInMonth }).map((_, i) => {
+                  const day = i + 1;
+                  const exps = calendarGrid.dayMap[day];
+                  const hasPayment = !!exps;
+                  const total = hasPayment ? exps.reduce((s, e) => s + e.amount, 0) : 0;
+                  const isToday = day === new Date().getDate() && calMonth.getMonth() === new Date().getMonth() && calMonth.getFullYear() === new Date().getFullYear();
 
-          {calendarExpenses.length === 0 ? (
-            <Card className="shadow-sm">
-              <CardContent className="p-12 text-center text-slate-400">
-                Aucune charge mensuelle enregistrée. Les dépenses quotidiennes ne sont pas affichées ici.
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {calendarExpenses.map(([dateStr, exps]) => {
-                const total = exps.reduce((s, e) => s + e.amount, 0);
-                return (
-                  <Card key={dateStr} className="shadow-sm overflow-hidden">
-                    <CardHeader className="pb-2 bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                            <CalendarDays className="h-4 w-4 text-indigo-600" />
+                  return (
+                    <div
+                      key={day}
+                      className={`relative aspect-square rounded-lg flex flex-col items-center justify-center text-sm cursor-default transition-all
+                        ${hasPayment ? "bg-red-50 border-2 border-red-200 hover:bg-red-100 hover:scale-105 hover:shadow-md hover:z-10" : "bg-slate-50/50 hover:bg-slate-100"}
+                        ${isToday ? "ring-2 ring-indigo-400 ring-offset-1" : ""}
+                      `}
+                      onMouseEnter={() => hasPayment && setHoveredDay(day)}
+                      onMouseLeave={() => setHoveredDay(null)}
+                    >
+                      <span className={`font-medium ${hasPayment ? "text-red-700" : "text-slate-600"} ${isToday ? "text-indigo-600 font-bold" : ""}`}>
+                        {day}
+                      </span>
+                      {hasPayment && (
+                        <span className="text-[8px] font-bold text-red-500 leading-none mt-0.5">
+                          {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toFixed(0)}
+                        </span>
+                      )}
+
+                      {/* Hover tooltip */}
+                      {hoveredDay === day && hasPayment && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 pointer-events-none">
+                          <p className="text-xs font-bold text-slate-800 mb-2 border-b pb-1">
+                            {new Date(calMonth.getFullYear(), calMonth.getMonth(), day).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                          </p>
+                          <div className="space-y-1.5">
+                            {exps.map(exp => (
+                              <div key={exp.id} className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  {getExpenseIcon(exp.type)}
+                                  <span className="text-[11px] text-slate-700 truncate max-w-[120px]">{exp.description}</span>
+                                </div>
+                                <span className="text-[11px] font-bold text-red-600">−{fmt(exp.amount)}</span>
+                              </div>
+                            ))}
                           </div>
-                          <CardTitle className="text-sm font-semibold">{dateStr}</CardTitle>
+                          <div className="border-t mt-2 pt-1.5 flex justify-between">
+                            <span className="text-[10px] font-medium text-slate-500">Total</span>
+                            <span className="text-xs font-black text-red-700">−{fmt(total)}</span>
+                          </div>
                         </div>
-                        <Badge className="bg-red-50 text-red-700 border-red-100">−{fmt(total)}</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <div className="divide-y divide-slate-100">
-                        {exps.map((exp) => (
-                          <div key={exp.id} className="flex items-center justify-between px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                {getExpenseIcon(exp.type)}
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-slate-800">{exp.description}</p>
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 mt-0.5">{exp.type}</Badge>
-                              </div>
-                            </div>
-                            <span className="text-sm font-bold text-red-600">−{fmt(exp.amount)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
