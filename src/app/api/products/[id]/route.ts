@@ -113,6 +113,7 @@ async function processPatch(request: NextRequest) {
       const duplicate = await prisma.product.findFirst({
         where: { 
           barcode: barcodeClean,
+          userId: session.user.id,
           NOT: { id: id }
         }
       });
