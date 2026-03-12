@@ -202,15 +202,47 @@ export default function ProductsPage() {
     fetchData();
   }, []);
 
+  const compressImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxWidth = 1024;
+          if (width > maxWidth) {
+            height = (maxWidth / width) * height;
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Compression failed"));
+          }, "image/jpeg", 0.7);
+        };
+      };
+      reader.onerror = (e) => reject(e);
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
-    const formDataUpload = new FormData();
-    formDataUpload.append("file", file);
-
     try {
+      // Compresser l'image avant l'upload (réduit la taille de ~90%)
+      const compressedBlob = await compressImage(file);
+      const formDataUpload = new FormData();
+      formDataUpload.append("file", compressedBlob, "product.jpg");
+
       const res = await fetch("/api/upload", {
         method: "POST",
         body: formDataUpload,
@@ -220,7 +252,7 @@ export default function ProductsPage() {
       if (res.ok) {
         setFormData(prev => ({ ...prev, image: data.url }));
         setPreview(data.url);
-        toast.success("Image téléchargée !");
+        toast.success("Image optimisée et téléchargée !");
       } else {
         toast.error(data.error || "Erreur lors de l'upload");
       }
