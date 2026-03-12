@@ -57,7 +57,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ── Type helpers ──────────────────────────────────────────────
-type Employee = { id: string; name: string; salary: number };
 type Expense    = { id: string; type: string; amount: number; description: string; date: string };
 type StockEntry = { id: string; productId: string; quantity: number; costPrice: number; totalCost: number; date: string; product: { name: string } };
 
@@ -99,27 +98,24 @@ const fmt = (val: number) =>
 // ══════════════════════════════════════════════════════════════
 export default function ManagerPage() {
   // ── data ────────────────────────────────────────────────────
-  const [employees, setEmployees]     = useState<Employee[]>([]);
+  // ── data ────────────────────────────────────────────────────
   const [expenses, setExpenses]       = useState<Expense[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dashboardData, setDashboard] = useState<any>(null);
   const [loading, setLoading]         = useState(true);
 
   // ── forms ───────────────────────────────────────────────────
-  const [empForm, setEmpForm] = useState({ name: "", salary: "" });
+  // ── forms ───────────────────────────────────────────────────
   const [expForm, setExpForm] = useState({ type: "Daily", amount: "", description: "", date: "" });
   const [submitting, setSub]  = useState(false);
 
   // ── dialogs ─────────────────────────────────────────────────
   const [addExpOpen, setAddExpOpen]       = useState(false);
-  const [addEmpOpen, setAddEmpOpen]       = useState(false);
   const [editExpOpen, setEditExpOpen]     = useState(false);
-  const [editEmpOpen, setEditEmpOpen]     = useState(false);
   const [delConfirmOpen, setDelConfirmOpen] = useState(false);
-  const [delTarget, setDelTarget] = useState<{ type: "expense" | "employee"; id: string; label: string } | null>(null);
+  const [delTarget, setDelTarget] = useState<{ type: "expense"; id: string; label: string } | null>(null);
 
   // ── edit buffers ────────────────────────────────────────────
-  const [editEmp, setEditEmp] = useState<any>(null);
   const [editExp, setEditExp] = useState<any>(null);
 
   // ── expense filter ──────────────────────────────────────────
@@ -219,10 +215,9 @@ export default function ManagerPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [eR, xR, dR, sR] = await Promise.all([
-        fetch("/api/employees"), fetch("/api/expenses"), fetch("/api/dashboard"), fetch("/api/stock-entries"),
+      const [xR, dR, sR] = await Promise.all([
+        fetch("/api/expenses"), fetch("/api/dashboard"), fetch("/api/stock-entries"),
       ]);
-      if (eR.ok) setEmployees(await eR.json());
       if (xR.ok) setExpenses(await xR.json());
       if (dR.ok) setDashboard(await dR.json());
       if (sR.ok) setStockEntries(await sR.json());
@@ -230,27 +225,12 @@ export default function ManagerPage() {
   };
 
   // ── CRUD handlers ──────────────────────────────────────────
-  const addEmployee = async (e: React.FormEvent) => {
-    e.preventDefault(); setSub(true);
-    try {
-      const r = await fetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(empForm) });
-      if (r.ok) { toast.success("Salarié ajouté"); setEmpForm({ name: "", salary: "" }); setAddEmpOpen(false); fetchData(); }
-    } catch { toast.error("Erreur"); } finally { setSub(false); }
-  };
 
   const addExpense = async (e: React.FormEvent) => {
     e.preventDefault(); setSub(true);
     try {
       const r = await fetch("/api/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(expForm) });
       if (r.ok) { toast.success("Dépense enregistrée"); setExpForm({ type: "Daily", amount: "", description: "", date: "" }); setAddExpOpen(false); fetchData(); }
-    } catch { toast.error("Erreur"); } finally { setSub(false); }
-  };
-
-  const updateEmployee = async (e: React.FormEvent) => {
-    e.preventDefault(); setSub(true);
-    try {
-      const r = await fetch(`/api/employees/${editEmp.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editEmp) });
-      if (r.ok) { toast.success("Salarié mis à jour"); setEditEmpOpen(false); fetchData(); }
     } catch { toast.error("Erreur"); } finally { setSub(false); }
   };
 
@@ -265,13 +245,12 @@ export default function ManagerPage() {
   const confirmDelete = async () => {
     if (!delTarget) return;
     try {
-      const url = delTarget.type === "expense" ? `/api/expenses/${delTarget.id}` : `/api/employees/${delTarget.id}`;
-      const r = await fetch(url, { method: "DELETE" });
+      const r = await fetch(`/api/expenses/${delTarget.id}`, { method: "DELETE" });
       if (r.ok) { toast.success("Supprimé avec succès"); fetchData(); }
     } catch { toast.error("Erreur"); } finally { setDelConfirmOpen(false); setDelTarget(null); }
   };
 
-  const askDelete = (type: "expense" | "employee", id: string, label: string) => {
+  const askDelete = (type: "expense", id: string, label: string) => {
     setDelTarget({ type, id, label });
     setDelConfirmOpen(true);
   };
@@ -340,11 +319,10 @@ export default function ManagerPage() {
       </div>
 
       <Tabs defaultValue="balance" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[680px] mb-6">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[540px] mb-6">
           <TabsTrigger value="balance" className="flex gap-2"><TrendingUp className="h-4 w-4" /> Bilan</TabsTrigger>
           <TabsTrigger value="expenses" className="flex gap-2"><Wallet className="h-4 w-4" /> Dépenses</TabsTrigger>
           <TabsTrigger value="stock" className="flex gap-2"><PackageSearch className="h-4 w-4" /> Stock</TabsTrigger>
-          <TabsTrigger value="employees" className="flex gap-2"><Users className="h-4 w-4" /> Salariés</TabsTrigger>
           <TabsTrigger value="calendar" className="flex gap-2"><CalendarDays className="h-4 w-4" /> Calendrier</TabsTrigger>
         </TabsList>
 
@@ -516,53 +494,6 @@ export default function ManagerPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* ════════════════ TAB: SALARIÉS ════════════════ */}
-        <TabsContent value="employees" className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-slate-800">Équipe</h2>
-            <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => setAddEmpOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Nouveau Salarié
-            </Button>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {employees.length === 0 ? (
-              <div className="col-span-full p-12 text-center border-2 border-dashed rounded-xl border-slate-200 text-slate-400">
-                Aucun salarié enregistré pour le moment.
-              </div>
-            ) : (
-              employees.map((emp) => (
-                <Card key={emp.id} className="relative overflow-hidden border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div className="h-12 w-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl">
-                        {emp.name?.charAt(0)?.toUpperCase() || "S"}
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500" onClick={() => askDelete("employee", emp.id, emp.name)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <CardTitle className="pt-3 text-base">{emp.name || "Salarié"}</CardTitle>
-                    <CardDescription className="text-xs">Poste : Salarié</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Salaire</span>
-                      <span className="font-black text-indigo-600">{fmt(emp.salary)}</span>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="pt-0 pb-3 justify-center">
-                    <Button variant="ghost" size="sm" className="text-xs text-indigo-600 hover:text-indigo-700 gap-1" onClick={() => { setEditEmp({ ...emp }); setEditEmpOpen(true); }}>
-                      <Pencil className="h-3 w-3" /> Modifier
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))
-            )}
-          </div>
         </TabsContent>
 
         {/* ════════════════ TAB: STOCK ════════════════ */}
@@ -800,56 +731,6 @@ export default function ManagerPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── ADD EMPLOYEE ─────────────────────────────────────── */}
-      <Dialog open={addEmpOpen} onOpenChange={setAddEmpOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ajouter un Salarié</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={addEmployee} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label>Nom complet</Label>
-              <Input required value={empForm.name} onChange={(e) => setEmpForm({ ...empForm, name: e.target.value })} placeholder="Ex: Ahmed Benani" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Salaire Mensuel (DH)</Label>
-              <Input type="number" required value={empForm.salary} onChange={(e) => setEmpForm({ ...empForm, salary: e.target.value })} placeholder="0.00" />
-            </div>
-            <DialogFooter>
-              <Button type="submit" className="w-full bg-indigo-600" disabled={submitting}>
-                {submitting ? "Ajout…" : "Ajouter"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── EDIT EMPLOYEE ────────────────────────────────────── */}
-      <Dialog open={editEmpOpen} onOpenChange={setEditEmpOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier le Salarié</DialogTitle>
-          </DialogHeader>
-          {editEmp && (
-            <form onSubmit={updateEmployee} className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <Label>Nom complet</Label>
-                <Input required value={editEmp.name} onChange={(e) => setEditEmp({ ...editEmp, name: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Salaire Mensuel (DH)</Label>
-                <Input type="number" required value={editEmp.salary} onChange={(e) => setEditEmp({ ...editEmp, salary: e.target.value })} />
-              </div>
-              <DialogFooter>
-                <Button type="submit" className="w-full bg-indigo-600" disabled={submitting}>
-                  {submitting ? "Mise à jour…" : "Mettre à jour"}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
-
       {/* ── EDIT EXPENSE ─────────────────────────────────────── */}
       <Dialog open={editExpOpen} onOpenChange={setEditExpOpen}>
         <DialogContent>
@@ -870,12 +751,12 @@ export default function ManagerPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Montant (DH)</Label>
-                  <Input type="number" required value={editExp.amount} onChange={(e) => setEditExp({ ...editExp, amount: e.target.value })} />
+                  <Input type="number" required value={editExp.amount || ""} onChange={(e) => setEditExp({ ...editExp, amount: e.target.value })} />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Description</Label>
-                <Input required value={editExp.description} onChange={(e) => setEditExp({ ...editExp, description: e.target.value })} />
+                <Input required value={editExp.description || ""} onChange={(e) => setEditExp({ ...editExp, description: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <Label>Date</Label>
