@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   AreaChart,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Legend,
 } from "recharts";
 import {
   ChartContainer,
@@ -21,7 +26,7 @@ import {
   Plus,
   Trash2,
   Loader2,
-  Calendar,
+  Calendar as CalendarIcon,
   DollarSign,
   Briefcase,
   Zap,
@@ -30,6 +35,8 @@ import {
   AlertCircle,
   Pencil,
   ShieldCheck,
+  Filter,
+  CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -100,6 +107,29 @@ export default function ManagerPage() {
   const [editEmp, setEditEmp] = useState<any>(null);
   const [editExp, setEditExp] = useState<any>(null);
 
+  // ── expense filter ──────────────────────────────────────────
+  const [expFilter, setExpFilter] = useState<string>("all");
+  const filteredExpenses = useMemo(() => {
+    if (expFilter === "all") return expenses;
+    return expenses.filter((e) => e.type === expFilter);
+  }, [expenses, expFilter]);
+
+  // ── calendar data ───────────────────────────────────────────
+  const calendarExpenses = useMemo(() => {
+    const monthly = expenses.filter(e => e.type !== "Daily");
+    const byDate: Record<string, Expense[]> = {};
+    monthly.forEach(e => {
+      const d = new Date(e.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(e);
+    });
+    return Object.entries(byDate).sort((a, b) => {
+      const da = new Date(a[1][0].date).getTime();
+      const db = new Date(b[1][0].date).getTime();
+      return db - da;
+    });
+  }, [expenses]);
+
   // ── pin ────────────────────────────────────────────────────
   const [authorized, setAuthorized] = useState(false);
   const [pin, setPin]               = useState("");
@@ -111,7 +141,8 @@ export default function ManagerPage() {
   const periodData = dashboardData?.[bilanPeriod] ?? {};
 
   const chartConfig = {
-    revenue: { label: "Chiffre d'affaires", color: "#4f46e5" },
+    revenue: { label: "Revenus", color: "#4f46e5" },
+    expenses: { label: "Dépenses", color: "#ef4444" },
   };
 
   // ── data fetching ──────────────────────────────────────────
@@ -240,10 +271,11 @@ export default function ManagerPage() {
       </div>
 
       <Tabs defaultValue="balance" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[420px] mb-6">
+        <TabsList className="grid w-full grid-cols-4 lg:w-[540px] mb-6">
           <TabsTrigger value="balance" className="flex gap-2"><TrendingUp className="h-4 w-4" /> Bilan</TabsTrigger>
           <TabsTrigger value="expenses" className="flex gap-2"><Wallet className="h-4 w-4" /> Dépenses</TabsTrigger>
           <TabsTrigger value="employees" className="flex gap-2"><Users className="h-4 w-4" /> Salariés</TabsTrigger>
+          <TabsTrigger value="calendar" className="flex gap-2"><CalendarDays className="h-4 w-4" /> Calendrier</TabsTrigger>
         </TabsList>
 
         {/* ════════════════ TAB: BILAN ════════════════ */}
@@ -309,37 +341,39 @@ export default function ManagerPage() {
             </Card>
           </div>
 
-          {/* Chart */}
+          {/* Chart: Revenus vs Dépenses */}
           <Card className="shadow-sm overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Évolution des Revenus</CardTitle>
-                <CardDescription>Chiffre d'affaires sur les 7 derniers jours.</CardDescription>
+                <CardTitle className="text-lg">Revenus vs Dépenses</CardTitle>
+                <CardDescription>Comparaison journalière sur 7 jours.</CardDescription>
               </div>
-              <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-100">7 jours</Badge>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-indigo-500" /> Revenus</span>
+                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Dépenses</span>
+              </div>
             </CardHeader>
             <CardContent className="h-[300px] pt-0">
               {dashboardData?.chartData?.length > 0 ? (
-                <ChartContainer config={chartConfig} className="h-full w-full">
-                  <AreaChart data={dashboardData.chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardData.chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(s) => new Date(s).toLocaleDateString("fr-FR", { weekday: "short" })} />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(s) => new Date(s).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(v) => `${v} DH`} />
-                    <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                    <Area type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" animationDuration={1200} />
-                  </AreaChart>
-                </ChartContainer>
+                    <Tooltip
+                      formatter={(value: any, name: string) => [`${Number(value).toFixed(2)} DH`, name === "revenue" ? "Revenus" : "Dépenses"]}
+                      labelFormatter={(l) => new Date(l).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                      contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 12px rgb(0 0 0 / 0.08)" }}
+                    />
+                    <Bar dataKey="revenue" fill="#4f46e5" radius={[4, 4, 0, 0]} animationDuration={1000} />
+                    <Bar dataKey="expenses" fill="#ef4444" radius={[4, 4, 0, 0]} animationDuration={1000} />
+                  </BarChart>
+                </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/30">
                   <div className="text-slate-400 text-sm italic flex flex-col items-center gap-3 text-center max-w-xs">
                     <AlertCircle className="h-5 w-5 opacity-40" />
-                    <p>Le graphique s'affichera après vos premières ventes.</p>
+                    <p>Le graphique s'affichera après vos premières données.</p>
                   </div>
                 </div>
               )}
@@ -356,13 +390,33 @@ export default function ManagerPage() {
             </Button>
           </div>
 
+          {/* Filter buttons */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant={expFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setExpFilter("all")} className={expFilter === "all" ? "bg-slate-800" : ""}>
+              <Filter className="h-3.5 w-3.5 mr-1" /> Tout ({expenses.length})
+            </Button>
+            {EXPENSE_TYPES.map((t) => {
+              const count = expenses.filter(e => e.type === t.value).length;
+              if (count === 0) return null;
+              return (
+                <Button key={t.value} variant={expFilter === t.value ? "default" : "outline"} size="sm" onClick={() => setExpFilter(t.value)}
+                  className={expFilter === t.value ? "bg-slate-800" : ""}
+                >
+                  {t.label.split("(")[0].trim()} ({count})
+                </Button>
+              );
+            })}
+          </div>
+
           <Card className="shadow-sm">
             <CardContent className="p-0">
-              {expenses.length === 0 ? (
-                <div className="p-12 text-center text-slate-400">Aucune dépense enregistrée.</div>
+              {filteredExpenses.length === 0 ? (
+                <div className="p-12 text-center text-slate-400">
+                  {expFilter === "all" ? "Aucune dépense enregistrée." : `Aucune dépense de type "${expFilter}".`}
+                </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {expenses.map((exp) => (
+                  {filteredExpenses.map((exp) => (
                     <div key={exp.id} className="flex items-center justify-between p-4 hover:bg-slate-50/50 transition-colors">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
@@ -373,7 +427,7 @@ export default function ManagerPage() {
                           <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                             <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">{exp.type}</Badge>
                             <span>•</span>
-                            <span className="flex items-center gap-0.5"><Calendar className="h-2.5 w-2.5" /> {new Date(exp.date).toLocaleDateString("fr-FR")}</span>
+                            <span className="flex items-center gap-0.5"><CalendarIcon className="h-2.5 w-2.5" /> {new Date(exp.date).toLocaleDateString("fr-FR")}</span>
                           </div>
                         </div>
                       </div>
@@ -439,6 +493,61 @@ export default function ManagerPage() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        {/* ════════════════ TAB: CALENDRIER ════════════════ */}
+        <TabsContent value="calendar" className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">Calendrier des Paiements</h2>
+            <p className="text-sm text-slate-500 mt-1">Charges mensuelles groupées par date de paiement.</p>
+          </div>
+
+          {calendarExpenses.length === 0 ? (
+            <Card className="shadow-sm">
+              <CardContent className="p-12 text-center text-slate-400">
+                Aucune charge mensuelle enregistrée. Les dépenses quotidiennes ne sont pas affichées ici.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {calendarExpenses.map(([dateStr, exps]) => {
+                const total = exps.reduce((s, e) => s + e.amount, 0);
+                return (
+                  <Card key={dateStr} className="shadow-sm overflow-hidden">
+                    <CardHeader className="pb-2 bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                            <CalendarDays className="h-4 w-4 text-indigo-600" />
+                          </div>
+                          <CardTitle className="text-sm font-semibold">{dateStr}</CardTitle>
+                        </div>
+                        <Badge className="bg-red-50 text-red-700 border-red-100">−{fmt(total)}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="divide-y divide-slate-100">
+                        {exps.map((exp) => (
+                          <div key={exp.id} className="flex items-center justify-between px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center">
+                                {getExpenseIcon(exp.type)}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-slate-800">{exp.description}</p>
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 mt-0.5">{exp.type}</Badge>
+                              </div>
+                            </div>
+                            <span className="text-sm font-bold text-red-600">−{fmt(exp.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 

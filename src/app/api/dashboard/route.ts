@@ -143,20 +143,32 @@ export async function GET() {
             select: { createdAt: true, profit: true, quantity: true, salePrice: true }
         });
 
-        const salesByDay: Record<string, { date: string; profit: number; revenue: number; quantity: number }> = {};
+        const recentExpenses = await prisma.expense.findMany({
+            where: { userId, date: { gte: last7Days, lte: now } },
+            select: { date: true, amount: true }
+        });
+
+        const dataByDay: Record<string, { date: string; profit: number; revenue: number; expenses: number; quantity: number }> = {};
         for (let i = 0; i < 7; i++) {
             const d = new Date(last7Days);
             d.setDate(d.getDate() + i);
             const dateStr = d.toISOString().split('T')[0];
-            salesByDay[dateStr] = { date: dateStr, profit: 0, revenue: 0, quantity: 0 };
+            dataByDay[dateStr] = { date: dateStr, profit: 0, revenue: 0, expenses: 0, quantity: 0 };
         }
 
         recentSales.forEach(sale => {
             const dateStr = sale.createdAt.toISOString().split('T')[0];
-            if (salesByDay[dateStr]) {
-                salesByDay[dateStr].profit += sale.profit;
-                salesByDay[dateStr].revenue += sale.salePrice;
-                salesByDay[dateStr].quantity += sale.quantity;
+            if (dataByDay[dateStr]) {
+                dataByDay[dateStr].profit += sale.profit;
+                dataByDay[dateStr].revenue += sale.salePrice;
+                dataByDay[dateStr].quantity += sale.quantity;
+            }
+        });
+
+        recentExpenses.forEach(exp => {
+            const dateStr = exp.date.toISOString().split('T')[0];
+            if (dataByDay[dateStr]) {
+                dataByDay[dateStr].expenses += exp.amount;
             }
         });
 
@@ -200,7 +212,7 @@ export async function GET() {
             },
             lowStockCount,
             topSales: enrichedTopSales,
-            chartData: Object.values(salesByDay)
+            chartData: Object.values(dataByDay)
         });
     } catch (error: any) {
         console.error("Dashboard error:", error);
