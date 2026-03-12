@@ -475,7 +475,7 @@ export default function ProductsPage() {
                       type="file" 
                       ref={fileInputRef}
                       className="hidden" 
-                      accept="image/*;capture=camera"
+                      accept="image/*"
                       capture="environment" // Force la caméra arrière sur mobile
                       onChange={handleFileUpload}
                       disabled={uploading}
@@ -836,7 +836,7 @@ export default function ProductsPage() {
                     type="file" 
                     ref={editFileInputRef}
                     className="hidden" 
-                    accept="image/*;capture=camera"
+                    accept="image/*"
                     capture="environment" // Force la caméra arrière sur mobile
                     onChange={handleFileUpload}
                     disabled={uploading}
