@@ -60,9 +60,6 @@ export async function GET() {
             _sum: { profit: true, quantity: true, salePrice: true },
         });
 
-        // ... [rest of the aggregations] ...
-        // (Skipping middle parts for conciseness in replacement but ensuring they remain intact)
-        
         // Ventes de la semaine
         const weeklySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfWeek } },
