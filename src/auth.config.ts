@@ -9,7 +9,7 @@ export default {
     }),
   ],
   session: { strategy: "jwt" },
-  secret: process.env.AUTH_SECRET || "fallback-secret-for-development-only",
+  secret: process.env.AUTH_SECRET,
   pages: {
     signIn: "/login",
   },
