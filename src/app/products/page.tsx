@@ -97,9 +97,8 @@ export default function ProductsPage() {
         await scanner.start(
           { facingMode: "environment" },
           { 
-            fps: 10, 
-            qrbox: { width: 250, height: 150 }, // Format rectangulaire pour barcodes
-            aspectRatio: 1.0 
+            fps: 20, 
+            qrbox: { width: 260, height: 180 }
           },
           (decodedText) => {
             handleBarcodeDetected(decodedText);
@@ -960,16 +959,18 @@ export default function ProductsPage() {
         <Dialog open={openBarcodeScanner} onOpenChange={(val) => { if(!val) stopBarcodeScanner(); }}>
           <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black border-none">
             <div className="relative h-[400px] flex flex-col items-center justify-center">
-              <div id="barcode-scanner-ui" className="w-full h-full" />
+              <div id="barcode-scanner-ui" className="w-full h-full [&_video]:object-cover [&_#qr-shaded-region]:!border-none [&_#qr-shaded-region_div]:!border-none flex items-center justify-center overflow-hidden" />
               
-              {/* Overlay Viseur Barcode */}
-              <div className="absolute inset-0 border-[60px] border-black/60 pointer-events-none flex items-center justify-center">
-                <div className="w-[280px] h-[160px] border-2 border-dashed border-white/40 rounded-lg relative">
-                  <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-indigo-400" />
-                  <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-indigo-400" />
-                  <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-2 border-l-2 border-indigo-400" />
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-2 border-r-2 border-indigo-400" />
-                </div>
+              {/* Overlay Viseur Barcode (Style ScanPage) */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="relative w-[260px] h-[180px]">
+                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500" />
+                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-500" />
+                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500" />
+                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500" />
+                      
+                      <div className="absolute top-1/2 left-2 right-2 h-[1px] bg-indigo-500/30 animate-pulse" />
+                  </div>
               </div>
 
               <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none">
