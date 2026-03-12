@@ -18,7 +18,21 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const supplierId = searchParams.get("supplierId");
+    const barcode = searchParams.get("barcode");
     
+    // Si recherche par code-barres directe
+    if (barcode) {
+      const product = await prisma.product.findFirst({
+        where: { 
+          barcode: barcode.trim(),
+          userId: session.user.id,
+          isArchived: false
+        },
+        include: { supplier: true }
+      });
+      return NextResponse.json(product);
+    }
+
     // Filtrage par userId obligatoire et non-archivé
     const whereClause: any = { 
       userId: session.user.id,

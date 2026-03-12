@@ -240,7 +240,7 @@ export default function ScanPage() {
         discount: item.discount
       }));
 
-      const res = await fetch("/api/sales", {
+      const res = await fetch("/api/sales/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items })
