@@ -105,6 +105,11 @@ export default function ManagerPage() {
   const [pin, setPin]               = useState("");
   const [pinError, setPinError]     = useState(false);
 
+  // ── bilan period ───────────────────────────────────────────
+  const [bilanPeriod, setBilanPeriod] = useState<"daily" | "weekly" | "monthly" | "total">("monthly");
+  const periodLabels: Record<string, string> = { daily: "Aujourd'hui", weekly: "Cette Semaine", monthly: "Ce Mois", total: "Tout (Annuel)" };
+  const periodData = dashboardData?.[bilanPeriod] ?? {};
+
   const chartConfig = {
     revenue: { label: "Chiffre d'affaires", color: "#4f46e5" },
   };
@@ -243,36 +248,51 @@ export default function ManagerPage() {
 
         {/* ════════════════ TAB: BILAN ════════════════ */}
         <TabsContent value="balance" className="space-y-6">
+          {/* Period Selector */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(["daily", "weekly", "monthly", "total"] as const).map((p) => (
+              <Button
+                key={p}
+                variant={bilanPeriod === p ? "default" : "outline"}
+                size="sm"
+                onClick={() => setBilanPeriod(p)}
+                className={bilanPeriod === p ? "bg-indigo-600 hover:bg-indigo-700" : ""}
+              >
+                {periodLabels[p]}
+              </Button>
+            ))}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="border-l-4 border-l-emerald-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Bénéfice Net (Mois)</CardTitle>
+                <CardTitle className="text-sm font-medium">Bénéfice Net</CardTitle>
                 <TrendingUp className="h-4 w-4 text-emerald-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-emerald-600">{fmt(dashboardData?.monthly?.profit ?? 0)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Après déduction de {fmt(dashboardData?.monthly?.expenses ?? 0)} de charges.</p>
+                <div className="text-2xl font-bold text-emerald-600">{fmt(periodData?.profit ?? 0)}</div>
+                <p className="text-xs text-muted-foreground mt-1">{periodLabels[bilanPeriod]} — après charges ({fmt(periodData?.expenses ?? 0)}).</p>
               </CardContent>
             </Card>
 
             <Card className="border-l-4 border-l-indigo-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Bénéfice Brut (Mois)</CardTitle>
+                <CardTitle className="text-sm font-medium">Bénéfice Brut</CardTitle>
                 <Receipt className="h-4 w-4 text-indigo-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{fmt(dashboardData?.monthly?.grossProfit ?? 0)}</div>
+                <div className="text-2xl font-bold">{fmt(periodData?.grossProfit ?? periodData?.profit ?? 0)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Marge sur les ventes uniquement.</p>
               </CardContent>
             </Card>
 
             <Card className="border-l-4 border-l-red-500 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Charges (Mois)</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Charges</CardTitle>
                 <Wallet className="h-4 w-4 text-red-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">{fmt(dashboardData?.monthly?.expenses ?? 0)}</div>
+                <div className="text-2xl font-bold text-red-600">{fmt(periodData?.expenses ?? 0)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Salaires, factures et loyer.</p>
               </CardContent>
             </Card>

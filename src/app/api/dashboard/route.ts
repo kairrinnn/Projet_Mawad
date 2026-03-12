@@ -54,6 +54,12 @@ export async function GET() {
             _sum: { amount: true },
         });
 
+        // Dépenses de la semaine
+        const weeklyExpenses = await prisma.expense.aggregate({
+            where: { userId, date: { gte: startOfWeek, lte: now } },
+            _sum: { amount: true },
+        });
+
         // Ventes du jour
         const dailySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfDay } },
@@ -167,7 +173,9 @@ export async function GET() {
             },
             weekly: { 
                 revenue: weeklySales._sum?.salePrice || 0,
-                profit: weeklySales._sum?.profit || 0, 
+                profit: (weeklySales._sum?.profit || 0) - (weeklyExpenses._sum?.amount || 0), 
+                grossProfit: weeklySales._sum?.profit || 0,
+                expenses: weeklyExpenses._sum?.amount || 0,
                 quantity: weeklySales._sum?.quantity || 0 
             },
             monthly: { 
@@ -180,6 +188,8 @@ export async function GET() {
             total: { 
                 revenue: totalSales._sum?.salePrice || 0,
                 profit: (totalSales._sum?.profit || 0) - (totalExpenses._sum?.amount || 0), 
+                grossProfit: totalSales._sum?.profit || 0,
+                expenses: totalExpenses._sum?.amount || 0,
                 quantity: totalSales._sum?.quantity || 0 
             },
             cashDrawer: {

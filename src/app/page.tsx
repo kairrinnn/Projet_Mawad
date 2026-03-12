@@ -30,8 +30,11 @@ import {
   Unlock,
   Eye,
   EyeOff,
-  Pencil
+  Pencil,
+  Minus,
+  Receipt
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { 
   Dialog, 
   DialogContent, 
@@ -63,6 +66,9 @@ export default function DashboardPage() {
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [newStartingCash, setNewStartingCash] = useState<string>("");
   const [showCashDialog, setShowCashDialog] = useState(false);
+  const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [quickExpense, setQuickExpense] = useState({ amount: "", description: "" });
+  const [expSubmitting, setExpSubmitting] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -118,6 +124,29 @@ export default function DashboardPage() {
     }
   };
 
+  const submitQuickExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setExpSubmitting(true);
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "Daily",
+          amount: quickExpense.amount,
+          description: quickExpense.description,
+          date: new Date().toISOString(),
+        }),
+      });
+      if (res.ok) {
+        toast.success("Dépense enregistrée");
+        setQuickExpense({ amount: "", description: "" });
+        setShowExpenseDialog(false);
+        fetchData();
+      }
+    } catch { toast.error("Erreur"); } finally { setExpSubmitting(false); }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -158,9 +187,17 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-4">
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h2>
         <div className="flex items-center gap-2">
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowExpenseDialog(true)}
+                className="bg-red-50 border-red-100 text-red-700 hover:bg-red-100"
+            >
+                <Minus className="mr-1.5 h-4 w-4" /> Dépense Caisse
+            </Button>
             {!showProfits ? (
                 <Button 
                     variant="outline" 
@@ -424,7 +461,43 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Dépense Rapide */}
+      <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Dépense de Caisse</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitQuickExpense} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>Montant (DH)</Label>
+              <Input
+                type="number"
+                required
+                value={quickExpense.amount}
+                onChange={(e) => setQuickExpense({ ...quickExpense, amount: e.target.value })}
+                placeholder="0.00"
+                className="text-lg font-bold"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Input
+                required
+                value={quickExpense.description}
+                onChange={(e) => setQuickExpense({ ...quickExpense, description: e.target.value })}
+                placeholder="Ex: Pain, taxi, réparation…"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full bg-red-600 hover:bg-red-700 font-semibold" disabled={expSubmitting}>
+                {expSubmitting ? "Enregistrement…" : "Enregistrer la dépense"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
