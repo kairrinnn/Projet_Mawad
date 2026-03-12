@@ -1,10 +1,10 @@
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import pg from 'pg'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 // Lazy PrismaClient: only created when first accessed, NOT at module import time
-// This prevents build-phase crashes when DATABASE_URL is a mock URL
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, prop) {
     if (!globalForPrisma.prisma) {
@@ -20,8 +20,9 @@ export const prisma = new Proxy({} as PrismaClient, {
         });
       }
 
-      // Runtime: create real PrismaClient with pg driver adapter
-      const adapter = new PrismaPg(url);
+      // Runtime: create Pool then pass to PrismaPg adapter
+      const pool = new pg.Pool({ connectionString: url });
+      const adapter = new PrismaPg(pool);
       globalForPrisma.prisma = new PrismaClient({ adapter });
     }
 
