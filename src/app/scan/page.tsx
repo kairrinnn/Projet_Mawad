@@ -428,7 +428,7 @@ export default function ScanPage() {
                       <Button variant="ghost" className="flex-1 rounded-none h-10 text-[10px] sm:text-xs text-slate-500" onClick={() => fileInputRef.current?.click()}>
                           <Upload className="h-3 w-3 mr-1.5" /> Photo
                       </Button>
-                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileScan} />
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileScan} />
                       <Button variant="ghost" className="flex-1 rounded-none h-10 text-[10px] sm:text-xs text-slate-500" onClick={() => startScanner()}>
                           <RefreshCw className="h-3 w-3 mr-1.5" /> Relancer
                       </Button>
