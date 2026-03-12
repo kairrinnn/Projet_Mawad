@@ -135,11 +135,28 @@ async function processPatch(request: NextRequest) {
       image: json.image,
     };
 
-    const product = await prisma.product.update({
-      where: { id: id },
-      data: updateData,
-      include: { supplier: true }
-    });
+    // Calculate stock difference
+    const stockDiff = (json.stock !== undefined) ? (json.stock - existing.stock) : 0;
+
+    const [product] = await prisma.$transaction([
+      prisma.product.update({
+        where: { id: id },
+        data: updateData,
+        include: { supplier: true }
+      }),
+      ...(stockDiff > 0 ? [
+        prisma.stockEntry.create({
+          data: {
+            productId: id,
+            quantity: stockDiff,
+            costPrice: json.costPrice ?? existing.costPrice,
+            totalCost: stockDiff * (json.costPrice ?? existing.costPrice),
+            userId: session.user.id,
+            date: new Date()
+          }
+        })
+      ] : [])
+    ]);
     
     return NextResponse.json(product);
   } catch (error) {

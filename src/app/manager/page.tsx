@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   Filter,
   CalendarDays,
+  PackageSearch,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -57,7 +58,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 // ── Type helpers ──────────────────────────────────────────────
 type Employee = { id: string; name: string; salary: number };
-type Expense  = { id: string; type: string; amount: number; description: string; date: string };
+type Expense    = { id: string; type: string; amount: number; description: string; date: string };
+type StockEntry = { id: string; productId: string; quantity: number; costPrice: number; totalCost: number; date: string; product: { name: string } };
 
 const EXPENSE_TYPES = [
   { value: "Daily",    label: "Quotidien (Pain, petit achat…)" },
@@ -99,6 +101,7 @@ export default function ManagerPage() {
   // ── data ────────────────────────────────────────────────────
   const [employees, setEmployees]     = useState<Employee[]>([]);
   const [expenses, setExpenses]       = useState<Expense[]>([]);
+  const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dashboardData, setDashboard] = useState<any>(null);
   const [loading, setLoading]         = useState(true);
 
@@ -172,6 +175,30 @@ export default function ManagerPage() {
   }, [expenses, calMonth]);
 
   // ── pin ────────────────────────────────────────────────────
+  const [stockPeriod, setStockPeriod] = useState<"daily" | "weekly" | "monthly" | "total">("monthly");
+
+  // ── stock filtering & stats ────────────────────────────────
+  const filteredStock = useMemo(() => {
+    const now = new Date();
+    return stockEntries.filter(e => {
+      const d = new Date(e.date);
+      if (stockPeriod === "daily")   return d.toDateString() === now.toDateString();
+      if (stockPeriod === "weekly")  {
+        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+        return d >= weekAgo;
+      }
+      if (stockPeriod === "monthly") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (stockPeriod === "total")   return d.getFullYear() === now.getFullYear();
+      return true;
+    });
+  }, [stockEntries, stockPeriod]);
+
+  const stockStats = useMemo(() => {
+    const qty = filteredStock.reduce((s, e) => s + e.quantity, 0);
+    const cost = filteredStock.reduce((s, e) => s + e.totalCost, 0);
+    return { qty, cost };
+  }, [filteredStock]);
+
   const [authorized, setAuthorized] = useState(false);
   const [pin, setPin]               = useState("");
   const [pinError, setPinError]     = useState(false);
@@ -192,12 +219,13 @@ export default function ManagerPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [eR, xR, dR] = await Promise.all([
-        fetch("/api/employees"), fetch("/api/expenses"), fetch("/api/dashboard"),
+      const [eR, xR, dR, sR] = await Promise.all([
+        fetch("/api/employees"), fetch("/api/expenses"), fetch("/api/dashboard"), fetch("/api/stock-entries"),
       ]);
       if (eR.ok) setEmployees(await eR.json());
       if (xR.ok) setExpenses(await xR.json());
       if (dR.ok) setDashboard(await dR.json());
+      if (sR.ok) setStockEntries(await sR.json());
     } catch { toast.error("Erreur de chargement"); } finally { setLoading(false); }
   };
 
@@ -312,9 +340,10 @@ export default function ManagerPage() {
       </div>
 
       <Tabs defaultValue="balance" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[540px] mb-6">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[680px] mb-6">
           <TabsTrigger value="balance" className="flex gap-2"><TrendingUp className="h-4 w-4" /> Bilan</TabsTrigger>
           <TabsTrigger value="expenses" className="flex gap-2"><Wallet className="h-4 w-4" /> Dépenses</TabsTrigger>
+          <TabsTrigger value="stock" className="flex gap-2"><PackageSearch className="h-4 w-4" /> Stock</TabsTrigger>
           <TabsTrigger value="employees" className="flex gap-2"><Users className="h-4 w-4" /> Salariés</TabsTrigger>
           <TabsTrigger value="calendar" className="flex gap-2"><CalendarDays className="h-4 w-4" /> Calendrier</TabsTrigger>
         </TabsList>
@@ -536,6 +565,95 @@ export default function ManagerPage() {
           </div>
         </TabsContent>
 
+        {/* ════════════════ TAB: STOCK ════════════════ */}
+        <TabsContent value="stock" className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h2 className="text-lg font-semibold text-slate-800">Historique des Ajouts de Stock</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["daily", "weekly", "monthly", "total"] as const).map((p) => (
+                <Button key={p} variant={stockPeriod === p ? "default" : "outline"} size="sm" onClick={() => setStockPeriod(p)}
+                  className={stockPeriod === p ? "bg-amber-600 hover:bg-amber-700" : ""}
+                >
+                  {periodLabels[p]}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card className="border-l-4 border-l-amber-500 shadow-sm">
+              <CardContent className="pt-4 flex items-center gap-4">
+                <div className="h-10 w-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+                  <DollarSign className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Investi</p>
+                  <p className="text-xl font-bold text-slate-900">{fmt(stockStats.cost)}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-indigo-500 shadow-sm">
+              <CardContent className="pt-4 flex items-center gap-4">
+                <div className="h-10 w-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                  <PackageSearch className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Pièces Ajoutées</p>
+                  <p className="text-xl font-bold text-slate-900">{stockStats.qty} <span className="text-xs font-normal text-slate-400">unités</span></p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="shadow-sm">
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-600">Produit</th>
+                    <th className="px-4 py-3 text-center font-semibold text-slate-600">Quantité</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-600">P.A. Unitaire</th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-600">Coût Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStock.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-12 text-center text-slate-400 italic">
+                        Aucun mouvement de stock sur cette période.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStock.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-4 py-3 text-slate-500 text-xs">
+                          {new Date(entry.date).toLocaleDateString("fr-FR", { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-900">
+                          {entry.product?.name || "Produit inconnu"}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                            +{entry.quantity}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right text-slate-500">
+                          {fmt(entry.costPrice)}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-900">
+                          {fmt(entry.totalCost)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+
         {/* ════════════════ TAB: CALENDRIER ════════════════ */}
         <TabsContent value="calendar" className="space-y-6">
           <Card className="shadow-sm">
@@ -653,7 +771,7 @@ export default function ManagerPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Type</Label>
-                <Select value={expForm.type} onValueChange={(v) => setExpForm({ ...expForm, type: v })}>
+                <Select value={expForm.type || "Daily"} onValueChange={(v) => setExpForm({ ...expForm, type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-white">
                     {EXPENSE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}

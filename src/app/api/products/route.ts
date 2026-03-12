@@ -125,6 +125,20 @@ export async function POST(request: Request) {
         supplier: true,
       }
     });
+
+    // Log initial stock if > 0
+    if (product.stock > 0) {
+      await prisma.stockEntry.create({
+        data: {
+          productId: product.id,
+          quantity: product.stock,
+          costPrice: product.costPrice,
+          totalCost: product.stock * product.costPrice,
+          userId: dbUser.id,
+          date: new Date()
+        }
+      });
+    }
     
     return NextResponse.json(product, { status: 201 });
   } catch (error: any) {
