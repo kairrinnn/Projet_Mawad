@@ -24,7 +24,7 @@ export default function SalesPage() {
   useEffect(() => {
     const fetchSales = async () => {
       try {
-        const res = await fetch("/api/sales");
+        const res = await fetch("/api/sales", { cache: 'no-store' });
         const data = await res.json();
         if (Array.isArray(data)) {
           setSales(data);

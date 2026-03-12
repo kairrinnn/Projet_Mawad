@@ -171,8 +171,8 @@ export default function ProductsPage() {
   const fetchData = async () => {
     try {
       const [prodRes, suppRes] = await Promise.all([
-        fetch("/api/products"),
-        fetch("/api/suppliers")
+        fetch("/api/products", { cache: 'no-store' }),
+        fetch("/api/suppliers", { cache: 'no-store' })
       ]);
       const [prodData, suppData] = await Promise.all([
         prodRes.json(),
@@ -215,6 +215,7 @@ export default function ProductsPage() {
       const res = await fetch("/api/upload", {
         method: "POST",
         body: formDataUpload,
+        cache: 'no-store'
       });
       const data = await res.json();
       if (res.ok) {
@@ -246,6 +247,7 @@ export default function ProductsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        cache: 'no-store'
       });
       if (res.ok) {
         setFormData({ 
@@ -290,6 +292,7 @@ export default function ProductsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        cache: 'no-store'
       });
       if (res.ok) {
         setOpenEdit(false);
@@ -311,6 +314,7 @@ export default function ProductsPage() {
     try {
       const res = await fetch(`/api/products/${selectedProduct.id}`, {
         method: "DELETE",
+        cache: 'no-store'
       });
       if (res.ok) {
         setOpenDelete(false);
@@ -472,7 +476,7 @@ export default function ProductsPage() {
                       ref={fileInputRef}
                       className="hidden" 
                       accept="image/*"
-                      capture="environment"
+                      capture="environment" // Force la caméra arrière sur mobile
                       onChange={handleFileUpload}
                       disabled={uploading}
                     />
@@ -833,7 +837,7 @@ export default function ProductsPage() {
                     ref={editFileInputRef}
                     className="hidden" 
                     accept="image/*"
-                    capture="environment"
+                    capture="environment" // Force la caméra arrière sur mobile
                     onChange={handleFileUpload}
                     disabled={uploading}
                   />

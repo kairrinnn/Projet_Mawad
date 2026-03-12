@@ -67,7 +67,7 @@ export default function DashboardPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/dashboard");
+      const res = await fetch("/api/dashboard", { cache: 'no-store' });
       const json = await res.json();
       if (json.error) {
         console.error("Dashboard API error:", json.error);
@@ -106,6 +106,7 @@ export default function DashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ startingCash: Number(newStartingCash) }),
+        cache: 'no-store'
       });
       if (res.ok) {
         toast.success("Fond de caisse mis à jour");

@@ -50,18 +50,35 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Vérifier si l'utilisateur existe en base, sinon on le crée (auto-sync)
-    let dbUser = await prisma.user.findUnique({
-      where: { id: session.user.id }
+    // Vérifier si l'utilisateur existe en base par ID ou Email (auto-sync robuste)
+    const normalizedEmail = session.user.email?.toLowerCase().trim();
+    let dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: session.user.id },
+          normalizedEmail ? { email: { equals: normalizedEmail, mode: 'insensitive' } } : {}
+        ].filter(Boolean) as any
+      }
     });
 
     if (!dbUser && session.user.email) {
+      // Creation si vraiment aucun match
       dbUser = await prisma.user.create({
         data: {
           id: session.user.id,
           name: session.user.name,
-          email: session.user.email,
+          email: normalizedEmail,
           image: session.user.image,
+        }
+      });
+    } else if (dbUser && normalizedEmail && dbUser.email !== normalizedEmail) {
+      // Mise à jour si l'email a changé ou pour normaliser
+      dbUser = await prisma.user.update({
+        where: { id: dbUser.id },
+        data: { 
+          name: session.user.name,
+          email: normalizedEmail,
+          image: session.user.image 
         }
       });
     }
@@ -99,7 +116,7 @@ export async function POST(request: Request) {
         description,
         image,
         supplierId: supplierId === "none" ? null : supplierId,
-        userId: session.user.id,
+        userId: dbUser.id,
       },
       include: {
         supplier: true,

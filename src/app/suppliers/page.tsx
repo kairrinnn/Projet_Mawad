@@ -45,7 +45,7 @@ export default function SuppliersPage() {
 
   const fetchSuppliers = async () => {
     try {
-      const res = await fetch("/api/suppliers");
+      const res = await fetch("/api/suppliers", { cache: 'no-store' });
       const data = await res.json();
       if (Array.isArray(data)) {
         setSuppliers(data);
@@ -72,6 +72,7 @@ export default function SuppliersPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
+        cache: 'no-store'
       });
       if (res.ok) {
         setFormData({ name: "", contact: "" });
@@ -99,6 +100,7 @@ export default function SuppliersPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
+        cache: 'no-store'
       });
       if (res.ok) {
         setOpenEdit(false);
@@ -118,6 +120,7 @@ export default function SuppliersPage() {
     try {
       const res = await fetch(`/api/suppliers/${selectedSupplier.id}`, {
         method: "DELETE",
+        cache: 'no-store'
       });
       if (res.ok) {
         setOpenDelete(false);
