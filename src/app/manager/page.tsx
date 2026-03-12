@@ -1,6 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  AreaChart,
+  Area
+} from "recharts";
+import { 
+  ChartContainer, 
+  ChartTooltip, 
+  ChartTooltipContent 
+} from "@/components/ui/chart";
 import { 
   Users, 
   Wallet, 
@@ -48,6 +64,33 @@ export default function ManagerPage() {
   const [empForm, setEmpForm] = useState({ name: "", salary: "" });
   const [expForm, setExpForm] = useState({ type: "Daily", amount: "", description: "", date: "" });
   const [submitting, setSubmitting] = useState(false);
+
+  // PIN Security
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinError, setPinError] = useState(false);
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pin === "1234") {
+      setIsAuthorized(true);
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPin("");
+    }
+  };
+
+  const chartConfig = {
+    revenue: {
+      label: "Chiffre d'affaires",
+      color: "hsl(var(--primary))",
+    },
+    profit: {
+      label: "Bénéfice Net",
+      color: "hsl(var(--emerald-500))",
+    },
+  };
 
   useEffect(() => {
     fetchData();
@@ -144,8 +187,46 @@ export default function ManagerPage() {
 
   if (loading && !dashboardData) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-[80vh]">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="flex items-center justify-center h-[80vh]">
+        <Card className="w-full max-w-sm shadow-xl border-slate-200">
+          <CardHeader className="text-center">
+            <div className="mx-auto bg-indigo-100 h-16 w-16 rounded-full flex items-center justify-center mb-4">
+              <Briefcase className="h-8 w-8 text-indigo-600" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Accès Gérant</CardTitle>
+            <CardDescription>Veuillez entrer votre Code PIN pour continuer.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Input 
+                  type="password" 
+                  maxLength={4}
+                  className={`text-center text-3xl tracking-[1em] font-bold h-16 ${pinError ? 'border-red-500 animate-shake' : ''}`}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  autoFocus
+                  placeholder="****"
+                />
+                {pinError && <p className="text-red-500 text-xs text-center font-medium">Code PIN incorrect</p>}
+              </div>
+              <Button type="submit" className="w-full bg-indigo-600 h-12 text-lg">
+                Se connecter
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-center text-slate-400 text-xs">
+            Sécurité de l'application Projet Mawad
+          </CardFooter>
+        </Card>
       </div>
     );
   }
@@ -221,18 +302,63 @@ export default function ManagerPage() {
           </div>
 
           {/* Section Historique Simplifiée */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg">Résumé Financier</CardTitle>
-              <CardDescription>Visualisation de la structure de vos coûts.</CardDescription>
+          <Card className="shadow-sm overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Évolution des Revenus</CardTitle>
+                <CardDescription>Chiffre d'affaires sur les 7 derniers jours.</CardDescription>
+              </div>
+              <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-100">7 derniers jours</Badge>
             </CardHeader>
-            <CardContent className="h-[300px] flex items-center justify-center border-t border-slate-50 bg-slate-50/30">
-               <div className="text-slate-400 text-sm italic flex flex-col items-center gap-3 max-w-sm text-center">
-                 <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
-                    <AlertCircle className="h-5 w-5 opacity-40 text-indigo-500" />
-                 </div>
-                 <p>Le graphique détaillé de rentabilité s'affichera ici une fois que vous aurez enregistré quelques dépenses et ventes.</p>
-               </div>
+            <CardContent className="h-[350px] pt-0">
+               {dashboardData?.chartData?.length > 0 ? (
+                 <ChartContainer config={chartConfig} className="h-full w-full">
+                    <AreaChart data={dashboardData.chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="date" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10 }}
+                        tickFormatter={(str) => {
+                          const d = new Date(str);
+                          return d.toLocaleDateString('fr-FR', { weekday: 'short' });
+                        }}
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#94a3b8', fontSize: 10 }}
+                        tickFormatter={(val) => `${val} DH`}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="revenue" 
+                        stroke="#4f46e5" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorRevenue)" 
+                        animationDuration={1500}
+                      />
+                    </AreaChart>
+                 </ChartContainer>
+               ) : (
+                <div className="h-full flex items-center justify-center bg-slate-50/30 rounded-lg border border-dashed border-slate-200">
+                  <div className="text-slate-400 text-sm italic flex flex-col items-center gap-3 max-w-sm text-center">
+                    <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+                        <AlertCircle className="h-5 w-5 opacity-40 text-indigo-500" />
+                    </div>
+                    <p>Le graphique détaillé de rentabilité s'affichera ici une fois que vous aurez enregistré quelques dépenses et ventes.</p>
+                  </div>
+                </div>
+               )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -394,13 +520,13 @@ export default function ManagerPage() {
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
                         <div className="h-12 w-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl">
-                          {emp.name.charAt(0)}
+                          {emp.name?.charAt(0) || "S"}
                         </div>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteEmployee(emp.id)} className="text-slate-300 hover:text-red-500 h-8 w-8 p-0">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                      <CardTitle className="pt-4">{emp.name}</CardTitle>
+                      <CardTitle className="pt-4">{emp.name || "Salarié"}</CardTitle>
                       <CardDescription>Poste : Salarié</CardDescription>
                     </CardHeader>
                     <CardContent>

@@ -26,15 +26,21 @@ export async function GET() {
         const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Dépenses du jour
+        // Dépenses du jour (uniquement celles déjà payées/passées)
         const dailyExpenses = await prisma.expense.aggregate({
-            where: { userId, date: { gte: startOfDay } },
+            where: { 
+                userId, 
+                date: { gte: startOfDay, lte: now } 
+            },
             _sum: { amount: true },
         });
 
-        // Dépenses du mois (pour les charges fixes : loyer, etc)
+        // Dépenses du mois (uniquement celles déjà payées/passées)
         const monthlyExpenses = await prisma.expense.aggregate({
-            where: { userId, date: { gte: startOfMonth } },
+            where: { 
+                userId, 
+                date: { gte: startOfMonth, lte: now } 
+            },
             _sum: { amount: true },
         });
 
@@ -63,7 +69,7 @@ export async function GET() {
         });
 
         const totalExpenses = await prisma.expense.aggregate({
-            where: { userId },
+            where: { userId, date: { lte: now } },
             _sum: { amount: true },
         });
 

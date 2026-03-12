@@ -84,23 +84,20 @@ export default function SalesPage() {
                 <TableHead>Date & Heure</TableHead>
                 <TableHead>Produit</TableHead>
                 <TableHead className="text-center">Quantité</TableHead>
-                <TableHead className="text-right">Prix Unitaire</TableHead>
                 <TableHead className="text-right">Réduction</TableHead>
-                {session?.user?.role === "MANAGER" && (
-                  <TableHead className="text-right font-semibold">Bénéfice Net</TableHead>
-                )}
+                <TableHead className="text-right font-semibold">Total Payé</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={session?.user?.role === "MANAGER" ? 6 : 5} className="text-center py-10 text-slate-500">
+                  <TableCell colSpan={6} className="text-center py-10 text-slate-500">
                     Chargement de l'historique...
                   </TableCell>
                 </TableRow>
               ) : filteredSales.length === 0 ? (
                  <TableRow>
-                  <TableCell colSpan={session?.user?.role === "MANAGER" ? 6 : 5} className="text-center py-10">
+                  <TableCell colSpan={6} className="text-center py-10">
                     <span className="text-slate-500">Aucune vente enregistrée pour le moment.</span>
                   </TableCell>
                 </TableRow>
@@ -121,19 +118,14 @@ export default function SalesPage() {
                            {sale.quantity}
                        </Badge>
                     </TableCell>
-                    <TableCell className="text-right text-slate-600">
-                       {formatCurrency(sale.salePrice)}
-                    </TableCell>
                     <TableCell className="text-right">
                        <span className={sale.discount > 0 ? "text-amber-600 font-medium" : "text-slate-300"}>
                            {sale.discount > 0 ? `-${formatCurrency(sale.discount)}` : "-"}
                        </span>
                     </TableCell>
-                    {session?.user?.role === "MANAGER" && (
-                      <TableCell className={`text-right font-bold ${sale.profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                        {formatCurrency(sale.profit)}
-                      </TableCell>
-                    )}
+                    <TableCell className="text-right font-bold text-slate-900">
+                       {formatCurrency((sale.salePrice * sale.quantity) - sale.discount)}
+                    </TableCell>
                   </TableRow>
                 ))
               )}
