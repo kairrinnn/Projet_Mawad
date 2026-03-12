@@ -11,24 +11,21 @@ const isBuild = !process.env.DATABASE_URL ||
                process.env.BUILD_MODE === "1";
 
 if (isBuild) {
-  // Proxy mock for build phase — returns empty arrays for all DB calls
+  // Proxy mock for build phase — returns empty arrays/objects for all DB calls
   prismaInstance = new Proxy({}, {
     get: function(_target, prop) {
       if (prop === '$connect' || prop === '$disconnect') {
         return () => Promise.resolve();
       }
-      // Return a model-like proxy with all Prisma methods
+      // Return a model-like proxy with all Prisma methods (findMany, aggregate, etc.)
       return new Proxy({}, {
         get: () => (..._args: any[]) => Promise.resolve([])
       });
     }
   }) as unknown as PrismaClient;
 } else {
-  // Runtime on Vercel: explicitly pass DATABASE_URL since Prisma v7 
-  // removed url from schema.prisma
-  prismaInstance = new PrismaClient({
-    datasourceUrl: process.env.DATABASE_URL,
-  });
+  // Runtime: PrismaClient reads DATABASE_URL from env automatically in v7
+  prismaInstance = new PrismaClient();
 }
 
 export const prisma = globalForPrisma.prisma || prismaInstance;
