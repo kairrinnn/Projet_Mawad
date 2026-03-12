@@ -342,8 +342,12 @@ export default function DashboardPage() {
               ) : (
                 data.topSales.map((sale, i) => (
                   <div key={i} className="flex items-center gap-3 sm:gap-4">
-                    <div className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-full bg-slate-100 flex-shrink-0">
-                      <Box className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />
+                    <div className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0">
+                      {sale.product?.image ? (
+                        <img src={sale.product.image} alt={sale.product.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <Box className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <p className="text-sm font-semibold truncate text-slate-900 leading-tight">

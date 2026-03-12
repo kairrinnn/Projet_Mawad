@@ -64,23 +64,40 @@ export async function GET() {
             where: { userId, stock: { lte: 5 }, isArchived: false }
         });
         
-        const topSales = await prisma.sale.groupBy({
-            by: ['productId'],
+        // Top Ventes : On agrège par nom de produit pour gérer les doublons (produits supprimés/recréés)
+        const allSalesForTop = await prisma.sale.findMany({
             where: { userId },
-            _sum: { quantity: true },
-            orderBy: { _sum: { quantity: 'desc' } },
-            take: 5
+            include: {
+                product: {
+                    select: { name: true, image: true, category: true }
+                }
+            }
         });
 
-        const topProductsIds = topSales.map(s => s.productId);
-        const topProducts = await prisma.product.findMany({
-            where: { id: { in: topProductsIds }, userId }
+        const salesByName: Record<string, { name: string; quantity: number; image: string | null; category: string | null }> = {};
+        
+        allSalesForTop.forEach(sale => {
+            const name = sale.product?.name || "Produit inconnu";
+            if (!salesByName[name]) {
+                salesByName[name] = { 
+                    name, 
+                    quantity: 0, 
+                    image: sale.product?.image || null,
+                    category: sale.product?.category || null
+                };
+            }
+            salesByName[name].quantity += sale.quantity;
+            // On garde l'image la plus récente si disponible
+            if (sale.product?.image) salesByName[name].image = sale.product.image;
         });
 
-        const enrichedTopSales = topSales.map(sale => ({
-            ...sale,
-            product: topProducts.find(p => p.id === sale.productId)
-        }));
+        const enrichedTopSales = Object.values(salesByName)
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 5)
+            .map(s => ({
+                _sum: { quantity: s.quantity },
+                product: { name: s.name, image: s.image, category: s.category }
+            }));
 
         // Graphique 7 jours
         const last7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
