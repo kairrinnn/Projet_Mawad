@@ -1,33 +1,30 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-let prismaInstance: PrismaClient;
+// Lazy PrismaClient: only created when first accessed, NOT at module import time
+// This prevents build-phase crashes when DATABASE_URL is a mock URL
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    if (!globalForPrisma.prisma) {
+      const url = process.env.DATABASE_URL;
 
-// Detect build phase: DATABASE_URL contains "mock" or BUILD_MODE is set
-const isBuild = !process.env.DATABASE_URL || 
-               process.env.DATABASE_URL.includes("mock") || 
-               process.env.DATABASE_URL.includes("dummy") || 
-               process.env.BUILD_MODE === "1";
-
-if (isBuild) {
-  // Proxy mock for build phase — returns empty arrays/objects for all DB calls
-  prismaInstance = new Proxy({}, {
-    get: function(_target, prop) {
-      if (prop === '$connect' || prop === '$disconnect') {
-        return () => Promise.resolve();
+      // During build phase, return mock responses
+      if (!url || url.includes("mock") || url.includes("dummy") || process.env.BUILD_MODE === "1") {
+        if (prop === '$connect' || prop === '$disconnect') {
+          return () => Promise.resolve();
+        }
+        return new Proxy({}, {
+          get: () => (..._args: any[]) => Promise.resolve([])
+        });
       }
-      // Return a model-like proxy with all Prisma methods (findMany, aggregate, etc.)
-      return new Proxy({}, {
-        get: () => (..._args: any[]) => Promise.resolve([])
-      });
+
+      // Runtime: create real PrismaClient with pg driver adapter
+      const adapter = new PrismaPg(url);
+      globalForPrisma.prisma = new PrismaClient({ adapter });
     }
-  }) as unknown as PrismaClient;
-} else {
-  // Runtime: PrismaClient reads DATABASE_URL from env automatically in v7
-  prismaInstance = new PrismaClient();
-}
 
-export const prisma = globalForPrisma.prisma || prismaInstance;
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+    return (globalForPrisma.prisma as any)[prop];
+  }
+});
