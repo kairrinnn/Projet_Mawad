@@ -1,8 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import { join } from "path";
 import { auth } from "@/auth";
+import { supabase } from "@/lib/supabase";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,18 +23,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    // Créer un nom de fichier unique
+    // Create a unique filename
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const filename = `${uniqueSuffix}-${file.name.replace(/\s+/g, "-")}`;
-    const path = join(process.cwd(), "public", "uploads", filename);
 
-    await writeFile(path, buffer);
-    const url = `/uploads/${filename}`;
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('products')
+      .upload(filename, buffer, {
+        contentType: file.type,
+        upsert: false
+      });
 
-    return NextResponse.json({ url });
+    if (error) {
+      console.error("Supabase storage error:", error);
+      return NextResponse.json({ error: "Error uploading to cloud storage. Ensure 'products' bucket exists in Supabase." }, { status: 500 });
+    }
+
+    // Get Public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('products')
+      .getPublicUrl(filename);
+
+    return NextResponse.json({ url: publicUrl });
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json({ error: "Error uploading file" }, { status: 500 });

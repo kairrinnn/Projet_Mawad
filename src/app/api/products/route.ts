@@ -50,10 +50,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Vérifier si l'utilisateur existe encore en base (suite au reset)
-    const dbUser = await prisma.user.findUnique({
+    // Vérifier si l'utilisateur existe en base, sinon on le crée (auto-sync)
+    let dbUser = await prisma.user.findUnique({
       where: { id: session.user.id }
     });
+
+    if (!dbUser && session.user.email) {
+      dbUser = await prisma.user.create({
+        data: {
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          image: session.user.image,
+        }
+      });
+    }
 
     if (!dbUser) {
       return NextResponse.json({ error: "Profil utilisateur introuvable. Veuillez vous déconnecter et vous reconnecter." }, { status: 401 });
