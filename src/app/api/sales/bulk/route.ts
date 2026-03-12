@@ -1,9 +1,12 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 
-export async function POST(request: Request) {
-  const session = await auth();
+export const dynamic = 'force-dynamic';
+
+async function processPost(request: Request) {
+  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -81,4 +84,12 @@ export async function POST(request: Request) {
     console.error("Bulk sale error:", error);
     return NextResponse.json({ error: "Failed to process bulk sale", details: error.message }, { status: 500 });
   }
+}
+
+export async function POST(request: Request) {
+  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+
+  await headers();
+
+  return await processPost(request);
 }

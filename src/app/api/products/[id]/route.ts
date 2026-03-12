@@ -1,25 +1,23 @@
-import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { Prisma } from "@prisma/client";
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await auth();
+export const dynamic = 'force-dynamic';
+
+async function processGet(request: NextRequest) {
+  const id = request.nextUrl.pathname.split('/').pop() || "";
+  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const p = await params;
-    // On utilise findFirst car findUnique ne permet pas de filtrer par userId sur une clé id unique
     const product = await prisma.product.findFirst({
       where: { 
         OR: [
-          { id: p.id },
-          { barcode: p.id }
+          { id: id },
+          { barcode: id }
         ],
         userId: session.user.id,
         isArchived: false
@@ -39,21 +37,24 @@ export async function GET(
   }
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await auth();
+export async function GET(request: NextRequest) {
+  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+
+  await headers();
+
+  return await processGet(request);
+}
+
+async function processDelete(request: NextRequest) {
+  const id = request.nextUrl.pathname.split('/').pop() || "";
+  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const p = await params;
-    
-    // On vérifie d'abord si le produit appartient à l'utilisateur
     const product = await prisma.product.findFirst({
-      where: { id: p.id, userId: session.user.id }
+      where: { id: id, userId: session.user.id }
     });
 
     if (!product) {
@@ -61,10 +62,10 @@ export async function DELETE(
     }
 
     await prisma.product.update({
-      where: { id: p.id },
+      where: { id: id },
       data: {
         isArchived: true,
-        barcode: null // On libère le code-barres pour réutilisation
+        barcode: null
       }
     });
     return NextResponse.json({ message: "Product archived" });
@@ -74,44 +75,45 @@ export async function DELETE(
   }
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await auth();
+export async function DELETE(request: NextRequest) {
+  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+
+  await headers();
+
+  return await processDelete(request);
+}
+
+async function processPatch(request: NextRequest) {
+  const id = request.nextUrl.pathname.split('/').pop() || "";
+  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const p = await params;
     const json = await request.json();
     console.log("PATCH Product Data received:", json);
-    
-    // Vérification de propriété
+
     const existing = await prisma.product.findFirst({
-      where: { id: p.id, userId: session.user.id }
+      where: { id: id, userId: session.user.id }
     });
 
     if (!existing) {
       return NextResponse.json({ error: "Produit non trouvé ou non autorisé" }, { status: 404 });
     }
 
-    // Extraire les champs qui peuvent avoir besoin de conversion
     if (json.salePrice !== undefined) json.salePrice = Number(json.salePrice);
     if (json.costPrice !== undefined) json.costPrice = Number(json.costPrice);
     if (json.stock !== undefined) json.stock = Number(json.stock);
     
-    // S'assurer que supplierId est null si "none"
     if (json.supplierId === "none") json.supplierId = null;
 
-    // Vérifier si le nouveau code-barres existe déjà pour un AUTRE produit
     if (json.barcode && json.barcode.trim() !== "") {
       const barcodeClean = json.barcode.trim();
       const duplicate = await prisma.product.findFirst({
         where: { 
           barcode: barcodeClean,
-          NOT: { id: p.id }
+          NOT: { id: id }
         }
       });
 
@@ -133,7 +135,7 @@ export async function PATCH(
     };
 
     const product = await prisma.product.update({
-      where: { id: p.id },
+      where: { id: id },
       data: updateData,
       include: { supplier: true }
     });
@@ -143,4 +145,16 @@ export async function PATCH(
     console.error("Update product error:", error);
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
   }
+}
+
+export async function PATCH(request: NextRequest) {
+  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+
+  await headers();
+
+  return await processPatch(request);
+}
+
+export async function generateStaticParams() {
+  return [];
 }

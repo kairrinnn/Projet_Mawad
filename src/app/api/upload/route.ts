@@ -1,10 +1,17 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { auth } from "@/auth";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
-  const session = await auth();
+  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+
+  await headers();
+
+  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
