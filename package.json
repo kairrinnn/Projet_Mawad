@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "cross-env DATABASE_URL=postgresql://mock:mock@localhost:5432/mock prisma generate && next build",
+    "build": "cross-env BUILD_MODE=1 DATABASE_URL=postgresql://mock:mock@localhost:5432/mock prisma generate && next build",
     "start": "next start",
     "lint": "eslint"
   },
