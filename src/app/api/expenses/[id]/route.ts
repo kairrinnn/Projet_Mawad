@@ -4,15 +4,17 @@ import { auth } from "@/auth";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { id } = await params;
+
   try {
     const { type, amount, description, date } = await request.json();
     const expense = await prisma.expense.update({
-      where: { id: params.id, userId: session.user.id },
+      where: { id, userId: session.user.id },
       data: {
         type,
         amount: parseFloat(amount),
@@ -28,14 +30,16 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { id } = await params;
+
   try {
     await prisma.expense.delete({
-      where: { id: params.id, userId: session.user.id }
+      where: { id, userId: session.user.id }
     });
     return NextResponse.json({ success: true });
   } catch (error) {
