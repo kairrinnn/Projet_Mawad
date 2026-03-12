@@ -6,6 +6,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  MANAGER
+  CASHIER
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -13,6 +18,7 @@ model User {
   emailVerified DateTime?
   image         String?
   pinCode       String?    @default("1234")
+  role          UserRole   @default(MANAGER)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   accounts      Account[]
@@ -21,6 +27,8 @@ model User {
   sessions      Session[]
   suppliers     Supplier[]
   cashDrawers   CashDrawer[]
+  employees     Employee[]
+  expenses      Expense[]
 }
 
 model CashDrawer {
@@ -112,4 +120,26 @@ model Sale {
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product   Product  @relation(fields: [productId], references: [id])
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  salary    Float
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  type        String   // Salary, Utility, Rent, Internet, Stock, Daily
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

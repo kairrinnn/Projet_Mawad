@@ -26,6 +26,18 @@ export async function GET() {
         const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+        // Dépenses du jour
+        const dailyExpenses = await prisma.expense.aggregate({
+            where: { userId, date: { gte: startOfDay } },
+            _sum: { amount: true },
+        });
+
+        // Dépenses du mois (pour les charges fixes : loyer, etc)
+        const monthlyExpenses = await prisma.expense.aggregate({
+            where: { userId, date: { gte: startOfMonth } },
+            _sum: { amount: true },
+        });
+
         // Ventes du jour
         const dailySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfDay } },
@@ -50,8 +62,12 @@ export async function GET() {
             _sum: { profit: true, quantity: true, salePrice: true },
         });
 
+        const totalExpenses = await prisma.expense.aggregate({
+            where: { userId },
+            _sum: { amount: true },
+        });
+
         // Fond de caisse d'aujourd'hui
-        // Note: On utilise findFirst car l'heure peut varier légèrement si non tronquée
         const cashDrawer = await (prisma as any).cashDrawer.findFirst({
             where: { 
                 userId,
@@ -64,7 +80,7 @@ export async function GET() {
             where: { userId, stock: { lte: 5 }, isArchived: false }
         });
         
-        // Top Ventes : On agrège par nom de produit pour gérer les doublons (produits supprimés/recréés)
+        // Top Ventes
         const allSalesForTop = await prisma.sale.findMany({
             where: { userId },
             include: {
@@ -87,7 +103,6 @@ export async function GET() {
                 };
             }
             salesByName[name].quantity += sale.quantity;
-            // On garde l'image la plus récente si disponible
             if (sale.product?.image) salesByName[name].image = sale.product.image;
         });
 
@@ -123,10 +138,15 @@ export async function GET() {
             }
         });
 
+        const grossMonthlyProfit = monthlySales._sum?.profit || 0;
+        const netMonthlyProfit = grossMonthlyProfit - (monthlyExpenses._sum?.amount || 0);
+
         return NextResponse.json({
             daily: { 
                 revenue: dailySales._sum?.salePrice || 0,
-                profit: dailySales._sum?.profit || 0, 
+                profit: (dailySales._sum?.profit || 0) - (dailyExpenses._sum?.amount || 0), 
+                grossProfit: dailySales._sum?.profit || 0,
+                expenses: dailyExpenses._sum?.amount || 0,
                 quantity: dailySales._sum?.quantity || 0 
             },
             weekly: { 
@@ -136,17 +156,21 @@ export async function GET() {
             },
             monthly: { 
                 revenue: monthlySales._sum?.salePrice || 0,
-                profit: monthlySales._sum?.profit || 0, 
+                profit: netMonthlyProfit, 
+                grossProfit: grossMonthlyProfit,
+                expenses: monthlyExpenses._sum?.amount || 0,
                 quantity: monthlySales._sum?.quantity || 0 
             },
             total: { 
                 revenue: totalSales._sum?.salePrice || 0,
-                profit: totalSales._sum?.profit || 0, 
+                profit: (totalSales._sum?.profit || 0) - (totalExpenses._sum?.amount || 0), 
                 quantity: totalSales._sum?.quantity || 0 
             },
             cashDrawer: {
                 startingCash: cashDrawer?.startingCash || 500,
-                currentRevenue: dailySales._sum?.salePrice || 0
+                currentRevenue: dailySales._sum?.salePrice || 0,
+                currentExpenses: dailyExpenses._sum?.amount || 0,
+                balance: (cashDrawer?.startingCash || 500) + (dailySales._sum?.salePrice || 0) - (dailyExpenses._sum?.amount || 0)
             },
             lowStockCount,
             topSales: enrichedTopSales,

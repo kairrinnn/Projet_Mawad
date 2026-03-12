@@ -11,17 +11,21 @@ import {
   Users, 
   Settings,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  ShieldCheck,
+  TrendingUp,
+  Wallet
 } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 
 const navItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Produits", href: "/products", icon: Package },
-  { name: "Scanner", href: "/scan", icon: QrCode },
-  { name: "Ventes", href: "/sales", icon: ShoppingCart },
-  { name: "Fournisseurs", href: "/suppliers", icon: Users },
-  { name: "Paramètres", href: "/settings", icon: Settings },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["MANAGER", "CASHIER"] },
+  { name: "Gérant", href: "/manager", icon: ShieldCheck, roles: ["MANAGER"] },
+  { name: "Produits", href: "/products", icon: Package, roles: ["MANAGER", "CASHIER"] },
+  { name: "Scanner", href: "/scan", icon: QrCode, roles: ["MANAGER", "CASHIER"] },
+  { name: "Ventes", href: "/sales", icon: ShoppingCart, roles: ["MANAGER", "CASHIER"] },
+  { name: "Fournisseurs", href: "/suppliers", icon: Users, roles: ["MANAGER"] },
+  { name: "Paramètres", href: "/settings", icon: Settings, roles: ["MANAGER"] },
 ];
 
 export function Sidebar() {
@@ -39,7 +43,9 @@ export function Sidebar() {
       
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">
-          {navItems.map((item) => {
+          {navItems
+            .filter(item => !item.roles || item.roles.includes((session?.user as any)?.role || "CASHIER"))
+            .map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
             return (
               <Link

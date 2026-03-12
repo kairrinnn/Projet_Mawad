@@ -5,6 +5,7 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string;
+      role: string;
     } & DefaultSession["user"]
   }
 }
@@ -21,7 +22,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const { prisma } = await import("@/lib/prisma");
         const normalizedEmail = user.email.toLowerCase().trim();
         
-        // On cherche par ID ou par Email (insensible à la casse)
         const dbUser = await prisma.user.findFirst({
           where: {
             OR: [
@@ -32,7 +32,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (dbUser) {
-          // Si l'utilisateur existe déjà, on met à jour ses infos (sauf l'ID qui est immuable)
           await prisma.user.update({
             where: { id: dbUser.id },
             data: {
@@ -41,18 +40,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               image: user.image,
             },
           });
-          
-          // Note: Si dbUser.id !== user.id, le JWT utilisera user.id de Google.
-          // C'est potentiellement un souci si on s'attend à ce que l'ID soit celui de la DB.
-          // Mais forcer l'ID de la DB ici est complexe.
         } else {
-          // Création si vraiment aucun match
           await prisma.user.create({
             data: {
               id: user.id,
               name: user.name,
               email: normalizedEmail,
               image: user.image,
+              role: "MANAGER" // Premier utilisateur par défaut
             },
           });
         }
@@ -64,6 +59,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        session.user.role = token.role as string || "MANAGER";
       }
       return session;
     },
@@ -83,10 +79,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           
           token.sub = dbUser ? dbUser.id : user.id;
+          token.role = dbUser ? dbUser.role : "MANAGER";
         } catch (error) {
           console.error("Error in JWT callback user sync:", error);
           token.sub = user.id;
+          token.role = "MANAGER";
         }
+      } else if (token.sub && !token.role) {
+          try {
+            const { prisma } = await import("@/lib/prisma");
+            const dbUser = await prisma.user.findUnique({ where: { id: token.sub as string } });
+            token.role = dbUser?.role || "MANAGER";
+          } catch (e) {
+            token.role = "MANAGER";
+          }
       }
       return token;
     },

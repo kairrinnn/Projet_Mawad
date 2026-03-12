@@ -15,11 +15,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ShoppingCart, CalendarDays } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useSession } from "next-auth/react";
 
 export default function SalesPage() {
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const { data: session } = useSession();
 
   useEffect(() => {
     const fetchSales = async () => {
@@ -84,19 +86,21 @@ export default function SalesPage() {
                 <TableHead className="text-center">Quantité</TableHead>
                 <TableHead className="text-right">Prix Unitaire</TableHead>
                 <TableHead className="text-right">Réduction</TableHead>
-                <TableHead className="text-right font-semibold">Bénéfice Net</TableHead>
+                {session?.user?.role === "MANAGER" && (
+                  <TableHead className="text-right font-semibold">Bénéfice Net</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                  <TableCell colSpan={session?.user?.role === "MANAGER" ? 6 : 5} className="text-center py-10 text-slate-500">
                     Chargement de l'historique...
                   </TableCell>
                 </TableRow>
               ) : filteredSales.length === 0 ? (
                  <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10">
+                  <TableCell colSpan={session?.user?.role === "MANAGER" ? 6 : 5} className="text-center py-10">
                     <span className="text-slate-500">Aucune vente enregistrée pour le moment.</span>
                   </TableCell>
                 </TableRow>
@@ -125,9 +129,11 @@ export default function SalesPage() {
                            {sale.discount > 0 ? `-${formatCurrency(sale.discount)}` : "-"}
                        </span>
                     </TableCell>
-                    <TableCell className={`text-right font-bold ${sale.profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                       {formatCurrency(sale.profit)}
-                    </TableCell>
+                    {session?.user?.role === "MANAGER" && (
+                      <TableCell className={`text-right font-bold ${sale.profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        {formatCurrency(sale.profit)}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
