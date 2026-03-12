@@ -9,6 +9,6 @@ export const GET = (req: any) => {
 };
 
 export const POST = (req: any) => {
-  if (process.env.BUILD_MODE === "1") return new Response(JSON.stringify([]), { status: 200 });
+  if (process.env.BUILD_MODE === "1") return new Response(JSON.stringify({}), { status: 200 });
   return AuthPOST(req);
 };

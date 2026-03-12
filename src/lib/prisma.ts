@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 let prismaInstance: PrismaClient;
 
 // Provide a completely isolated mock for Next.js static evaluation workers
-if (process.env.BUILD_MODE === "1" || process.env.npm_lifecycle_event === "build") {
+if (process.env.BUILD_MODE === "1") {
   prismaInstance = new Proxy({}, {
     get: function(target, prop) {
       if (prop === '$connect' || prop === '$disconnect') {
