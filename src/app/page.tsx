@@ -52,7 +52,7 @@ interface DashboardData {
   weekly: { revenue: number; profit: number; quantity: number };
   monthly: { revenue: number; profit: number; quantity: number };
   total: { revenue: number; profit: number; quantity: number };
-  cashDrawer: { startingCash: number; currentRevenue: number };
+  cashDrawer: { startingCash: number; currentRevenue: number; currentExpenses: number; balance: number };
   lowStockCount: number;
   topSales: any[];
   chartData: any[];
@@ -231,7 +231,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-                {formatCurrency(data.cashDrawer.startingCash + data.cashDrawer.currentRevenue)}
+                {formatCurrency(data.cashDrawer.balance)}
             </div>
             <div className="flex items-center justify-between mt-1">
                 <p className="text-xs opacity-80 leading-tight">

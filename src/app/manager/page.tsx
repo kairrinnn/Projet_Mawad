@@ -579,8 +579,10 @@ export default function ManagerPage() {
                   const hasPayment = !!exps;
                   const total = hasPayment ? exps.reduce((s, e) => s + e.amount, 0) : 0;
                   const isToday = day === new Date().getDate() && calMonth.getMonth() === new Date().getMonth() && calMonth.getFullYear() === new Date().getFullYear();
-                  // Unique expense types for dots
                   const uniqueTypes = hasPayment ? [...new Set(exps.map(e => e.type))] : [];
+
+                  const colIdx = (calendarGrid.firstDow + i) % 7;
+                  const tooltipPos = colIdx < 2 ? "left-0 translate-x-0" : colIdx > 4 ? "right-0 translate-x-0" : "left-1/2 -translate-x-1/2";
 
                   return (
                     <div
@@ -606,7 +608,7 @@ export default function ManagerPage() {
 
                       {/* Hover tooltip */}
                       {hoveredDay === day && hasPayment && (
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 pointer-events-none">
+                        <div className={`absolute bottom-full ${tooltipPos} mb-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 pointer-events-none`}>
                           <p className="text-xs font-bold text-slate-800 mb-2 border-b pb-1">
                             {new Date(calMonth.getFullYear(), calMonth.getMonth(), day).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
                           </p>
@@ -741,7 +743,7 @@ export default function ManagerPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Type</Label>
-                  <Select value={editExp.type} onValueChange={(v) => setEditExp({ ...editExp, type: v })}>
+                  <Select value={editExp?.type || ""} onValueChange={(v) => setEditExp(editExp ? { ...editExp, type: v } : null)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-white">
                       {EXPENSE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
