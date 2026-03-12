@@ -87,7 +87,7 @@ async function processPost(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+  if ((process.env.DATABASE_URL === "mock" || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
 
   await headers();
 

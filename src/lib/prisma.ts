@@ -5,14 +5,15 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 let prismaInstance: PrismaClient;
 
 // Provide a completely isolated mock for Next.js static evaluation workers
-if (process.env.BUILD_MODE === "1") {
+// We detect the build phase by checking if DATABASE_URL is set to 'mock' in the shell
+if (process.env.DATABASE_URL === "mock" || process.env.BUILD_MODE === "1") {
   prismaInstance = new Proxy({}, {
     get: function(target, prop) {
       if (prop === '$connect' || prop === '$disconnect') {
         return () => Promise.resolve();
       }
       return new Proxy({}, {
-        get: () => () => Promise.resolve([]) // Mock all DB calls (findMany, create, etc.)
+        get: () => () => Promise.resolve([]) // Mock all DB calls
       });
     }
   }) as unknown as PrismaClient;

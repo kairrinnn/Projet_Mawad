@@ -38,7 +38,7 @@ async function processGet(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+  if ((process.env.DATABASE_URL === "mock" || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
 
   await headers();
 
@@ -76,7 +76,7 @@ async function processDelete(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+  if ((process.env.DATABASE_URL === "mock" || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
 
   await headers();
 
@@ -148,7 +148,7 @@ async function processPatch(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (process.env.BUILD_MODE === "1") return NextResponse.json([]);
+  if ((process.env.DATABASE_URL === "mock" || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
 
   await headers();
 
