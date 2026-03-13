@@ -1,5 +1,26 @@
 "use client";
 
+// Styles spécifiques pour l'impression propre
+const printStyles = `
+  @media print {
+    @page {
+      margin: 0;
+      size: auto;
+    }
+    body {
+      background: white !important;
+    }
+    /* Cacher tout ce qui n'est pas le ticket */
+    header, footer, nav, aside, button, [role="status"] {
+      display: none !important;
+    }
+    /* Cacher explicitement les toasts de Sonner */
+    [data-sonner-toaster] {
+      display: none !important;
+    }
+  }
+`;
+
 import { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Html5Qrcode } from "html5-qrcode";
@@ -319,28 +340,79 @@ export default function ScanPage() {
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-50/50 -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 print:p-0 print:bg-white">
+    <div className="flex-1 flex flex-col h-full bg-slate-50/50 -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 print:p-0 print:bg-white print:m-0">
+      <style dangerouslySetInnerHTML={{ __html: printStyles }} />
       <div id="qr-reader-hidden" className="hidden" />
       
-      {/* Ticket simple de dernière vente */}
+      {/* Ticket Professionnel pour impression */}
       {lastSale && (
-        <Card className="mb-6 border-indigo-100 bg-indigo-50/30 overflow-hidden print:block hidden print:border-none print:shadow-none print:m-0 print:p-0">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-xs uppercase tracking-widest text-center opacity-50">{shopName}</CardTitle>
-            </CardHeader>
-            <CardContent className="text-[10px] space-y-1">
+        <div className="hidden print:block font-mono text-black p-4 w-full max-w-[80mm] mx-auto text-[12px] leading-tight">
+            {/* Header */}
+            <div className="text-center mb-4 space-y-1">
+                <h1 className="text-xl font-bold uppercase tracking-tighter">{shopName}</h1>
+                <p className="text-[10px] opacity-70">Commerce & Services</p>
+                <div className="border-y border-black/20 py-1 my-2 flex justify-between text-[9px] uppercase">
+                    <span>{new Date().toLocaleDateString('fr-FR')}</span>
+                    <span>{new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+            </div>
+
+            {/* Articles */}
+            <div className="space-y-2 mb-4">
+                <div className="flex justify-between border-b border-black/10 pb-1 text-[9px] font-bold uppercase">
+                    <span>Article</span>
+                    <span>Total</span>
+                </div>
                 {lastSale.items.map((item, i) => (
-                    <div key={i} className="flex justify-between">
-                        <span>{item.quantity}x {item.product.name}</span>
-                        <span>{formatCurrency((item.product.salePrice * item.quantity) - item.discount)}</span>
+                    <div key={i} className="space-y-0.5">
+                        <div className="flex justify-between items-start gap-2">
+                            <span className="flex-1 truncate uppercase">{item.product.name}</span>
+                            <span className="font-bold whitespace-nowrap">
+                                {formatCurrency((item.product.salePrice * item.quantity) - item.discount)}
+                            </span>
+                        </div>
+                        <div className="text-[9px] opacity-70 flex gap-2">
+                            <span>{item.quantity} x {formatCurrency(item.product.salePrice)}</span>
+                            {item.discount > 0 && <span>(Remise: -{formatCurrency(item.discount)})</span>}
+                        </div>
                     </div>
                 ))}
-                <div className="border-t border-dashed border-slate-300 pt-1 mt-1 font-bold flex justify-between">
-                    <span>TOTAL</span>
-                    <span>{formatCurrency(lastSale.total)}</span>
+            </div>
+
+            {/* Totals */}
+            <div className="border-t-2 border-black pt-2 space-y-1">
+                <div className="flex justify-between items-center text-sm font-black">
+                    <span className="uppercase">Net à Payer</span>
+                    <span className="text-lg">{formatCurrency(lastSale.total)}</span>
                 </div>
-            </CardContent>
-        </Card>
+                
+                {lastSale.cash > 0 && (
+                    <div className="pt-1 mt-1 border-t border-black/5 text-[10px] space-y-0.5">
+                        <div className="flex justify-between opacity-70">
+                            <span>Espèces</span>
+                            <span>{formatCurrency(lastSale.cash)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                            <span>Rendu</span>
+                            <span>{formatCurrency(lastSale.change)}</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Footer */}
+            <div className="mt-8 text-center space-y-2">
+                <p className="text-[10px] font-bold italic">Merci de votre confiance !</p>
+                <div className="flex justify-center">
+                   {/* Un simple séparateur élégant */}
+                   <div className="w-12 h-[1px] bg-black/20" />
+                </div>
+                <p className="text-[8px] opacity-50 uppercase tracking-widest leading-none">
+                    Document non contractuel<br/>
+                    Logiciel par Mawad Dev
+                </p>
+            </div>
+        </div>
       )}
 
       <div className="flex-1 space-y-4 sm:space-y-6 flex flex-col h-full print:hidden">
