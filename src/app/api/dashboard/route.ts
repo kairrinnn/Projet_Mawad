@@ -66,18 +66,6 @@ export async function GET() {
             _sum: { profit: true, quantity: true, totalPrice: true },
         });
 
-        // Ventes de la semaine
-        const weeklySales = await prisma.sale.aggregate({
-            where: { userId, createdAt: { gte: startOfWeek } },
-            _sum: { profit: true, quantity: true, totalPrice: true },
-        });
-
-        // Ventes du mois
-        const monthlySales = await prisma.sale.aggregate({
-            where: { userId, createdAt: { gte: startOfMonth } },
-            _sum: { profit: true, quantity: true, totalPrice: true },
-        });
-
         // Ventes totales
         const totalSales = await prisma.sale.aggregate({
             where: { userId },
@@ -177,11 +165,11 @@ export async function GET() {
 
         return NextResponse.json({
             daily: { 
-                revenue: dailySales._sum?.totalPrice || 0,
-                profit: (dailySales._sum?.profit || 0) - (dailyExpenses._sum?.amount || 0), 
-                grossProfit: dailySales._sum?.profit || 0,
+                revenue: dailyRevenueTotal,
+                profit: dailyProfitTotal - (dailyExpenses._sum?.amount || 0), 
+                grossProfit: dailyProfitTotal,
                 expenses: dailyExpenses._sum?.amount || 0,
-                quantity: dailySales._sum?.quantity || 0 
+                quantity: dailyQuantityTotal 
             },
             weekly: { 
                 revenue: weeklySales._sum?.totalPrice || 0,
@@ -206,9 +194,9 @@ export async function GET() {
             },
             cashDrawer: {
                 startingCash: cashDrawer?.startingCash || 500,
-                currentRevenue: dailySales._sum?.totalPrice || 0,
+                currentRevenue: revenueForCaisse,
                 currentExpenses: dailyCashExpenses._sum?.amount || 0,
-                balance: (cashDrawer?.startingCash || 500) + (dailySales._sum?.totalPrice || 0) - (dailyCashExpenses._sum?.amount || 0)
+                balance: (cashDrawer?.startingCash || 500) + revenueForCaisse - (dailyCashExpenses._sum?.amount || 0)
             },
             lowStockCount,
             topSales: enrichedTopSales,
