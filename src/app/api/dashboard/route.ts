@@ -60,13 +60,22 @@ export async function GET() {
             _sum: { amount: true },
         });
 
-        // Ventes du jour
-        const dailySales = await prisma.sale.aggregate({
-            where: { userId, createdAt: { gte: startOfDay } },
+        // 1. Ventes et Remboursements du JOUR (pour stats détaillées et règle caisse)
+        const todaysTransactions = await prisma.sale.findMany({
+            where: { userId, createdAt: { gte: startOfDay } }
+        });
+
+        // 2. Ventes de la semaine, mois et totales (pour les cartes de stats)
+        const weeklySales = await prisma.sale.aggregate({
+            where: { userId, createdAt: { gte: startOfWeek } },
             _sum: { profit: true, quantity: true, totalPrice: true },
         });
 
-        // Ventes totales
+        const monthlySales = await prisma.sale.aggregate({
+            where: { userId, createdAt: { gte: startOfMonth } },
+            _sum: { profit: true, quantity: true, totalPrice: true },
+        });
+
         const totalSales = await prisma.sale.aggregate({
             where: { userId },
             _sum: { profit: true, quantity: true, totalPrice: true },
@@ -76,6 +85,43 @@ export async function GET() {
             where: { userId, date: { lte: now } },
             _sum: { amount: true },
         });
+
+        // 3. Calcul des totaux du jour avec la règle spéciale pour la caisse
+        let dailyRevenueTotal = 0;
+        let dailyProfitTotal = 0;
+        let dailyQuantityTotal = 0;
+        let revenueForCaisse = 0;
+
+        // On a besoin de savoir si le parent d'un remboursement est d'aujourd'hui pour la règle "Caisse"
+        const refundParentIds = todaysTransactions
+            .filter(t => t.type === "REFUND" && t.parentId)
+            .map(t => t.parentId as string);
+        
+        const parentSales = refundParentIds.length > 0 ? await prisma.sale.findMany({
+            where: { id: { in: refundParentIds } },
+            select: { id: true, createdAt: true }
+        }) : [];
+
+        const parentDateMap = new Map(parentSales.map(s => [s.id, s.createdAt]));
+
+        for (const t of todaysTransactions) {
+            dailyRevenueTotal += t.totalPrice;
+            dailyProfitTotal += t.profit;
+            dailyQuantityTotal += t.quantity;
+
+            // Règle spéciale Caisse : 
+            // On ajoute le revenu à la caisse sauf si c'est un remboursement d'une vente d'un AUTRE jour
+            if (t.type === "SALE") {
+                revenueForCaisse += t.totalPrice;
+            } else if (t.type === "REFUND") {
+                const parentDate = parentDateMap.get(t.parentId || "");
+                const isParentToday = parentDate && parentDate >= startOfDay;
+                
+                if (isParentToday) {
+                    revenueForCaisse += t.totalPrice; // t.totalPrice est négatif
+                }
+            }
+        }
 
         // Fond de caisse d'aujourd'hui
         const cashDrawer = await (prisma as any).cashDrawer.findFirst({
