@@ -21,10 +21,20 @@ export async function GET() {
         const now = new Date();
         const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
-        // Débu de la semaine (lundi)
+        // --- AUTO-MIGRATION (Safe fix for missing totalPrice) ---
+        // On s'assure que toutes les ventes ont un totalPrice calculé
+        try {
+            await (prisma as any).$executeRawUnsafe(
+                `UPDATE "Sale" SET "totalPrice" = ("salePrice" * "quantity") - "discount" WHERE "totalPrice" = 0`
+            );
+        } catch (e) { console.error("Auto-migration error:", e); }
+
+        // Début de la semaine (lundi)
         const dayOfWeek = now.getDay() || 7; 
         const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // ... existing aggregate calls until end of request ...
 
         // Dépenses du jour (uniquement celles déjà payées/passées)
         const dailyExpenses = await prisma.expense.aggregate({
