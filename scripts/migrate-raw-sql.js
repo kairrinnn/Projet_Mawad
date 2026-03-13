@@ -1,8 +1,9 @@
+require('dotenv').config();
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Starting Sales totalPrice migration (Raw SQL)...");
+  console.log("Starting Sales totalPrice migration (Raw SQL with dotenv)...");
   try {
     const result = await prisma.$executeRawUnsafe(
       `UPDATE "Sale" SET "totalPrice" = ("salePrice" * "quantity") - "discount"`
