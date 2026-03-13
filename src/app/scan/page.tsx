@@ -1,22 +1,30 @@
 "use client";
 
-// Styles spécifiques pour l'impression propre
+// Styles spécifiques pour l'impression propre (Restauration version élégante)
 const printStyles = `
   @media print {
+    body * {
+      visibility: hidden;
+      overflow: visible !important;
+    }
+    #printable-receipt, #printable-receipt * {
+      visibility: visible;
+    }
+    #printable-receipt {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 80mm;
+      padding: 5mm;
+      color: black;
+      background: white;
+      font-family: monospace;
+      font-size: 10pt;
+      display: block !important;
+    }
     @page {
       margin: 0;
       size: auto;
-    }
-    body {
-      background: white !important;
-    }
-    /* Cacher tout ce qui n'est pas le ticket */
-    header, footer, nav, aside, button, [role="status"] {
-      display: none !important;
-    }
-    /* Cacher explicitement les toasts de Sonner */
-    [data-sonner-toaster] {
-      display: none !important;
     }
   }
 `;
@@ -344,73 +352,51 @@ export default function ScanPage() {
       <style dangerouslySetInnerHTML={{ __html: printStyles }} />
       <div id="qr-reader-hidden" className="hidden" />
       
-      {/* Ticket Professionnel pour impression */}
+      {/* Ticket Invisible - Uniquement pour window.print() */}
       {lastSale && (
-        <div className="hidden print:block font-mono text-black p-4 w-full max-w-[80mm] mx-auto text-[12px] leading-tight">
-            {/* Header */}
-            <div className="text-center mb-4 space-y-1">
-                <h1 className="text-xl font-bold uppercase tracking-tighter">{shopName}</h1>
-                <p className="text-[10px] opacity-70">Commerce & Services</p>
-                <div className="border-y border-black/20 py-1 my-2 flex justify-between text-[9px] uppercase">
-                    <span>{new Date().toLocaleDateString('fr-FR')}</span>
-                    <span>{new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
+        <div id="printable-receipt" className="hidden">
+            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                <h2 style={{ fontSize: '14pt', margin: '0' }}>{shopName.toUpperCase()}</h2>
+                <p style={{ fontSize: '8pt', margin: '2px 0' }}>{new Date().toLocaleString()}</p>
+                <div style={{ borderBottom: '1px dashed black', margin: '5px 0' }} />
             </div>
-
-            {/* Articles */}
-            <div className="space-y-2 mb-4">
-                <div className="flex justify-between border-b border-black/10 pb-1 text-[9px] font-bold uppercase">
-                    <span>Article</span>
-                    <span>Total</span>
+            
+            <table style={{ width: '100%', fontSize: '9pt', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ borderBottom: '1px solid black' }}>
+                        <th style={{ textAlign: 'left' }}>Item</th>
+                        <th style={{ textAlign: 'center' }}>Qté</th>
+                        <th style={{ textAlign: 'right' }}>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {lastSale.items.map((item, idx) => (
+                        <tr key={idx}>
+                            <td style={{ padding: '4px 0' }}>{item.product.name}</td>
+                            <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                            <td style={{ textAlign: 'right' }}>{formatCurrency((item.product.salePrice * item.quantity) - item.discount)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            
+            <div style={{ borderTop: '1px dashed black', marginTop: '10px', paddingTop: '5px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                    <span>TOTAL:</span>
+                    <span>{formatCurrency(lastSale.total)}</span>
                 </div>
-                {lastSale.items.map((item, i) => (
-                    <div key={i} className="space-y-0.5">
-                        <div className="flex justify-between items-start gap-2">
-                            <span className="flex-1 truncate uppercase">{item.product.name}</span>
-                            <span className="font-bold whitespace-nowrap">
-                                {formatCurrency((item.product.salePrice * item.quantity) - item.discount)}
-                            </span>
-                        </div>
-                        <div className="text-[9px] opacity-70 flex gap-2">
-                            <span>{item.quantity} x {formatCurrency(item.product.salePrice)}</span>
-                            {item.discount > 0 && <span>(Remise: -{formatCurrency(item.discount)})</span>}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Totals */}
-            <div className="border-t-2 border-black pt-2 space-y-1">
-                <div className="flex justify-between items-center text-sm font-black">
-                    <span className="uppercase">Net à Payer</span>
-                    <span className="text-lg">{formatCurrency(lastSale.total)}</span>
-                </div>
-                
                 {lastSale.cash > 0 && (
-                    <div className="pt-1 mt-1 border-t border-black/5 text-[10px] space-y-0.5">
-                        <div className="flex justify-between opacity-70">
-                            <span>Espèces</span>
+                    <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9pt', marginTop: '4px' }}>
+                            <span>Espèces:</span>
                             <span>{formatCurrency(lastSale.cash)}</span>
                         </div>
-                        <div className="flex justify-between font-bold">
-                            <span>Rendu</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10pt', fontWeight: 'bold', marginTop: '2px' }}>
+                            <span>Rendu:</span>
                             <span>{formatCurrency(lastSale.change)}</span>
                         </div>
-                    </div>
+                    </>
                 )}
-            </div>
-
-            {/* Footer */}
-            <div className="mt-8 text-center space-y-2">
-                <p className="text-[10px] font-bold italic">Merci de votre confiance !</p>
-                <div className="flex justify-center">
-                   {/* Un simple séparateur élégant */}
-                   <div className="w-12 h-[1px] bg-black/20" />
-                </div>
-                <p className="text-[8px] opacity-50 uppercase tracking-widest leading-none">
-                    Document non contractuel<br/>
-                    Logiciel par Mawad Dev
-                </p>
             </div>
         </div>
       )}
