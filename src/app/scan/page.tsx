@@ -57,12 +57,51 @@ export default function ScanPage() {
 
   useEffect(() => {
     fetchAllProducts();
+
+    // 1. Écouteur global pour le scanner physique (clavier wedge)
+    let buffer = "";
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Si l'utilisateur tape dans un champ de texte normalement, on ignore le buffer global
+      // Sauf si c'est une séquence ultra-rapide (scanner)
+      const now = Date.now();
+      const diff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length > 2) {
+          fetchProductDetails(buffer);
+          buffer = "";
+        }
+      } else if (e.key.length === 1) {
+        if (diff > 50) { // Si plus de 50ms entre les touches, c'est probablement un humain
+            buffer = e.key;
+        } else {
+            buffer += e.key;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
     return () => {
+      window.removeEventListener("keydown", handleKeyDown);
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(console.error);
       }
     };
   }, []);
+
+  // 2. Impression automatique après vente
+  useEffect(() => {
+    if (lastSale) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [lastSale]);
 
   const startScanner = async () => {
     if (isInitializingRef.current) return;
@@ -280,12 +319,12 @@ export default function ScanPage() {
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-50/50 -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8">
+    <div className="flex-1 flex flex-col h-full bg-slate-50/50 -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8 print:p-0 print:bg-white">
       <div id="qr-reader-hidden" className="hidden" />
       
       {/* Ticket simple de dernière vente */}
       {lastSale && (
-        <Card className="mb-6 border-indigo-100 bg-indigo-50/30 overflow-hidden print:block hidden">
+        <Card className="mb-6 border-indigo-100 bg-indigo-50/30 overflow-hidden print:block hidden print:border-none print:shadow-none print:m-0 print:p-0">
             <CardHeader className="pb-2">
                 <CardTitle className="text-xs uppercase tracking-widest text-center opacity-50">{shopName}</CardTitle>
             </CardHeader>
@@ -304,7 +343,7 @@ export default function ScanPage() {
         </Card>
       )}
 
-      <div className="flex-1 space-y-4 sm:space-y-6 flex flex-col h-full">
+      <div className="flex-1 space-y-4 sm:space-y-6 flex flex-col h-full print:hidden">
         <div className="flex justify-between items-center px-1">
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Scanner & POS</h2>
