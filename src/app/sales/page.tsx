@@ -16,13 +16,16 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Loader2 } from "lucide-react";
+import { RotateCcw, Loader2, ShoppingCart, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export default function SalesPage() {
   const [sales, setSales] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const [refundingId, setRefundingId] = useState<string | null>(null);
+  const { data: session } = useSession();
 
   const fetchSales = async () => {
     try {
