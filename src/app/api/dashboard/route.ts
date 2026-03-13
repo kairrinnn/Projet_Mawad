@@ -63,25 +63,25 @@ export async function GET() {
         // Ventes du jour
         const dailySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfDay } },
-            _sum: { profit: true, quantity: true, salePrice: true },
+            _sum: { profit: true, quantity: true, totalPrice: true },
         });
 
         // Ventes de la semaine
         const weeklySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfWeek } },
-            _sum: { profit: true, quantity: true, salePrice: true },
+            _sum: { profit: true, quantity: true, totalPrice: true },
         });
 
         // Ventes du mois
         const monthlySales = await prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfMonth } },
-            _sum: { profit: true, quantity: true, salePrice: true },
+            _sum: { profit: true, quantity: true, totalPrice: true },
         });
 
         // Ventes totales
         const totalSales = await prisma.sale.aggregate({
             where: { userId },
-            _sum: { profit: true, quantity: true, salePrice: true },
+            _sum: { profit: true, quantity: true, totalPrice: true },
         });
 
         const totalExpenses = await prisma.expense.aggregate({
@@ -140,7 +140,7 @@ export async function GET() {
         const last7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
         const recentSales = await prisma.sale.findMany({
             where: { userId, createdAt: { gte: last7Days } },
-            select: { createdAt: true, profit: true, quantity: true, salePrice: true }
+            select: { createdAt: true, profit: true, quantity: true, totalPrice: true }
         });
 
         const recentExpenses = await prisma.expense.findMany({
@@ -160,7 +160,7 @@ export async function GET() {
             const dateStr = sale.createdAt.toISOString().split('T')[0];
             if (dataByDay[dateStr]) {
                 dataByDay[dateStr].profit += sale.profit;
-                dataByDay[dateStr].revenue += sale.salePrice;
+                dataByDay[dateStr].revenue += sale.totalPrice;
                 dataByDay[dateStr].quantity += sale.quantity;
             }
         });
@@ -177,28 +177,28 @@ export async function GET() {
 
         return NextResponse.json({
             daily: { 
-                revenue: dailySales._sum?.salePrice || 0,
+                revenue: dailySales._sum?.totalPrice || 0,
                 profit: (dailySales._sum?.profit || 0) - (dailyExpenses._sum?.amount || 0), 
                 grossProfit: dailySales._sum?.profit || 0,
                 expenses: dailyExpenses._sum?.amount || 0,
                 quantity: dailySales._sum?.quantity || 0 
             },
             weekly: { 
-                revenue: weeklySales._sum?.salePrice || 0,
+                revenue: weeklySales._sum?.totalPrice || 0,
                 profit: (weeklySales._sum?.profit || 0) - (weeklyExpenses._sum?.amount || 0), 
                 grossProfit: weeklySales._sum?.profit || 0,
                 expenses: weeklyExpenses._sum?.amount || 0,
                 quantity: weeklySales._sum?.quantity || 0 
             },
             monthly: { 
-                revenue: monthlySales._sum?.salePrice || 0,
+                revenue: monthlySales._sum?.totalPrice || 0,
                 profit: netMonthlyProfit, 
                 grossProfit: grossMonthlyProfit,
                 expenses: monthlyExpenses._sum?.amount || 0,
                 quantity: monthlySales._sum?.quantity || 0 
             },
             total: { 
-                revenue: totalSales._sum?.salePrice || 0,
+                revenue: totalSales._sum?.totalPrice || 0,
                 profit: (totalSales._sum?.profit || 0) - (totalExpenses._sum?.amount || 0), 
                 grossProfit: totalSales._sum?.profit || 0,
                 expenses: totalExpenses._sum?.amount || 0,
@@ -206,9 +206,9 @@ export async function GET() {
             },
             cashDrawer: {
                 startingCash: cashDrawer?.startingCash || 500,
-                currentRevenue: dailySales._sum?.salePrice || 0,
+                currentRevenue: dailySales._sum?.totalPrice || 0,
                 currentExpenses: dailyCashExpenses._sum?.amount || 0,
-                balance: (cashDrawer?.startingCash || 500) + (dailySales._sum?.salePrice || 0) - (dailyCashExpenses._sum?.amount || 0)
+                balance: (cashDrawer?.startingCash || 500) + (dailySales._sum?.totalPrice || 0) - (dailyCashExpenses._sum?.amount || 0)
             },
             lowStockCount,
             topSales: enrichedTopSales,

@@ -11,6 +11,11 @@ enum UserRole {
   CASHIER
 }
 
+enum SaleType {
+  SALE
+  REFUND
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -110,17 +115,21 @@ model Product {
 }
 
 model Sale {
-  id        String   @id @default(cuid())
-  productId String
-  quantity  Int
-  salePrice Float
-  costPrice Float
-  profit    Float
-  discount  Float    @default(0)
-  userId    String?
-  createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id])
+  id         String   @id @default(cuid())
+  productId  String
+  quantity   Int
+  salePrice  Float
+  costPrice  Float
+  totalPrice Float    @default(0)
+  profit     Float
+  discount   Float    @default(0)
+  type       SaleType @default(SALE)
+  isRefunded Boolean  @default(false)
+  parentId   String?
+  userId     String?
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id])
 }
 
 model Expense {

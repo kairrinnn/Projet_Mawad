@@ -94,6 +94,7 @@ export async function POST(request: Request) {
           quantity: Number(quantity),
           salePrice: product.salePrice,
           costPrice: product.costPrice,
+          totalPrice: totalRevenue,
           discount: Number(discount),
           profit: totalProfit
         },

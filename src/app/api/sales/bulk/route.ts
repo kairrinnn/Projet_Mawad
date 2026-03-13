@@ -63,6 +63,7 @@ async function processPost(request: Request) {
             quantity,
             salePrice: product.salePrice,
             costPrice: product.costPrice,
+            totalPrice: totalRevenue,
             discount,
             profit
           }
