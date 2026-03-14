@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
+import Silk from "@/components/Silk";
 
 interface DashboardData {
   daily: { revenue: number; profit: number; quantity: number };
@@ -218,8 +219,10 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex-1 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="flex-1 space-y-4 relative min-h-screen">
+      <Silk color="#EEF2FF" speed={3} noiseIntensity={0.8} />
+      
+      <div className="relative z-10 flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h2>
         <div className="flex items-center gap-2">
             {/* Retrait Gérant */}
@@ -281,9 +284,9 @@ export default function DashboardPage() {
         </div>
       </div>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="relative z-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Card Caisse */}
-        <Card className="bg-indigo-600 border-none shadow-sm shadow-indigo-100 text-white">
+        <Card className="bg-indigo-600/90 backdrop-blur-xl border-none shadow-xl shadow-indigo-100/50 text-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium opacity-90">
               Caisse en Direct
@@ -308,9 +311,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white border-none shadow-sm shadow-slate-200">
+        <Card className="bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">
+            <CardTitle className="text-sm font-medium text-slate-600">
               {showProfits ? "Bénéfice Aujourd'hui" : "Ventes Aujourd'hui"}
             </CardTitle>
             {showProfits ? (
@@ -329,9 +332,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         
-        <Card className="bg-white border-none shadow-sm shadow-slate-200">
+        <Card className="bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">
+            <CardTitle className="text-sm font-medium text-slate-600">
               {showProfits ? "Bénéfice Hebdo" : "Ventes Hebdo"}
             </CardTitle>
             <Activity className="h-4 w-4 text-slate-400" />
@@ -346,9 +349,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         
-        <Card className="bg-white border-none shadow-sm shadow-slate-200">
+        <Card className="bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">
+            <CardTitle className="text-sm font-medium text-slate-600">
               Alertes Stock
             </CardTitle>
             <AlertTriangle className={`h-4 w-4 ${data.lowStockCount > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
@@ -364,8 +367,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4 bg-white border-none shadow-sm shadow-slate-200">
+      <div className="relative z-10 grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4 bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/50">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
                 <CardTitle>{showProfits ? "Analyse des Bénéfices" : "Analyse du Chiffre d'Affaire"}</CardTitle>
@@ -428,7 +431,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         
-        <Card className="col-span-3 bg-white border-none shadow-sm shadow-slate-200 mb-6 md:mb-0">
+        <Card className="col-span-3 bg-white/60 backdrop-blur-xl border border-white/40 shadow-xl shadow-slate-200/50 mb-6 md:mb-0">
           <CardHeader>
             <CardTitle>Top Ventes</CardTitle>
             <CardDescription>Les 5 produits les plus vendus.</CardDescription>

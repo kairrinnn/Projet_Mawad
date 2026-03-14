@@ -27,11 +27,9 @@ if (!supabaseUrl && process.env.DATABASE_URL && !isBuild) {
 }
 
 // Fallbacks for build phase to prevent crashes
-const finalUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const finalUrl = (supabaseUrl && supabaseUrl.startsWith('http')) ? supabaseUrl : 'https://placeholder.supabase.co';
 
 // Use Service Role Key if available (better for server-side uploads), otherwise Anon key
-const finalKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-                 'placeholder-key';
+const finalKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || 'placeholder-key';
 
 export const supabase = createClient(finalUrl, finalKey);
