@@ -36,11 +36,12 @@ export async function GET() {
 
         // ... existing aggregate calls until end of request ...
 
-        // Dépenses du jour (uniquement celles déjà payées/passées)
+        // Dépenses du jour (uniquement celles déjà payées/passées) - EXCLUANT les retraits gérant du profit
         const dailyExpenses = await prisma.expense.aggregate({
             where: { 
                 userId, 
-                date: { gte: startOfDay, lte: now } 
+                date: { gte: startOfDay, lte: now },
+                type: { not: 'Withdrawal' }
             },
             _sum: { amount: true },
         });
@@ -49,24 +50,29 @@ export async function GET() {
         const monthlyExpenses = await prisma.expense.aggregate({
             where: { 
                 userId, 
-                date: { gte: startOfMonth, lte: now } 
+                date: { gte: startOfMonth, lte: now },
+                type: { not: 'Withdrawal' }
             },
             _sum: { amount: true },
         });
 
-        // Dépenses quotidiennes (CAISSE) - uniquement de type 'Daily'
-        const dailyCashExpenses = await prisma.expense.aggregate({
+        // Dépenses quotidiennes (CAISSE) - Retraits gérant + Dépenses Caisse
+        const dailyCashOut = await prisma.expense.aggregate({
             where: { 
                 userId, 
                 date: { gte: startOfDay, lte: now },
-                type: 'Daily'
+                type: { in: ['Daily', 'Withdrawal'] }
             },
             _sum: { amount: true },
         });
 
         // Dépenses de la semaine
         const weeklyExpenses = await prisma.expense.aggregate({
-            where: { userId, date: { gte: startOfWeek, lte: now } },
+            where: { 
+                userId, 
+                date: { gte: startOfWeek, lte: now },
+                type: { not: 'Withdrawal' }
+            },
             _sum: { amount: true },
         });
 
@@ -92,7 +98,7 @@ export async function GET() {
         });
 
         const totalExpenses = await prisma.expense.aggregate({
-            where: { userId, date: { lte: now } },
+            where: { userId, date: { lte: now }, type: { not: 'Withdrawal' } },
             _sum: { amount: true },
         });
 
@@ -188,7 +194,7 @@ export async function GET() {
         });
 
         const recentExpenses = await prisma.expense.findMany({
-            where: { userId, date: { gte: last7Days, lte: now } },
+            where: { userId, date: { gte: last7Days, lte: now }, type: { not: 'Withdrawal' } },
             select: { date: true, amount: true }
         });
 
@@ -251,8 +257,8 @@ export async function GET() {
             cashDrawer: {
                 startingCash: cashDrawer?.startingCash || 500,
                 currentRevenue: revenueForCaisse,
-                currentExpenses: dailyCashExpenses._sum?.amount || 0,
-                balance: (cashDrawer?.startingCash || 500) + revenueForCaisse - (dailyCashExpenses._sum?.amount || 0)
+                currentExpenses: dailyCashOut._sum?.amount || 0,
+                balance: (cashDrawer?.startingCash || 500) + revenueForCaisse - (dailyCashOut._sum?.amount || 0)
             },
             lowStockCount,
             topSales: enrichedTopSales,
