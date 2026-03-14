@@ -342,20 +342,42 @@ export default function ScanPage() {
         <div id="printable-receipt" className="hidden">
             <div className="text-center mb-4">
                 <h2 className="text-xl font-bold">{shopName.toUpperCase()}</h2>
-                <p className="text-xs">{new Date().toLocaleString()}</p>
+                <div className="h-[1px] w-12 bg-black/20 mx-auto my-1" />
+                <p className="text-[10px] uppercase tracking-widest leading-none mt-2">{new Date().toLocaleString('fr-FR')}</p>
             </div>
-            <table className="w-full text-sm border-t border-b border-dashed border-black my-2">
-                <tbody>
-                    {lastSale.items.map((item, i) => (
-                        <tr key={i}>
-                            <td className="py-1">{item.product.name} {item.soldByWeight ? '(Kg)' : ''}</td>
-                            <td className="text-center">x{item.quantity}</td>
-                            <td className="text-right">{formatCurrency(getItemTotal(item))}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-            <div className="text-right font-bold text-lg">TOTAL: {formatCurrency(lastSale.total)}</div>
+            
+            <div className="border-t border-b border-dashed border-black/30 py-2 my-4">
+                {lastSale.items.map((item, i) => (
+                    <div key={i} className="flex justify-between items-center text-sm mb-1">
+                        <span className="flex-1 truncate">{item.product.name}</span>
+                        <span className="mx-2 opacity-70">x{item.quantity}</span>
+                        <span className="font-bold">{formatCurrency(getItemTotal(item))}</span>
+                    </div>
+                ))}
+            </div>
+            
+            <div className="flex justify-between items-center pt-1">
+                <span className="text-xs opacity-70 font-bold">TOTAL NET À PAYER</span>
+                <span className="text-xl font-black">{formatCurrency(lastSale.total)}</span>
+            </div>
+            
+            {lastSale.cash > 0 && (
+                <div className="mt-4 pt-2 border-t border-dashed border-black/10 space-y-1">
+                    <div className="flex justify-between text-[10px] opacity-70">
+                        <span>Reçu</span>
+                        <span>{formatCurrency(lastSale.cash)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold">
+                        <span>Rendu</span>
+                        <span>{formatCurrency(lastSale.change)}</span>
+                    </div>
+                </div>
+            )}
+            
+            <div className="mt-8 text-center space-y-1 opacity-50">
+                <p className="text-[8px] uppercase tracking-widest leading-none">Document non contractuel</p>
+                <p className="text-[8px] uppercase tracking-widest leading-none">Logiciel par Mawad Dev</p>
+            </div>
         </div>
       )}
 

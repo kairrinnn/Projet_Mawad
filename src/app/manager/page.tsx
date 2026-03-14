@@ -34,10 +34,11 @@ import {
   Home,
   AlertCircle,
   Pencil,
-  ShieldCheck,
+  Lock,
   Filter,
   CalendarDays,
   PackageSearch,
+  ShieldCheck,
   ShoppingCart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -387,8 +388,8 @@ export default function ManagerPage() {
 
           <div className="flex gap-2 mb-4 justify-end">
             <Dialog open={isWithdrawalOpen} onOpenChange={setIsWithdrawalOpen}>
-              <DialogTrigger render={<Button variant="outline" size="sm" className="bg-indigo-600 text-white border-none hover:bg-slate-900 shadow-sm px-4" />}>
-                  <ShieldCheck className="h-4 w-4 mr-2" /> Retrait Gérant
+              <DialogTrigger render={<Button variant="outline" size="sm" className="bg-indigo-600 text-white border-none hover:bg-slate-900 shadow-sm" />}>
+                  <Lock className="h-4 w-4 mr-1.5" /> Retrait Gérant
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -416,8 +417,8 @@ export default function ManagerPage() {
             </Dialog>
 
             <Dialog open={isExpDialogOpen} onOpenChange={setIsExpDialogOpen}>
-              <DialogTrigger render={<Button variant="outline" size="sm" className="text-slate-600 border-slate-200 hover:bg-white px-4" />}>
-                  <ShoppingCart className="h-4 w-4 mr-2" /> Dépense Caisse
+              <DialogTrigger render={<Button variant="outline" size="sm" className="text-slate-600 border-slate-200 hover:bg-white hover:border-slate-300" />}>
+                  <ShoppingCart className="h-4 w-4 mr-1.5" /> Dépense Caisse
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>

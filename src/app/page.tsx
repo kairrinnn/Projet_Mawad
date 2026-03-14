@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { 
   Dialog, 
   DialogContent, 
+  DialogDescription,
   DialogHeader, 
   DialogTitle, 
   DialogFooter,
@@ -46,6 +47,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { ShoppingCart } from "lucide-react";
 
 interface DashboardData {
   daily: { revenue: number; profit: number; quantity: number };
@@ -69,6 +71,10 @@ export default function DashboardPage() {
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [quickExpense, setQuickExpense] = useState({ amount: "", description: "" });
   const [expSubmitting, setExpSubmitting] = useState(false);
+  
+  // Retrait Gérant replicate from POS
+  const [withdrawalForm, setWithdrawalForm] = useState({ amount: "", description: "", code: "" });
+  const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -147,6 +153,32 @@ export default function DashboardPage() {
     } catch { toast.error("Erreur"); } finally { setExpSubmitting(false); }
   };
 
+  const handleManagerWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (withdrawalForm.code !== "1234") {
+        toast.error("Code manager incorrect");
+        return;
+    }
+    setExpSubmitting(true);
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "Withdrawal",
+          amount: parseFloat(withdrawalForm.amount),
+          description: withdrawalForm.description || "Retrait Gérant",
+        })
+      });
+      if (res.ok) {
+        toast.success("Retrait validé");
+        setWithdrawalForm({ amount: "", description: "", code: "" });
+        setIsWithdrawalOpen(false);
+        fetchData();
+      }
+    } catch (e) { toast.error("Erreur"); } finally { setExpSubmitting(false); }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -190,14 +222,43 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h2>
         <div className="flex items-center gap-2">
+            {/* Retrait Gérant */}
+            <Dialog open={isWithdrawalOpen} onOpenChange={setIsWithdrawalOpen}>
+              <DialogTrigger render={<Button variant="outline" size="sm" className="bg-indigo-600 text-white border-none hover:bg-slate-900 shadow-sm" />}>
+                <Lock className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Retrait Gérant</span>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Retrait Gérant</DialogTitle>
+                  <DialogDescription>Retirer des fonds de la caisse (non affecté au bénéfice).</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleManagerWithdrawal} className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label>Montant (DH)</Label>
+                    <Input type="number" required placeholder="0.00" value={withdrawalForm.amount} onChange={e => setWithdrawalForm({...withdrawalForm, amount: e.target.value})} className="text-lg font-bold" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Motif</Label>
+                    <Input placeholder="Ex: Dépôt banque" value={withdrawalForm.description} onChange={e => setWithdrawalForm({...withdrawalForm, description: e.target.value})} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Code Manager</Label>
+                    <Input type="password" required placeholder="****" value={withdrawalForm.code} onChange={e => setWithdrawalForm({...withdrawalForm, code: e.target.value})} />
+                  </div>
+                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-slate-900" disabled={expSubmitting}>Confirmer le retrait</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+
             <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={() => setShowExpenseDialog(true)}
-                className="bg-red-50 border-red-100 text-red-700 hover:bg-red-100"
+                className="text-slate-600 border-slate-200 hover:bg-white hover:border-slate-300"
             >
-                <Minus className="mr-1.5 h-4 w-4" /> Dépense Caisse
+                <ShoppingCart className="mr-1.5 h-4 w-4" /> <span className="hidden sm:inline">Dépense Caisse</span>
             </Button>
+
             {!showProfits ? (
                 <Button 
                     variant="outline" 
