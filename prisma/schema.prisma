@@ -92,44 +92,48 @@ model Supplier {
 }
 
 model Product {
-  id          String    @id @default(cuid())
-  barcode     String?
-  name        String
-  salePrice   Float
-  costPrice   Float
-  stock       Int       @default(0)
-  category    String?
-  description String?
-  image       String?
-  supplierId  String?
-  userId      String?
-  isArchived  Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  supplier    Supplier? @relation(fields: [supplierId], references: [id])
-  sales       Sale[]
-  stockEntries StockEntry[]
+  id                String    @id @default(cuid())
+  barcode           String?
+  name              String
+  salePrice         Float
+  costPrice         Float
+  weightSalePrice   Float?
+  weightCostPrice   Float?
+  canBeSoldByWeight Boolean   @default(false)
+  stock             Float     @default(0)
+  category          String?
+  description       String?
+  image             String?
+  supplierId        String?
+  userId            String?
+  isArchived        Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supplier          Supplier? @relation(fields: [supplierId], references: [id])
+  sales             Sale[]
+  stockEntries      StockEntry[]
 
   @@unique([barcode, userId])
 }
 
 model Sale {
-  id         String   @id @default(cuid())
-  productId  String
-  quantity   Int
-  salePrice  Float
-  costPrice  Float
-  totalPrice Float    @default(0)
-  profit     Float
-  discount   Float    @default(0)
-  type       SaleType @default(SALE)
-  isRefunded Boolean  @default(false)
-  parentId   String?
-  userId     String?
-  createdAt  DateTime @default(now())
-  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product    Product  @relation(fields: [productId], references: [id])
+  id           String   @id @default(cuid())
+  productId    String
+  quantity     Float
+  salePrice    Float
+  costPrice    Float
+  totalPrice   Float    @default(0)
+  profit       Float
+  discount     Float    @default(0)
+  type         SaleType @default(SALE)
+  isRefunded   Boolean  @default(false)
+  soldByWeight Boolean  @default(false)
+  parentId     String?
+  userId       String?
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [productId], references: [id])
 }
 
 model Expense {
@@ -147,7 +151,7 @@ model Expense {
 model StockEntry {
   id          String   @id @default(cuid())
   productId   String
-  quantity    Int      // Number of units added
+  quantity    Float    // Number of units or weight added
   costPrice   Float    // Price per unit at time of entry (snapshot)
   totalCost   Float    // quantity * costPrice
   date        DateTime @default(now())

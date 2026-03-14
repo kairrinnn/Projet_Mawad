@@ -51,9 +51,14 @@ async function processPost(request: Request) {
         const product = productMap.get(item.productId)!;
         const quantity = Number(item.quantity);
         const discount = Number(item.discount || 0);
+        const soldByWeight = Boolean(item.soldByWeight);
 
-        const totalRevenue = (product.salePrice * quantity) - discount;
-        const totalCost = product.costPrice * quantity;
+        // Determine prices based on mode
+        const salePrice = soldByWeight ? (product.weightSalePrice || product.salePrice) : product.salePrice;
+        const costPrice = soldByWeight ? (product.weightCostPrice || product.costPrice) : product.costPrice;
+
+        const totalRevenue = (salePrice * quantity) - discount;
+        const totalCost = costPrice * quantity;
         const profit = totalRevenue - totalCost;
 
         const sale = await tx.sale.create({
@@ -61,11 +66,12 @@ async function processPost(request: Request) {
             productId: item.productId,
             userId: session.user.id,
             quantity,
-            salePrice: product.salePrice,
-            costPrice: product.costPrice,
+            salePrice,
+            costPrice,
             totalPrice: totalRevenue,
             discount,
-            profit
+            profit,
+            soldByWeight
           }
         });
 

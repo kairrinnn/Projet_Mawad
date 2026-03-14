@@ -102,7 +102,11 @@ export async function POST(request: Request) {
     }
 
     const json = await request.json();
-    const { name, barcode, salePrice, costPrice, stock, category, description, supplierId, image } = json;
+    const { 
+      name, barcode, salePrice, costPrice, stock, category, 
+      description, supplierId, image, canBeSoldByWeight, 
+      weightSalePrice, weightCostPrice 
+    } = json;
 
     if (!name || !salePrice || !costPrice) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -128,7 +132,10 @@ export async function POST(request: Request) {
         barcode: barcode && barcode.trim() !== "" ? barcode : null,
         salePrice: parseFloat(salePrice),
         costPrice: parseFloat(costPrice),
-        stock: parseInt(stock) || 0,
+        weightSalePrice: weightSalePrice ? parseFloat(weightSalePrice) : null,
+        weightCostPrice: weightCostPrice ? parseFloat(weightCostPrice) : null,
+        canBeSoldByWeight: Boolean(canBeSoldByWeight),
+        stock: parseFloat(stock) || 0,
         category,
         description,
         image,

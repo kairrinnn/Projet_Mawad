@@ -58,6 +58,7 @@ interface CartItem {
   product: any;
   quantity: number;
   discount: number;
+  soldByWeight: boolean;
 }
 
 export default function ScanPage() {
@@ -92,8 +93,6 @@ export default function ScanPage() {
     let lastKeyTime = Date.now();
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Si l'utilisateur tape dans un champ de texte normalement, on ignore le buffer global
-      // Sauf si c'est une séquence ultra-rapide (scanner)
       const now = Date.now();
       const diff = now - lastKeyTime;
       lastKeyTime = now;
@@ -104,7 +103,7 @@ export default function ScanPage() {
           buffer = "";
         }
       } else if (e.key.length === 1) {
-        if (diff > 50) { // Si plus de 50ms entre les touches, c'est probablement un humain
+        if (diff > 50) {
             buffer = e.key;
         } else {
             buffer += e.key;
@@ -261,13 +260,17 @@ export default function ScanPage() {
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
+        if (existing.soldByWeight) {
+          toast.info(`${product.name} est déjà dans le panier (Vente au poids)`);
+          return prev;
+        }
         return prev.map(item => 
           item.product.id === product.id 
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { product, quantity: 1, discount: 0 }];
+      return [...prev, { product, quantity: 1, discount: 0, soldByWeight: false }];
     });
   };
 
@@ -278,8 +281,29 @@ export default function ScanPage() {
   const updateQuantity = (productId: string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.product.id === productId) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
+        const step = item.soldByWeight ? 0.1 : 1;
+        const newQty = Math.max(item.soldByWeight ? 0.05 : 1, item.quantity + (delta * step));
+        return { ...item, quantity: Number(newQty.toFixed(3)) };
+      }
+      return item;
+    }));
+  };
+
+  const setWeight = (productId: string, weight: number) => {
+    setCart(prev => prev.map(item => 
+      item.product.id === productId ? { ...item, quantity: Math.max(0, weight) } : item
+    ));
+  };
+
+  const toggleWeightMode = (productId: string) => {
+    setCart(prev => prev.map(item => {
+      if (item.product.id === productId) {
+        const isSwitchingToWeight = !item.soldByWeight;
+        return { 
+          ...item, 
+          soldByWeight: isSwitchingToWeight,
+          quantity: 1 
+        };
       }
       return item;
     }));
@@ -291,8 +315,20 @@ export default function ScanPage() {
     ));
   };
 
+  const getItemPrice = (item: CartItem) => {
+    if (item.soldByWeight) {
+      return item.product.weightSalePrice || item.product.salePrice;
+    }
+    return item.product.salePrice;
+  };
+
+  const getItemTotal = (item: CartItem) => {
+    const price = getItemPrice(item);
+    return (price * item.quantity) - item.discount;
+  };
+
   const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + (item.product.salePrice * item.quantity) - item.discount, 0);
+    return cart.reduce((sum, item) => sum + getItemTotal(item), 0);
   };
 
   const finalizeOrder = async () => {
@@ -303,9 +339,10 @@ export default function ScanPage() {
       const items = cart.map(item => ({
         productId: item.product.id,
         quantity: item.quantity,
-        salePrice: item.product.salePrice,
-        costPrice: item.product.costPrice,
-        discount: item.discount
+        salePrice: getItemPrice(item),
+        costPrice: item.soldByWeight ? (item.product.weightCostPrice || item.product.costPrice) : item.product.costPrice,
+        discount: item.discount,
+        soldByWeight: item.soldByWeight
       }));
 
       const res = await fetch("/api/sales/bulk", {
@@ -352,7 +389,7 @@ export default function ScanPage() {
       <style dangerouslySetInnerHTML={{ __html: printStyles }} />
       <div id="qr-reader-hidden" className="hidden" />
       
-      {/* Ticket Invisible - Uniquement pour window.print() */}
+      {/* Ticket Invisible */}
       {lastSale && (
         <div id="printable-receipt" className="hidden">
             <div style={{ textAlign: 'center', marginBottom: '10px' }}>
@@ -372,9 +409,11 @@ export default function ScanPage() {
                 <tbody>
                     {lastSale.items.map((item, idx) => (
                         <tr key={idx}>
-                            <td style={{ padding: '4px 0' }}>{item.product.name}</td>
+                            <td style={{ padding: '4px 0' }}>{item.product.name} {item.soldByWeight ? '(Kg)' : ''}</td>
                             <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                            <td style={{ textAlign: 'right' }}>{formatCurrency((item.product.salePrice * item.quantity) - item.discount)}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              {formatCurrency(getItemTotal(item))}
+                            </td>
                         </tr>
                     ))}
                 </tbody>
@@ -413,7 +452,7 @@ export default function ScanPage() {
                     <DollarSign className="h-4 w-4 mr-1 sm:mr-2" />
                     <span className="hidden sm:inline">Dépense Caisse</span>
                 </DialogTrigger>
-                <DialogContent>
+              <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Sortie de Caisse</DialogTitle>
                         <DialogDescription>Enregistrez une dépense immédiate payée avec l'argent de la caisse.</DialogDescription>
@@ -452,111 +491,64 @@ export default function ScanPage() {
                 <Button variant="outline" size="sm" onClick={() => setCart([])} className="text-red-500 border-red-100 hover:bg-red-50">
                     <Trash2 className="h-4 w-4 mr-1 sm:mr-2" />
                     <span className="hidden sm:inline">Vider ({cart.length})</span>
-                    <span className="sm:hidden">{cart.length}</span>
                 </Button>
             )}
           </div>
         </div>
 
-        {permissionDenied && (
-          <Card className="bg-amber-50 border-amber-200 shadow-none">
-            <CardContent className="p-4 text-sm text-amber-700 flex items-center justify-between">
-              <div className="flex items-center">
-                  <AlertTriangle className="mr-2 h-4 w-4 shrink-0" />
-                  <span>Caméra bloquée. Utilisez le scanner photo ou HTTPS.</span>
-              </div>
-              <Button variant="ghost" size="sm" className="text-amber-800 p-0 h-auto underline" onClick={() => {setPermissionDenied(false); startScanner();}}>Réessayer</Button>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="grid gap-4 lg:grid-cols-12 flex-1 min-h-0">
-          {/* Colonne Gauche: Scanner et Recherche */}
+          {/* Colonne Gauche */}
           <div className="lg:col-span-4 space-y-4 flex flex-col">
               <Card className="shadow-sm border-slate-200 overflow-hidden shrink-0">
                   <div className="bg-black relative flex items-center justify-center aspect-video sm:aspect-square overflow-hidden">
-                      {permissionDenied ? (
-                          <div className="flex flex-col items-center justify-center p-8 text-white/40 text-center">
-                              <ScanLine className="h-10 w-10 opacity-20 mb-2" />
-                              <p className="text-[10px] uppercase tracking-widest">Scanner Inactif</p>
+                      <div id="qr-reader" className="w-full h-full [&_video]:object-cover flex items-center justify-center overflow-hidden" />
+                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                          <div className="relative w-[260px] h-[180px]">
+                              <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500" />
+                              <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-500" />
+                              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500" />
+                              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500" />
                           </div>
-                      ) : (
-                          <>
-                              <div id="qr-reader" className="w-full h-full [&_video]:object-cover [&_#qr-shaded-region]:!border-none [&_#qr-shaded-region_div]:!border-none flex items-center justify-center overflow-hidden" />
-                              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                                  <div className="relative w-[260px] h-[180px]">
-                                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500" />
-                                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-500" />
-                                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500" />
-                                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500" />
-                                      
-                                      <div className="absolute top-1/2 left-2 right-2 h-[1px] bg-indigo-500/30 animate-pulse" />
-                                  </div>
-                              </div>
-                          </>
-                      )}
-                      {loading && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                              <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
-                          </div>
-                      )}
+                      </div>
                   </div>
                   <div className="flex border-t border-slate-100">
                       <Button variant="ghost" className="flex-1 rounded-none h-10 text-[10px] sm:text-xs text-slate-500" onClick={() => fileInputRef.current?.click()}>
                           <Upload className="h-3 w-3 mr-1.5" /> Photo
                       </Button>
-                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileScan} />
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileScan} />
                       <Button variant="ghost" className="flex-1 rounded-none h-10 text-[10px] sm:text-xs text-slate-500" onClick={() => startScanner()}>
                           <RefreshCw className="h-3 w-3 mr-1.5" /> Relancer
                       </Button>
                   </div>
               </Card>
 
-              <Card className="shadow-sm border-slate-200 flex-1 flex flex-col min-h-[250px] overflow-hidden">
+              <Card className="shadow-sm border-slate-200 flex-1 flex flex-col overflow-hidden">
                   <div className="p-3 border-b border-slate-100 bg-slate-50/50">
                       <div className="relative">
                           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                           <Input 
-                              placeholder="Chercher un produit..." 
+                              placeholder="Chercher..." 
                               className="pl-8 h-9 text-xs bg-white"
                               value={searchQuery}
                               onChange={(e) => setSearchQuery(e.target.value)}
                           />
                       </div>
                   </div>
-                  <CardContent className="p-0 overflow-y-auto flex-1">
-                      {loadingProducts ? (
-                          <div className="p-4 flex flex-col items-center gap-2">
-                              <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
-                              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Chargement...</span>
-                          </div>
-                      ) : filteredProducts.length === 0 ? (
-                          <div className="p-4 text-center text-slate-400 italic text-[10px]">Aucun produit.</div>
-                      ) : (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-px bg-slate-100">
-                              {filteredProducts.map(p => (
-                                  <div key={p.id} className="bg-white p-3 flex items-center gap-3 hover:bg-indigo-50/50 transition-colors group cursor-pointer" onClick={() => addToCart(p)}>
-                                      <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden group-hover:border-indigo-100">
-                                          {p.image ? (
-                                              <img src={p.image} className="w-full h-full object-cover" alt="" />
-                                          ) : (
-                                              <Box className="h-5 w-5 text-slate-300" />
-                                          )}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                          <p className="font-bold text-xs sm:text-sm text-slate-900 truncate leading-tight">{p.name}</p>
-                                          <div className="flex items-center gap-2 mt-0.5">
-                                              <p className="text-indigo-600 font-extrabold text-xs">{formatCurrency(p.salePrice)}</p>
-                                              <span className="text-[10px] font-medium text-slate-400">Stock: {p.stock}</span>
-                                          </div>
-                                      </div>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-600 text-white hover:bg-indigo-700 hover:text-white">
-                                          <Plus className="h-4 w-4" />
-                                      </Button>
+                  <CardContent className="p-0 overflow-y-auto flex-1 h-[200px]">
+                      <div className="grid grid-cols-1 gap-px bg-slate-100">
+                          {filteredProducts.map(p => (
+                              <div key={p.id} className="bg-white p-3 flex items-center gap-3 hover:bg-indigo-50 cursor-pointer" onClick={() => addToCart(p)}>
+                                  <div className="h-10 w-10 bg-slate-100 rounded flex items-center justify-center shrink-0">
+                                      {p.image ? <img src={p.image} className="w-full h-full object-cover" /> : <Box className="h-4 w-4 text-slate-300" />}
                                   </div>
-                              ))}
-                          </div>
-                      )}
+                                  <div className="flex-1 min-w-0">
+                                      <p className="font-bold text-xs truncate">{p.name}</p>
+                                      <p className="text-indigo-600 font-bold text-xs">{formatCurrency(p.salePrice)}</p>
+                                  </div>
+                                  <Plus className="h-4 w-4 text-indigo-400" />
+                              </div>
+                          ))}
+                      </div>
                   </CardContent>
               </Card>
           </div>
@@ -566,72 +558,57 @@ export default function ScanPage() {
               <Card className="shadow-sm border-slate-200 flex-1 flex flex-col overflow-hidden">
                   <CardHeader className="p-4 bg-slate-50/30 border-b border-slate-100 shrink-0">
                       <div className="flex justify-between items-center">
-                          <CardTitle className="text-base sm:text-lg flex items-center">
+                          <CardTitle className="text-base flex items-center">
                               <ShoppingCart className="h-4 w-4 mr-2 text-indigo-500" />
-                              Panier en cours
+                              Panier ({cart.length})
                           </CardTitle>
-                          <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 border-none font-bold">
-                              {cart.length} article{cart.length > 1 ? 's' : ''}
-                          </Badge>
                       </div>
                   </CardHeader>
-                  <CardContent className="flex-1 overflow-y-auto p-0 min-h-[300px]">
+                  <CardContent className="flex-1 overflow-y-auto p-0">
                       {cart.length === 0 ? (
-                          <div className="h-full flex flex-col items-center justify-center p-12 text-slate-300 text-center">
-                              <PackageSearch className="h-12 w-12 mb-4 opacity-20" />
-                              <p className="text-sm font-medium">Panier vide</p>
-                              <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Scannez un code barre ou cherchez un produit</p>
+                          <div className="h-full flex flex-col items-center justify-center p-12 text-slate-300">
+                              <PackageSearch className="h-12 w-12 mb-2 opacity-20" />
+                              <p className="text-sm">Panier vide</p>
                           </div>
                       ) : (
                           <div className="divide-y divide-slate-100">
                               {cart.map((item) => (
-                                  <div key={item.product.id} className="p-4 sm:p-5 flex items-center justify-between gap-4 group hover:bg-slate-50/50 transition-colors">
-                                      <div className="flex items-center gap-4 flex-1">
-                                          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                                              {item.product.image ? (
-                                                  <img src={item.product.image} className="w-full h-full object-cover rounded-lg" alt="" />
-                                              ) : (
-                                                  <Box className="h-5 w-5 text-slate-300" />
-                                              )}
+                                  <div key={item.product.id} className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50">
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                          <div className="h-10 w-10 bg-slate-100 rounded overflow-hidden shrink-0">
+                                              {item.product.image ? <img src={item.product.image} className="w-full h-full object-cover" /> : <Box className="h-4 w-4 m-auto text-slate-300" />}
                                           </div>
-                                          <div>
-                                              <p className="font-bold text-slate-900 text-sm sm:text-base leading-tight">{item.product.name}</p>
-                                              <p className="text-[10px] sm:text-xs text-slate-500 font-medium">{formatCurrency(item.product.salePrice)} / unité</p>
+                                          <div className="min-w-0">
+                                              <p className="font-bold text-sm truncate">{item.product.name}</p>
+                                              <div className="flex items-center gap-2">
+                                                  <span className="text-[10px] text-slate-500 font-medium">
+                                                    {`${formatCurrency(getItemPrice(item))} / ${item.soldByWeight ? 'Kg' : 'unité'}`}
+                                                  </span>
+                                                  {item.product.canBeSoldByWeight && (
+                                                    <Button variant="outline" size="sm" onClick={() => toggleWeightMode(item.product.id)} className="h-5 px-1.5 text-[8px] uppercase font-bold">
+                                                      {item.soldByWeight ? "Unité" : "Kilo"}
+                                                    </Button>
+                                                  )}
+                                              </div>
                                           </div>
                                       </div>
 
-                                      <div className="flex items-center gap-3 sm:gap-6">
-                                          <div className="flex flex-col gap-1 items-center">
-                                              <Label className="text-[9px] text-slate-400 uppercase font-bold">Quantité</Label>
-                                              <div className="flex items-center h-8 sm:h-9 bg-slate-100 rounded-lg border border-slate-200 overflow-hidden">
-                                                  <button onClick={() => updateQuantity(item.product.id, -1)} className="h-full px-3 hover:bg-slate-100 transition-colors text-slate-600 border-r border-slate-200">
-                                                      <Minus className="h-3.5 w-3.5" />
-                                                  </button>
-                                                  <div className="px-4 font-black text-sm min-w-[3rem] text-center">
-                                                      {item.quantity}
+                                      <div className="flex items-center gap-3">
+                                          <div className="flex flex-col items-center">
+                                              {item.soldByWeight ? (
+                                                  <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setWeight(item.product.id, Number(e.target.value))} className="h-8 w-16 text-center text-xs font-bold" />
+                                              ) : (
+                                                  <div className="flex items-center h-8 bg-slate-100 rounded border">
+                                                      <button onClick={() => updateQuantity(item.product.id, -1)} className="px-2 h-full border-r"><Minus className="h-3 w-3" /></button>
+                                                      <span className="px-3 text-xs font-bold">{item.quantity}</span>
+                                                      <button onClick={() => updateQuantity(item.product.id, 1)} className="px-2 h-full border-l"><Plus className="h-3 w-3" /></button>
                                                   </div>
-                                                  <button onClick={() => updateQuantity(item.product.id, 1)} className="h-full px-3 hover:bg-slate-100 transition-colors text-slate-600 border-l border-slate-200">
-                                                      <Plus className="h-3.5 w-3.5" />
-                                                  </button>
-                                              </div>
+                                              )}
                                           </div>
-
-                                          <div className="flex flex-col gap-1 min-w-[70px] sm:min-w-[100px]">
-                                              <Label className="text-[9px] text-slate-400 uppercase font-bold">Remise</Label>
-                                              <Input 
-                                                  type="number" 
-                                                  value={item.discount} 
-                                                  onChange={(e) => updateDiscount(item.product.id, Number(e.target.value))}
-                                                  className="h-8 sm:h-9 text-xs font-bold focus-visible:ring-indigo-500 bg-white"
-                                              />
+                                          <div className="text-right min-w-[80px]">
+                                              <p className="font-bold text-indigo-900 text-sm">{formatCurrency(getItemTotal(item))}</p>
                                           </div>
-
-                                          <div className="text-right min-w-[70px] sm:min-w-[90px]">
-                                              <p className="text-[9px] text-slate-400 uppercase font-bold">Total</p>
-                                              <p className="font-bold text-indigo-900 text-sm sm:text-base">{formatCurrency((item.product.salePrice * item.quantity) - item.discount)}</p>
-                                          </div>
-
-                                          <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.product.id)} className="hidden sm:flex text-slate-300 hover:text-red-500 hover:bg-red-50">
+                                          <Button variant="ghost" size="icon" onClick={() => removeFromCart(item.product.id)} className="text-slate-300 hover:text-red-500">
                                               <Trash2 className="h-4 w-4" />
                                           </Button>
                                       </div>
@@ -640,54 +617,21 @@ export default function ScanPage() {
                           </div>
                       )}
                   </CardContent>
-                  <CardFooter className="p-6 bg-white border-t border-slate-100 flex-col gap-4 shrink-0">
+                  <CardFooter className="p-6 bg-white border-t flex-col gap-4 shrink-0">
                       <div className="w-full space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-1.5">
-                                  <Label className="text-[10px] text-slate-400 uppercase font-bold">Espèces Reçues (DH)</Label>
-                                  <Input 
-                                      type="number" 
-                                      placeholder="0.00" 
-                                      className="h-10 text-lg font-bold"
-                                      value={cashReceived || ""}
-                                      onChange={(e) => setCashReceived(Number(e.target.value))}
-                                  />
-                              </div>
-                              <div className="space-y-1.5">
-                                  <Label className="text-[10px] text-slate-400 uppercase font-bold">Monnaie à rendre</Label>
-                                  <div className="h-10 flex items-center px-3 bg-slate-50 rounded-md border border-slate-200 text-lg font-black text-emerald-600">
-                                      {formatCurrency(Math.max(0, cashReceived - calculateTotal()))}
-                                  </div>
-                              </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm font-bold">
+                              <div>Total à payer</div>
+                              <div className="text-right text-indigo-600 text-2xl">{formatCurrency(calculateTotal())}</div>
                           </div>
-
-                          <div className="pt-2 border-t border-slate-50 space-y-2">
-                              <div className="flex justify-between text-slate-500 text-sm">
-                                  <span>Nombre d'articles</span>
-                                  <span>{cart.reduce((s, i) => s + i.quantity, 0)}</span>
-                              </div>
-                              <div className="flex justify-between items-end">
-                                  <span className="text-lg font-bold text-slate-900">Total à payer</span>
-                                  <span className="text-3xl font-black text-indigo-600">{formatCurrency(calculateTotal())}</span>
+                          <div className="grid grid-cols-2 gap-4">
+                              <Input type="number" placeholder="Espèces" value={cashReceived || ""} onChange={(e) => setCashReceived(Number(e.target.value))} className="h-10" />
+                              <div className="h-10 bg-emerald-50 text-emerald-700 flex items-center px-3 rounded border border-emerald-100 font-bold">
+                                  Rendu: {formatCurrency(Math.max(0, cashReceived - calculateTotal()))}
                               </div>
                           </div>
                       </div>
-                      <Button 
-                          className="w-full h-14 text-lg font-bold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-50"
-                          disabled={cart.length === 0 || submitting}
-                          onClick={finalizeOrder}
-                      >
-                          {submitting ? (
-                              <div className="flex items-center gap-2">
-                                  <Loader2 className="h-5 w-5 animate-spin" />
-                                  <span>Traitement...</span>
-                              </div>
-                          ) : (
-                              <div className="flex items-center gap-2">
-                                  <CheckCircle2 className="h-6 w-6" />
-                                  <span>VALIDER LA VENTE</span>
-                              </div>
-                          )}
+                      <Button className="w-full h-12 text-base font-bold bg-indigo-600 hover:bg-indigo-700" disabled={cart.length === 0 || submitting} onClick={finalizeOrder}>
+                          {submitting ? "Traitement..." : "VALIDER LA VENTE"}
                       </Button>
                   </CardFooter>
               </Card>

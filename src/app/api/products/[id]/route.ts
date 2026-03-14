@@ -104,6 +104,8 @@ async function processPatch(request: NextRequest) {
 
     if (json.salePrice !== undefined) json.salePrice = Number(json.salePrice);
     if (json.costPrice !== undefined) json.costPrice = Number(json.costPrice);
+    if (json.weightSalePrice !== undefined) json.weightSalePrice = json.weightSalePrice === "" ? null : Number(json.weightSalePrice);
+    if (json.weightCostPrice !== undefined) json.weightCostPrice = json.weightCostPrice === "" ? null : Number(json.weightCostPrice);
     if (json.stock !== undefined) json.stock = Number(json.stock);
     
     if (json.supplierId === "none") json.supplierId = null;
@@ -131,6 +133,9 @@ async function processPatch(request: NextRequest) {
       stock: json.stock,
       salePrice: json.salePrice,
       costPrice: json.costPrice,
+      weightSalePrice: json.weightSalePrice,
+      weightCostPrice: json.weightCostPrice,
+      canBeSoldByWeight: json.canBeSoldByWeight,
       supplierId: json.supplierId,
       image: json.image,
     };

@@ -62,7 +62,10 @@ export default function ProductsPage() {
     description: "", 
     supplierId: "none",
     image: "",
-    barcode: "" 
+    barcode: "",
+    canBeSoldByWeight: false,
+    weightSalePrice: "",
+    weightCostPrice: ""
   });
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -290,7 +293,10 @@ export default function ProductsPage() {
           description: "", 
           supplierId: "none", 
           image: "",
-          barcode: ""
+          barcode: "",
+          canBeSoldByWeight: false,
+          weightSalePrice: "",
+          weightCostPrice: ""
         });
         setPreview(null);
         setOpenAdd(false);
@@ -373,7 +379,10 @@ export default function ProductsPage() {
       description: product.description || "",
       supplierId: product.supplierId || "none",
       image: product.image || "",
-      barcode: product.barcode || ""
+      barcode: product.barcode || "",
+      canBeSoldByWeight: product.canBeSoldByWeight || false,
+      weightSalePrice: product.weightSalePrice?.toString() || "",
+      weightCostPrice: product.weightCostPrice?.toString() || ""
     });
     setPreview(product.image || null);
     setOpenEdit(true);
@@ -577,6 +586,46 @@ export default function ProductsPage() {
                         required 
                       />
                     </div>
+                </div>
+                
+                <div className="border-t border-slate-100 pt-4 mt-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <Label htmlFor="weight-toggle" className="text-slate-600 font-bold">Vente au kilo possible ?</Label>
+                    <input 
+                      type="checkbox" 
+                      id="weight-toggle"
+                      checked={formData.canBeSoldByWeight}
+                      onChange={(e) => setFormData({...formData, canBeSoldByWeight: e.target.checked})}
+                      className="h-5 w-5 accent-indigo-600 cursor-pointer"
+                    />
+                  </div>
+
+                  {formData.canBeSoldByWeight && (
+                    <div className="grid gap-4 grid-cols-2 animate-in slide-in-from-top-2 duration-200">
+                      <div className="space-y-2">
+                        <Label htmlFor="weightCostPrice" className="text-slate-600">Prix Achat Kilo (DH)</Label>
+                        <Input 
+                          id="weightCostPrice" 
+                          type="number" 
+                          step="0.01"
+                          value={formData.weightCostPrice}
+                          onChange={(e) => setFormData({...formData, weightCostPrice: e.target.value})}
+                          className="border-indigo-100 focus:border-indigo-300"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="weightSalePrice" className="text-slate-600">Prix Vente Kilo (DH)</Label>
+                        <Input 
+                          id="weightSalePrice" 
+                          type="number" 
+                          step="0.01"
+                          value={formData.weightSalePrice}
+                          onChange={(e) => setFormData({...formData, weightSalePrice: e.target.value})}
+                          className="border-indigo-100 focus:border-indigo-300"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-4 items-center gap-4 mt-2">
@@ -933,6 +982,46 @@ export default function ProductsPage() {
                       required 
                     />
                   </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-4 mt-2">
+                <div className="flex items-center justify-between mb-4">
+                  <Label htmlFor="edit-weight-toggle" className="text-slate-600 font-bold">Vente au kilo possible ?</Label>
+                  <input 
+                    type="checkbox" 
+                    id="edit-weight-toggle"
+                    checked={formData.canBeSoldByWeight}
+                    onChange={(e) => setFormData({...formData, canBeSoldByWeight: e.target.checked})}
+                    className="h-5 w-5 accent-indigo-600 cursor-pointer"
+                  />
+                </div>
+
+                {formData.canBeSoldByWeight && (
+                  <div className="grid gap-4 grid-cols-2 animate-in slide-in-from-top-2 duration-200">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-weightCostPrice" className="text-slate-600">Prix Achat Kilo (DH)</Label>
+                      <Input 
+                        id="edit-weightCostPrice" 
+                        type="number" 
+                        step="0.01"
+                        value={formData.weightCostPrice}
+                        onChange={(e) => setFormData({...formData, weightCostPrice: e.target.value})}
+                        className="border-indigo-100 focus:border-indigo-300"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-weightSalePrice" className="text-slate-600">Prix Vente Kilo (DH)</Label>
+                      <Input 
+                        id="edit-weightSalePrice" 
+                        type="number" 
+                        step="0.01"
+                        value={formData.weightSalePrice}
+                        onChange={(e) => setFormData({...formData, weightSalePrice: e.target.value})}
+                        className="border-indigo-100 focus:border-indigo-300"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4 mt-2">

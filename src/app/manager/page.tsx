@@ -95,6 +95,9 @@ const getExpenseColor = (type: string): string => {
 const fmt = (val: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MAD" }).format(val || 0);
 
+const fmtQty = (q: number) => 
+  new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 3 }).format(q || 0);
+
 // ══════════════════════════════════════════════════════════════
 export default function ManagerPage() {
   // ── data ────────────────────────────────────────────────────
@@ -106,7 +109,12 @@ export default function ManagerPage() {
 
   // ── forms ───────────────────────────────────────────────────
   // ── forms ───────────────────────────────────────────────────
-  const [expForm, setExpForm] = useState({ type: "Daily", amount: "", description: "", date: "" });
+  const [expForm, setExpForm] = useState({
+    type: "Daily" as string,
+    amount: "",
+    description: "",
+    date: new Date().toISOString().split("T")[0]
+  });
   const [submitting, setSub]  = useState(false);
 
   // ── dialogs ─────────────────────────────────────────────────
@@ -530,7 +538,7 @@ export default function ManagerPage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Pièces Ajoutées</p>
-                  <p className="text-xl font-bold text-slate-900">{stockStats.qty} <span className="text-xs font-normal text-slate-400">unités</span></p>
+                  <p className="text-xl font-bold text-slate-900">{fmtQty(stockStats.qty)} <span className="text-xs font-normal text-slate-400">unités/kg</span></p>
                 </div>
               </CardContent>
             </Card>
@@ -566,7 +574,7 @@ export default function ManagerPage() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                            +{entry.quantity}
+                            +{fmtQty(entry.quantity)}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-right text-slate-500">
@@ -702,8 +710,8 @@ export default function ManagerPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Type</Label>
-                <Select value={expForm.type || "Daily"} onValueChange={(v) => setExpForm({ ...expForm, type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select value={expForm.type || "Daily"} onValueChange={(v) => setExpForm({ ...expForm, type: v as string })}>
+                 <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-white">
                     {EXPENSE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
