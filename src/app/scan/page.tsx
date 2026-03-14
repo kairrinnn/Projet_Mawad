@@ -114,6 +114,11 @@ export default function ScanPage() {
     };
 
     window.addEventListener("keydown", handleKeyDown);
+    
+    // Load shop name from settings
+    const savedName = localStorage.getItem("shop_name");
+    if (savedName) setShopName(savedName);
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       if (html5QrCodeRef.current?.isScanning) {

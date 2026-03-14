@@ -38,6 +38,7 @@ import {
   Filter,
   CalendarDays,
   PackageSearch,
+  ShoppingCart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -53,6 +54,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -116,6 +118,12 @@ export default function ManagerPage() {
     date: new Date().toISOString().split("T")[0]
   });
   const [submitting, setSub]  = useState(false);
+
+  // Quick actions replicate from POS
+  const [quickExpForm, setQuickExpForm] = useState({ amount: "", description: "" });
+  const [isExpDialogOpen, setIsExpDialogOpen] = useState(false);
+  const [withdrawalForm, setWithdrawalForm] = useState({ amount: "", description: "", code: "" });
+  const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
 
   // ── dialogs ─────────────────────────────────────────────────
   const [addExpOpen, setAddExpOpen]       = useState(false);
@@ -250,6 +258,32 @@ export default function ManagerPage() {
     } catch { toast.error("Erreur"); } finally { setSub(false); }
   };
 
+  const handleQuickExpense = async (e: React.FormEvent) => {
+    e.preventDefault(); setSub(true);
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "Daily", amount: parseFloat(quickExpForm.amount), description: quickExpForm.description || "Dépense Caisse" })
+      });
+      if (res.ok) { toast.success("Dépense enregistrée"); setQuickExpForm({ amount: "", description: "" }); setIsExpDialogOpen(false); fetchData(); }
+    } catch { toast.error("Erreur"); } finally { setSub(false); }
+  };
+
+  const handleManagerWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (withdrawalForm.code !== "1234") { toast.error("Code manager incorrect"); return; }
+    setSub(true);
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "Withdrawal", amount: parseFloat(withdrawalForm.amount), description: withdrawalForm.description || "Retrait Gérant" })
+      });
+      if (res.ok) { toast.success("Retrait validé"); setWithdrawalForm({ amount: "", description: "", code: "" }); setIsWithdrawalOpen(false); fetchData(); }
+    } catch { toast.error("Erreur"); } finally { setSub(false); }
+  };
+
   const confirmDelete = async () => {
     if (!delTarget) return;
     try {
@@ -349,6 +383,62 @@ export default function ManagerPage() {
                 {periodLabels[p]}
               </Button>
             ))}
+          </div>
+
+          <div className="flex gap-2 mb-4 justify-end">
+            <Dialog open={isWithdrawalOpen} onOpenChange={setIsWithdrawalOpen}>
+              <DialogTrigger render={<Button variant="outline" size="sm" className="bg-indigo-600 text-white border-none hover:bg-slate-900 shadow-sm px-4" />}>
+                  <ShieldCheck className="h-4 w-4 mr-2" /> Retrait Gérant
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Retrait Gérant (Caisse)</DialogTitle>
+                  <DialogDescription>Retirer des espèces sans affecter les bénéfices du magasin.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleManagerWithdrawal} className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Montant à retirer (DH)</Label>
+                    <Input type="number" required value={withdrawalForm.amount} onChange={(e) => setWithdrawalForm({...withdrawalForm, amount: e.target.value})} placeholder="0.00" className="text-xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Motif</Label>
+                    <Input value={withdrawalForm.description} onChange={(e) => setWithdrawalForm({...withdrawalForm, description: e.target.value})} placeholder="Ex: Retrait personnel..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Code Manager</Label>
+                    <Input type="password" required value={withdrawalForm.code} onChange={(e) => setWithdrawalForm({...withdrawalForm, code: e.target.value})} placeholder="****" />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" className="w-full bg-indigo-600 hover:bg-slate-900" disabled={submitting}>Confirmer le retrait</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isExpDialogOpen} onOpenChange={setIsExpDialogOpen}>
+              <DialogTrigger render={<Button variant="outline" size="sm" className="text-slate-600 border-slate-200 hover:bg-white px-4" />}>
+                  <ShoppingCart className="h-4 w-4 mr-2" /> Dépense Caisse
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Dépense Caisse (Quotidienne)</DialogTitle>
+                  <DialogDescription>Enregistrer un petit achat payé par la caisse.</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleQuickExpense} className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label>Montant (DH)</Label>
+                    <Input type="number" required value={quickExpForm.amount} onChange={(e) => setQuickExpForm({...quickExpForm, amount: e.target.value})} placeholder="0.00" className="text-xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Input value={quickExpForm.description} onChange={(e) => setQuickExpForm({...quickExpForm, description: e.target.value})} placeholder="Ex: Pain, Café..." />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" className="w-full bg-slate-900 text-white" disabled={submitting}>Valider la dépense</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
