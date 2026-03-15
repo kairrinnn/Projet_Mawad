@@ -84,43 +84,56 @@ export default function ScanPage() {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const isInitializingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scannerBufferRef = useRef("");
+  const lastKeyTimeRef = useRef(Date.now());
 
   useEffect(() => {
     fetchAllProducts();
 
-    let buffer = "";
-    let lastKeyTime = Date.now();
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
-      if (activeEl?.tagName === "INPUT" || activeEl?.tagName === "TEXTAREA") return;
+      // Priorité absolue au scanner même si un input est focusé
+      // Sauf si c'est une touche de contrôle (Ctrl, Alt, etc.)
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       const now = Date.now();
-      const diff = now - lastKeyTime;
-      lastKeyTime = now;
+      const diff = now - lastKeyTimeRef.current;
+      lastKeyTimeRef.current = now;
 
       if (e.key === "Enter") {
-        if (buffer.length > 2) {
-          fetchProductDetails(buffer);
-          buffer = "";
+        if (scannerBufferRef.current.length > 2) {
+          fetchProductDetails(scannerBufferRef.current);
+          scannerBufferRef.current = "";
+          // Empêche la soumission de formulaire ou d'autres actions par défaut
+          e.preventDefault();
+          e.stopPropagation();
         }
       } else if (e.key.length === 1) {
+        // Seuil de 50ms pour distinguer une frappe humaine d'un scanner
         if (diff > 50) {
-            buffer = e.key;
+            scannerBufferRef.current = e.key;
         } else {
-            buffer += e.key;
+            scannerBufferRef.current += e.key;
+        }
+        
+        // Si c'est un scanner rapide, on intercepte pour éviter que ça n'écrive dans un input
+        if (diff < 30) {
+            e.stopPropagation();
+            if (document.activeElement?.tagName === "INPUT") {
+                // Optionnel: on peut laisser passer si c'est une frappe lente
+            }
         }
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    // Utilisation de la phase de CAPTURE (true) pour intercepter avant tout le monde
+    window.addEventListener("keydown", handleKeyDown, true);
     
     // Load shop name from settings
     const savedName = localStorage.getItem("shop_name");
     if (savedName) setShopName(savedName);
 
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, true);
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(console.error);
       }
