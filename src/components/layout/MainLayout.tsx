@@ -44,6 +44,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           </Sheet>
           <div className="ml-4 flex grow items-center font-bold text-lg text-slate-900 tracking-tight">
             Mawad<span className="text-indigo-600">Scan</span>
+            <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 text-indigo-500 rounded text-[10px] font-black uppercase tracking-tighter border border-indigo-100/50">vStable-15Mar</span>
           </div>
         </header>
 
