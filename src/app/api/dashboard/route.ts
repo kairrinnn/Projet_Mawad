@@ -17,255 +17,212 @@ export async function GET() {
 
   const userId = session.user.id;
 
-    try {
-        const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        // --- AUTO-MIGRATION (Safe fix for missing totalPrice) ---
-        // On s'assure que toutes les ventes ont un totalPrice calculé
-        try {
-            await (prisma as any).$executeRawUnsafe(
-                `UPDATE "Sale" SET "totalPrice" = ("salePrice" * "quantity") - "discount" WHERE "totalPrice" = 0`
-            );
-        } catch (e) { console.error("Auto-migration error:", e); }
+  try {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Début de la semaine (lundi)
+    const dayOfWeek = now.getDay() || 7; 
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Début de la semaine (lundi)
-        const dayOfWeek = now.getDay() || 7; 
-        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1);
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-        // ... existing aggregate calls until end of request ...
-
+    // --- PARALLEL QUERIES START ---
+    const [
+        dailyExpenses,
+        monthlyExpenses,
+        dailyCashOut,
+        weeklyExpenses,
+        todaysTransactions,
+        weeklySales,
+        monthlySales,
+        totalSales,
+        totalExpenses,
+        cashDrawer,
+        lowStockCount,
+        topSalesGrouped
+    ] = await Promise.all([
         // Dépenses du jour (uniquement celles déjà payées/passées) - EXCLUANT les retraits gérant du profit
-        const dailyExpenses = await prisma.expense.aggregate({
-            where: { 
-                userId, 
-                date: { gte: startOfDay, lte: now },
-                type: { not: 'Withdrawal' }
-            },
+        prisma.expense.aggregate({
+            where: { userId, date: { gte: startOfDay, lte: now }, type: { not: 'Withdrawal' } },
             _sum: { amount: true },
-        });
-
+        }),
         // Dépenses du mois (uniquement celles déjà payées/passées)
-        const monthlyExpenses = await prisma.expense.aggregate({
-            where: { 
-                userId, 
-                date: { gte: startOfMonth, lte: now },
-                type: { not: 'Withdrawal' }
-            },
+        prisma.expense.aggregate({
+            where: { userId, date: { gte: startOfMonth, lte: now }, type: { not: 'Withdrawal' } },
             _sum: { amount: true },
-        });
-
+        }),
         // Dépenses quotidiennes (CAISSE) - Retraits gérant + Dépenses Caisse
-        const dailyCashOut = await prisma.expense.aggregate({
-            where: { 
-                userId, 
-                date: { gte: startOfDay, lte: now },
-                type: { in: ['Daily', 'Withdrawal'] }
-            },
+        prisma.expense.aggregate({
+            where: { userId, date: { gte: startOfDay, lte: now }, type: { in: ['Daily', 'Withdrawal'] } },
             _sum: { amount: true },
-        });
-
+        }),
         // Dépenses de la semaine
-        const weeklyExpenses = await prisma.expense.aggregate({
-            where: { 
-                userId, 
-                date: { gte: startOfWeek, lte: now },
-                type: { not: 'Withdrawal' }
-            },
+        prisma.expense.aggregate({
+            where: { userId, date: { gte: startOfWeek, lte: now }, type: { not: 'Withdrawal' } },
             _sum: { amount: true },
-        });
-
-        // 1. Ventes et Remboursements du JOUR (pour stats détaillées et règle caisse)
-        const todaysTransactions = await prisma.sale.findMany({
+        }),
+        // 1. Ventes et Remboursements du JOUR
+        prisma.sale.findMany({
             where: { userId, createdAt: { gte: startOfDay } }
-        });
-
-        // 2. Ventes de la semaine, mois et totales (pour les cartes de stats)
-        const weeklySales = await prisma.sale.aggregate({
+        }),
+        // 2. Ventes de la semaine, mois et totales
+        prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfWeek } },
             _sum: { profit: true, quantity: true, totalPrice: true },
-        });
-
-        const monthlySales = await prisma.sale.aggregate({
+        }),
+        prisma.sale.aggregate({
             where: { userId, createdAt: { gte: startOfMonth } },
             _sum: { profit: true, quantity: true, totalPrice: true },
-        });
-
-        const totalSales = await prisma.sale.aggregate({
+        }),
+        prisma.sale.aggregate({
             where: { userId },
             _sum: { profit: true, quantity: true, totalPrice: true },
-        });
-
-        const totalExpenses = await prisma.expense.aggregate({
+        }),
+        prisma.expense.aggregate({
             where: { userId, date: { lte: now }, type: { not: 'Withdrawal' } },
             _sum: { amount: true },
-        });
-
-        // 3. Calcul des totaux du jour avec la règle spéciale pour la caisse
-        let dailyRevenueTotal = 0;
-        let dailyProfitTotal = 0;
-        let dailyQuantityTotal = 0;
-        let revenueForCaisse = 0;
-
-        // On a besoin de savoir si le parent d'un remboursement est d'aujourd'hui pour la règle "Caisse"
-        const refundParentIds = todaysTransactions
-            .filter(t => t.type === "REFUND" && t.parentId)
-            .map(t => t.parentId as string);
-        
-        const parentSales = refundParentIds.length > 0 ? await prisma.sale.findMany({
-            where: { id: { in: refundParentIds } },
-            select: { id: true, createdAt: true }
-        }) : [];
-
-        const parentDateMap = new Map(parentSales.map(s => [s.id, s.createdAt]));
-
-        for (const t of todaysTransactions) {
-            dailyRevenueTotal += t.totalPrice;
-            dailyProfitTotal += t.profit;
-            dailyQuantityTotal += t.quantity;
-
-            // Règle spéciale Caisse : 
-            // On ajoute le revenu à la caisse sauf si c'est un remboursement d'une vente d'un AUTRE jour
-            if (t.type === "SALE") {
-                revenueForCaisse += t.totalPrice;
-            } else if (t.type === "REFUND") {
-                const parentDate = parentDateMap.get(t.parentId || "");
-                const isParentToday = parentDate && parentDate >= startOfDay;
-                
-                if (isParentToday) {
-                    revenueForCaisse += t.totalPrice; // t.totalPrice est négatif
-                }
-            }
-        }
-
+        }),
         // Fond de caisse d'aujourd'hui
-        const cashDrawer = await (prisma as any).cashDrawer.findFirst({
-            where: { 
-                userId,
-                date: { gte: startOfDay }
-            },
+        (prisma as any).cashDrawer.findFirst({
+            where: { userId, date: { gte: startOfDay } },
             orderBy: { date: 'desc' }
-        });
-
-        const lowStockCount = await prisma.product.count({
+        }),
+        prisma.product.count({
             where: { userId, stock: { lte: 5 }, isArchived: false }
-        });
-        
-        // Top Ventes
-        const allSalesForTop = await prisma.sale.findMany({
+        }),
+        // OPTIMISATION CRITIQUE: GroupBy au lieu de findMany+Memory loop
+        prisma.sale.groupBy({
+            by: ['productId'],
             where: { userId },
-            include: {
-                product: {
-                    select: { name: true, image: true, category: true }
-                }
-            }
-        });
+            _sum: { quantity: true },
+            orderBy: { _sum: { quantity: 'desc' } },
+            take: 5
+        })
+    ]);
+    // --- PARALLEL QUERIES END ---
 
-        const salesByName: Record<string, { name: string; quantity: number; image: string | null; category: string | null }> = {};
-        
-        allSalesForTop.forEach(sale => {
-            const name = sale.product?.name || "Produit inconnu";
-            if (!salesByName[name]) {
-                salesByName[name] = { 
-                    name, 
-                    quantity: 0, 
-                    image: sale.product?.image || null,
-                    category: sale.product?.category || null
-                };
-            }
-            salesByName[name].quantity += sale.quantity;
-            if (sale.product?.image) salesByName[name].image = sale.product.image;
-        });
+    // Fetch products for top sales in one go
+    const productIds = topSalesGrouped.map(s => s.productId).filter(Boolean) as string[];
+    const topProducts = productIds.length > 0 ? await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, name: true, image: true, category: true }
+    }) : [];
 
-        const enrichedTopSales = Object.values(salesByName)
-            .sort((a, b) => b.quantity - a.quantity)
-            .slice(0, 5)
-            .map(s => ({
-                _sum: { quantity: s.quantity },
-                product: { name: s.name, image: s.image, category: s.category }
-            }));
+    const enrichedTopSales = topSalesGrouped.map(s => {
+        const prod = topProducts.find(p => p.id === s.productId);
+        return {
+            _sum: { quantity: s._sum.quantity },
+            product: prod ? { name: prod.name, image: prod.image, category: prod.category } : null
+        };
+    });
 
-        // Graphique 7 jours
-        const last7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-        const recentSales = await prisma.sale.findMany({
+    // Calcul des totaux du jour
+    let dailyRevenueTotal = 0;
+    let dailyProfitTotal = 0;
+    let dailyQuantityTotal = 0;
+    let revenueForCaisse = 0;
+
+    // On a besoin de savoir si le parent d'un remboursement est d'aujourd'hui pour la règle "Caisse"
+    const refundParentIds = todaysTransactions
+        .filter(t => t.type === "REFUND" && t.parentId)
+        .map(t => t.parentId as string);
+    
+    const parentSales = refundParentIds.length > 0 ? await prisma.sale.findMany({
+        where: { id: { in: refundParentIds } },
+        select: { id: true, createdAt: true }
+    }) : [];
+
+    const parentDateMap = new Map(parentSales.map(s => [s.id, s.createdAt]));
+
+    for (const t of todaysTransactions) {
+        dailyRevenueTotal += t.totalPrice;
+        dailyProfitTotal += t.profit;
+        dailyQuantityTotal += t.quantity;
+
+        const parentDate = parentDateMap.get(t.parentId || "");
+        if (t.type === "SALE" || (t.type === "REFUND" && parentDate && parentDate >= startOfDay)) {
+            revenueForCaisse += t.totalPrice;
+        }
+    }
+
+    // Graphique 7 jours
+    const last7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const [recentSales, recentExpenses] = await Promise.all([
+        prisma.sale.findMany({
             where: { userId, createdAt: { gte: last7Days } },
             select: { createdAt: true, profit: true, quantity: true, totalPrice: true }
-        });
-
-        const recentExpenses = await prisma.expense.findMany({
+        }),
+        prisma.expense.findMany({
             where: { userId, date: { gte: last7Days, lte: now }, type: { not: 'Withdrawal' } },
             select: { date: true, amount: true }
-        });
+        })
+    ]);
 
-        const dataByDay: Record<string, { date: string; profit: number; revenue: number; expenses: number; quantity: number }> = {};
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(last7Days);
-            d.setDate(d.getDate() + i);
-            const dateStr = d.toISOString().split('T')[0];
-            dataByDay[dateStr] = { date: dateStr, profit: 0, revenue: 0, expenses: 0, quantity: 0 };
-        }
-
-        recentSales.forEach(sale => {
-            const dateStr = sale.createdAt.toISOString().split('T')[0];
-            if (dataByDay[dateStr]) {
-                dataByDay[dateStr].profit += sale.profit;
-                dataByDay[dateStr].revenue += sale.totalPrice;
-                dataByDay[dateStr].quantity += sale.quantity;
-            }
-        });
-
-        recentExpenses.forEach(exp => {
-            const dateStr = exp.date.toISOString().split('T')[0];
-            if (dataByDay[dateStr]) {
-                dataByDay[dateStr].expenses += exp.amount;
-            }
-        });
-
-        const grossMonthlyProfit = monthlySales._sum?.profit || 0;
-        const netMonthlyProfit = grossMonthlyProfit - (monthlyExpenses._sum?.amount || 0);
-
-        return NextResponse.json({
-            daily: { 
-                revenue: dailyRevenueTotal,
-                profit: dailyProfitTotal - (dailyExpenses._sum?.amount || 0), 
-                grossProfit: dailyProfitTotal,
-                expenses: dailyExpenses._sum?.amount || 0,
-                quantity: dailyQuantityTotal 
-            },
-            weekly: { 
-                revenue: weeklySales._sum?.totalPrice || 0,
-                profit: (weeklySales._sum?.profit || 0) - (weeklyExpenses._sum?.amount || 0), 
-                grossProfit: weeklySales._sum?.profit || 0,
-                expenses: weeklyExpenses._sum?.amount || 0,
-                quantity: weeklySales._sum?.quantity || 0 
-            },
-            monthly: { 
-                revenue: monthlySales._sum?.totalPrice || 0,
-                profit: netMonthlyProfit, 
-                grossProfit: grossMonthlyProfit,
-                expenses: monthlyExpenses._sum?.amount || 0,
-                quantity: monthlySales._sum?.quantity || 0 
-            },
-            total: { 
-                revenue: totalSales._sum?.totalPrice || 0,
-                profit: (totalSales._sum?.profit || 0) - (totalExpenses._sum?.amount || 0), 
-                grossProfit: totalSales._sum?.profit || 0,
-                expenses: totalExpenses._sum?.amount || 0,
-                quantity: totalSales._sum?.quantity || 0 
-            },
-            cashDrawer: {
-                startingCash: cashDrawer?.startingCash || 500,
-                currentRevenue: revenueForCaisse,
-                currentExpenses: dailyCashOut._sum?.amount || 0,
-                balance: (cashDrawer?.startingCash || 500) + revenueForCaisse - (dailyCashOut._sum?.amount || 0)
-            },
-            lowStockCount,
-            topSales: enrichedTopSales,
-            chartData: Object.values(dataByDay)
-        });
-    } catch (error: any) {
-        console.error("Dashboard error:", error);
-        return NextResponse.json({ error: "Failed to fetch dashboard data", details: error.message }, { status: 500 });
+    const dataByDay: Record<string, { date: string; profit: number; revenue: number; expenses: number; quantity: number }> = {};
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(last7Days); d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        dataByDay[dateStr] = { date: dateStr, profit: 0, revenue: 0, expenses: 0, quantity: 0 };
     }
+
+    recentSales.forEach(sale => {
+        const dateStr = sale.createdAt.toISOString().split('T')[0];
+        if (dataByDay[dateStr]) {
+            dataByDay[dateStr].profit += sale.profit;
+            dataByDay[dateStr].revenue += sale.totalPrice;
+            dataByDay[dateStr].quantity += sale.quantity;
+        }
+    });
+
+    recentExpenses.forEach(exp => {
+        const dateStr = exp.date.toISOString().split('T')[0];
+        if (dataByDay[dateStr]) dataByDay[dateStr].expenses += exp.amount;
+    });
+
+    const grossMonthlyProfit = monthlySales._sum?.profit || 0;
+    const netMonthlyProfit = grossMonthlyProfit - (monthlyExpenses._sum?.amount || 0);
+
+    return NextResponse.json({
+        daily: { 
+            revenue: dailyRevenueTotal,
+            profit: dailyProfitTotal - (dailyExpenses._sum?.amount || 0), 
+            grossProfit: dailyProfitTotal,
+            expenses: dailyExpenses._sum?.amount || 0,
+            quantity: dailyQuantityTotal 
+        },
+        weekly: { 
+            revenue: weeklySales._sum?.totalPrice || 0,
+            profit: (weeklySales._sum?.profit || 0) - (weeklyExpenses._sum?.amount || 0), 
+            grossProfit: weeklySales._sum?.profit || 0,
+            expenses: weeklyExpenses._sum?.amount || 0,
+            quantity: weeklySales._sum?.quantity || 0 
+        },
+        monthly: { 
+            revenue: monthlySales._sum?.totalPrice || 0,
+            profit: netMonthlyProfit, 
+            grossProfit: grossMonthlyProfit,
+            expenses: monthlyExpenses._sum?.amount || 0,
+            quantity: monthlySales._sum?.quantity || 0 
+        },
+        total: { 
+            revenue: totalSales._sum?.totalPrice || 0,
+            profit: (totalSales._sum?.profit || 0) - (totalExpenses._sum?.amount || 0), 
+            grossProfit: totalSales._sum?.profit || 0,
+            expenses: totalExpenses._sum?.amount || 0,
+            quantity: totalSales._sum?.quantity || 0 
+        },
+        cashDrawer: {
+            startingCash: cashDrawer?.startingCash || 500,
+            currentRevenue: revenueForCaisse,
+            currentExpenses: dailyCashOut._sum?.amount || 0,
+            balance: (cashDrawer?.startingCash || 500) + revenueForCaisse - (dailyCashOut._sum?.amount || 0)
+        },
+        lowStockCount,
+        topSales: enrichedTopSales,
+        chartData: Object.values(dataByDay)
+    });
+  } catch (error: any) {
+    console.error("Dashboard error:", error);
+    return NextResponse.json({ error: "Failed to fetch dashboard data", details: error.message }, { status: 500 });
+  }
 }
