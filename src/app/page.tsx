@@ -1,4 +1,5 @@
 "use client";
+// Version Restaurée: 15 Mars - Toutes fonctionnalités incluses
 
 import { useEffect, useState } from "react";
 import { 
