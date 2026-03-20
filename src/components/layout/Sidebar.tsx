@@ -20,7 +20,7 @@ import {
 import { useSession, signOut } from "next-auth/react";
 
 const navItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["MANAGER", "CASHIER"] },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["MANAGER"] },
   { name: "Gérant", href: "/manager", icon: ShieldCheck, roles: ["MANAGER"] },
   { name: "Produits", href: "/products", icon: Package, roles: ["MANAGER", "CASHIER"] },
   { name: "Scanner", href: "/scan", icon: QrCode, roles: ["MANAGER", "CASHIER"] },

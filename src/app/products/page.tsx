@@ -5,6 +5,11 @@ import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
 import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle, Camera, ImagePlus, X, Barcode, ScanLine, Loader2, Activity } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
+import { CategoryManager } from "@/components/products/CategoryManager";
+import { StockHistoryDialog } from "@/components/products/StockHistoryDialog";
+import { ProductTable } from "@/components/products/ProductTable";
+import { BarcodeScannerDialog } from "@/components/products/BarcodeScannerDialog";
+import { ProductFormDialog } from "@/components/products/ProductFormDialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -48,13 +53,13 @@ export default function ProductsPage() {
   const [openCategories, setOpenCategories] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
   const [stockHistory, setStockHistory] = useState<any[]>([]);
-  const [newCatName, setNewCatName] = useState("");
   const [openQR, setOpenQR] = useState(false);
   const [openBarcodeScanner, setOpenBarcodeScanner] = useState(false);
   const [scanningBarcode, setScanningBarcode] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
   const [searchTerm, setSearchTerm] = useState("");
+  const [newCatName, setNewCatName] = useState("");
   const qrRef = useRef<SVGSVGElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
@@ -360,7 +365,7 @@ export default function ProductsPage() {
   const handleDeleteCategory = async (id: string) => {
     if (!confirm("Voulez-vous vraiment supprimer cette catégorie ?")) return;
     setSubmitting(true);
-    const { error } = await apiRequest(`/api/categories?id=\${id}`, {
+    const { error } = await apiRequest(`/api/categories?id=${id}`, {
       method: "DELETE",
       cache: "no-store",
     });
@@ -372,7 +377,7 @@ export default function ProductsPage() {
   };
 
   const fetchStockHistory = async (productId: string) => {
-    const { data: movements, error } = await apiRequest<any[]>(`/api/stock-movements?productId=\${productId}`, { cache: "no-store" });
+    const { data: movements, error } = await apiRequest<any[]>(`/api/stock-movements?productId=${productId}`, { cache: "no-store" });
     if (!error && movements) {
       setStockHistory(movements);
     }
@@ -457,261 +462,24 @@ export default function ProductsPage() {
           <p className="text-slate-500">Gérez votre inventaire et générez vos QR codes.</p>
         </div>
         
-        <Dialog open={openAdd} onOpenChange={setOpenAdd}>
-          <Button 
-            onClick={() => setOpenCategories(true)} 
-            variant="outline" 
-            className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Gérer les Catégories
-          </Button>
-          <DialogTrigger render={(props) => (
-            <Button className="bg-indigo-600 hover:bg-indigo-700" {...props}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nouveau Produit
-            </Button>
-          )} />
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Ajouter un produit</DialogTitle>
-              <DialogDescription>
-                Remplissez les informations essentielles du produit. Le QR code sera généré automatiquement.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right text-slate-600">Nom *</Label>
-                  <div className="col-span-3 flex gap-2">
-                    <Input 
-                      id="name" 
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="flex-1 border-slate-200" 
-                      required 
-                    />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={startBarcodeScanner}
-                      className="shrink-0 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                      title="Scanner un code-barres"
-                    >
-                      <Barcode className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label className="text-right text-slate-600">Photo</Label>
-                  <div className="col-span-3 flex items-center gap-4">
-                    <div 
-                      className="relative h-24 w-24 rounded-lg bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {preview ? (
-                        <>
-                          <NextImage src={preview} alt="Aperçu" fill className="object-cover" />
-                          <button 
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPreview(null);
-                              setFormData(prev => ({ ...prev, image: "" }));
-                            }}
-                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-400">
-                          {uploading ? (
-                            <div className="h-5 w-5 border-2 border-indigo-500 border-t-transparent animate-spin rounded-full" />
-                          ) : (
-                            <>
-                              <Camera className="h-6 w-6 mb-1" />
-                              <span className="text-[10px]">Photo / Cam</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <Input 
-                      type="file" 
-                      ref={fileInputRef}
-                      className="hidden" 
-                      accept="image/*"
-                      capture="environment" // Force la caméra arrière sur mobile
-                      onChange={handleFileUpload}
-                      disabled={uploading}
-                    />
-                    {!preview && (
-                      <div className="text-xs text-slate-500">
-                        Cliquez pour prendre une photo ou choisir un fichier.
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="barcode" className="text-right text-slate-600">Code-Barre</Label>
-                  <Input 
-                    id="barcode" 
-                    value={formData.barcode}
-                    onChange={(e) => setFormData({...formData, barcode: e.target.value})}
-                    placeholder="EAN-13, UPC..."
-                    className="col-span-3 border-slate-200" 
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="lowStockThreshold" className="text-right text-slate-600">Seuil d'alerte</Label>
-                  <Input 
-                    id="lowStockThreshold" 
-                    type="number"
-                    value={formData.lowStockThreshold}
-                    onChange={(e) => setFormData({...formData, lowStockThreshold: e.target.value})}
-                    className="col-span-3 border-slate-200" 
-                  />
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="category" className="text-right text-slate-600">Catégorie</Label>
-                  <div className="col-span-3">
-                    <Select 
-                      value={formData.categoryId || "none"} 
-                      onValueChange={(val: string | null) => {
-                        if (!val) return;
-                        const selected = categories.find(c => c.id === val);
-                        setFormData({
-                          ...formData, 
-                          categoryId: val, 
-                          category: selected ? selected.name : formData.category 
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="border-slate-200">
-                        <SelectValue placeholder="Choisir une catégorie" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sans catégorie spéciale</SelectItem>
-                        {categories.map(cat => (
-                           <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="stock" className="text-right text-slate-600">Stock initial</Label>
-                  <Input 
-                    id="stock" 
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                    className="col-span-3 border-slate-200" 
-                    min="0"
-                  />
-                </div>
-                
-                <div className="grid gap-4 grid-cols-2 mt-2 border-t border-slate-100 pt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="costPrice" className="text-slate-600">Prix d'Achat (DH) *</Label>
-                      <Input 
-                        id="costPrice" 
-                        type="number" 
-                        step="0.01"
-                        value={formData.costPrice}
-                        onChange={(e) => setFormData({...formData, costPrice: e.target.value})}
-                        className="border-slate-200"
-                        required 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                       <Label htmlFor="salePrice" className="text-slate-600">Prix de Vente (DH) *</Label>
-                      <Input 
-                        id="salePrice" 
-                        type="number" 
-                        step="0.01"
-                        value={formData.salePrice}
-                        onChange={(e) => setFormData({...formData, salePrice: e.target.value})}
-                        className="border-slate-200"
-                        required 
-                      />
-                    </div>
-                </div>
-                
-                <div className="border-t border-slate-100 pt-4 mt-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <Label htmlFor="weight-toggle" className="text-slate-600 font-bold">Vente au kilo possible ?</Label>
-                    <input 
-                      type="checkbox" 
-                      id="weight-toggle"
-                      checked={formData.canBeSoldByWeight}
-                      onChange={(e) => setFormData({...formData, canBeSoldByWeight: e.target.checked})}
-                      className="h-5 w-5 accent-indigo-600 cursor-pointer"
-                    />
-                  </div>
-
-                  {formData.canBeSoldByWeight && (
-                    <div className="grid gap-4 grid-cols-2 animate-in slide-in-from-top-2 duration-200">
-                      <div className="space-y-2">
-                        <Label htmlFor="weightCostPrice" className="text-slate-600">Prix Achat Kilo (DH)</Label>
-                        <Input 
-                          id="weightCostPrice" 
-                          type="number" 
-                          step="0.01"
-                          value={formData.weightCostPrice}
-                          onChange={(e) => setFormData({...formData, weightCostPrice: e.target.value})}
-                          className="border-indigo-100 focus:border-indigo-300"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="weightSalePrice" className="text-slate-600">Prix Vente Kilo (DH)</Label>
-                        <Input 
-                          id="weightSalePrice" 
-                          type="number" 
-                          step="0.01"
-                          value={formData.weightSalePrice}
-                          onChange={(e) => setFormData({...formData, weightSalePrice: e.target.value})}
-                          className="border-indigo-100 focus:border-indigo-300"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-4 items-center gap-4 mt-2">
-                  <Label htmlFor="supplier" className="text-right text-slate-600">Fournisseur</Label>
-                  <div className="col-span-3">
-                    <Select 
-                      value={formData.supplierId} 
-                      onValueChange={(val: string | null) => setFormData({...formData, supplierId: val || "none"})}
-                    >
-                      <SelectTrigger className="border-slate-200">
-                        <SelectValue placeholder="Sélectionner un fournisseur" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucun fournisseur (Interne)</SelectItem>
-                        {suppliers.length > 0 && suppliers.map(sup => (
-                           <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={submitting} className="w-full bg-indigo-600 hover:bg-indigo-700">
-                  {submitting ? "Création en cours..." : "Créer le produit"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <ProductFormDialog
+          open={openAdd}
+          onOpenChange={setOpenAdd}
+          title="Ajouter un produit"
+          description="Remplissez les informations essentielles du produit. Le QR code sera généré automatiquement."
+          formData={formData}
+          setFormData={setFormData}
+          onSubmit={handleSubmit}
+          submitting={submitting}
+          categories={categories}
+          suppliers={suppliers}
+          onStartScanner={startBarcodeScanner}
+          onFileUpload={handleFileUpload}
+          uploading={uploading}
+          preview={preview}
+          setPreview={setPreview}
+          fileInputRef={fileInputRef as any}
+        />
 
         {/* Modal d'agrandissement d'image */}
         <Dialog open={!!selectedViewImage} onOpenChange={() => setSelectedViewImage(null)}>
@@ -750,142 +518,16 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
-        <Table>
-          <TableHeader className="bg-slate-50/50">
-            <TableRow>
-              <TableHead>Produit</TableHead>
-              <TableHead>Catégorie</TableHead>
-              <TableHead className="text-right">Prix Achat</TableHead>
-              <TableHead className="text-right">Prix Vente</TableHead>
-              <TableHead className="text-center">Stock</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                  Chargement de l'inventaire...
-                </TableCell>
-              </TableRow>
-            ) : filteredProducts.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
-                   <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
-                      <PackageSearch className="h-10 w-10 text-slate-300" />
-                      <p>Aucun produit trouvé.</p>
-                   </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="h-10 w-10 relative rounded bg-slate-100 border overflow-hidden flex-shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
-                        onClick={() => product.image && setSelectedViewImage(product.image)}
-                      >
-                        {product.image ? (
-                          <NextImage src={product.image} alt={product.name} fill className="object-cover" />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center">
-                             <PackageSearch className="h-5 w-5 text-slate-300" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                             <span className="font-medium text-slate-900">{product.name}</span>
-                             {product.stock <= product.lowStockThreshold && (
-                               <Badge variant="destructive" className="bg-red-100 text-red-600 hover:bg-red-100 border-none text-[10px] px-1.5 py-0 h-4 uppercase font-bold">
-                                 Alerte
-                               </Badge>
-                             )}
-                          </div>
-                          {(product.stock <= product.lowStockThreshold) && (
-                            <span className="text-[10px] text-red-500 font-medium">Seuil: {product.lowStockThreshold}</span>
-                          )}
-                        </div>
-                        {product.supplier && (
-                          <span className="text-xs text-slate-500 line-clamp-1">{product.supplier.name}</span>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {product.category ? (
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 font-normal">
-                         {product.category}
-                      </Badge>
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right text-slate-500">
-                     {formatCurrency(product.costPrice)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium text-slate-900">
-                     {formatCurrency(product.salePrice)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge 
-                      variant="outline" 
-                      className={product.stock <= 5 
-                        ? "border-red-200 bg-red-50 text-red-700" 
-                        : "border-emerald-200 bg-emerald-50 text-emerald-700"}
-                    >
-                      {product.stock}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => {
-                          setSelectedProduct(product);
-                          setOpenQR(true);
-                        }}
-                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-8 w-8 p-0"
-                        title="Voir QR Code"
-                      >
-                        <QrCode className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-900 hover:bg-slate-100" onClick={() => openHistoryModal(product)} title="Historique">
-                            <Activity className="h-4 w-4" />
-                        </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => openEditModal(product)}
-                        className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 h-8 w-8 p-0"
-                        title="Modifier"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => {
-                          setSelectedProduct(product);
-                          setOpenDelete(true);
-                        }}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <ProductTable 
+        products={filteredProducts}
+        loading={loading}
+        onViewQR={(p) => { setSelectedProduct(p); setOpenQR(true); }}
+        onHistory={openHistoryModal}
+        onEdit={openEditModal}
+        onDelete={(p) => { setSelectedProduct(p); setOpenDelete(true); console.log("Deleting product", p.id); }}
+        onViewImage={setSelectedViewImage}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Modal QR Code */}
       <Dialog open={openQR} onOpenChange={setOpenQR}>
@@ -928,220 +570,24 @@ export default function ProductsPage() {
       </Dialog>
 
       {/* Modal Édition */}
-      <Dialog open={openEdit} onOpenChange={setOpenEdit}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Modifier le produit</DialogTitle>
-            <DialogDescription>
-              Mettez à jour les informations du produit. Les changements seront instantanés.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleEdit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-name" className="text-right text-slate-600">Nom *</Label>
-                <Input 
-                  id="edit-name" 
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="col-span-3 border-slate-200" 
-                  required 
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right text-slate-600">Photo</Label>
-                <div className="col-span-3 flex items-center gap-4">
-                  <div 
-                    className="relative h-24 w-24 rounded-lg bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-slate-100 transition-colors"
-                    onClick={() => editFileInputRef.current?.click()}
-                  >
-                    {preview ? (
-                      <>
-                        <img src={preview} alt="Aperçu" className="h-full w-full object-cover" />
-                        <button 
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreview(null);
-                            setFormData(prev => ({ ...prev, image: "" }));
-                          }}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-slate-400">
-                        {uploading ? (
-                          <div className="h-5 w-5 border-2 border-indigo-500 border-t-transparent animate-spin rounded-full" />
-                        ) : (
-                          <>
-                            <Camera className="h-6 w-6 mb-1" />
-                            <span className="text-[10px]">Photo / Cam</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <Input 
-                    type="file" 
-                    ref={editFileInputRef}
-                    className="hidden" 
-                    accept="image/*"
-                    capture="environment" // Force la caméra arrière sur mobile
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-barcode" className="text-right text-slate-600">Code-Barre</Label>
-                <Input 
-                  id="edit-barcode" 
-                  value={formData.barcode}
-                  onChange={(e) => setFormData({...formData, barcode: e.target.value})}
-                  placeholder="EAN-13, UPC..."
-                  className="col-span-3 border-slate-200" 
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-category" className="text-right text-slate-600">Catégorie</Label>
-                <div className="col-span-3">
-                    <Select 
-                      value={formData.categoryId || "none"} 
-                      onValueChange={(val: string | null) => {
-                        if (!val) return;
-                        const selected = categories.find(c => c.id === val);
-                        setFormData({
-                          ...formData, 
-                          categoryId: val, 
-                          category: selected ? selected.name : formData.category 
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="border-slate-200">
-                        <SelectValue placeholder="Choisir une catégorie" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sans catégorie spéciale</SelectItem>
-                        {categories.map(cat => (
-                           <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-stock" className="text-right text-slate-600">Stock</Label>
-                <Input 
-                  id="edit-stock" 
-                  type="number"
-                  value={formData.stock}
-                  onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                  className="col-span-3 border-slate-200" 
-                  min="0"
-                />
-              </div>
-              
-              <div className="grid gap-4 grid-cols-2 mt-2 border-t border-slate-100 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-costPrice" className="text-slate-600">Prix d'Achat (DH) *</Label>
-                    <Input 
-                      id="edit-costPrice" 
-                      type="number" 
-                      step="0.01"
-                      value={formData.costPrice}
-                      onChange={(e) => setFormData({...formData, costPrice: e.target.value})}
-                      className="border-slate-200"
-                      required 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                     <Label htmlFor="edit-salePrice" className="text-slate-600">Prix de Vente (DH) *</Label>
-                    <Input 
-                      id="edit-salePrice" 
-                      type="number" 
-                      step="0.01"
-                      value={formData.salePrice}
-                      onChange={(e) => setFormData({...formData, salePrice: e.target.value})}
-                      className="border-slate-200"
-                      required 
-                    />
-                  </div>
-              </div>
-
-              <div className="border-t border-slate-100 pt-4 mt-2">
-                <div className="flex items-center justify-between mb-4">
-                  <Label htmlFor="edit-weight-toggle" className="text-slate-600 font-bold">Vente au kilo possible ?</Label>
-                  <input 
-                    type="checkbox" 
-                    id="edit-weight-toggle"
-                    checked={formData.canBeSoldByWeight}
-                    onChange={(e) => setFormData({...formData, canBeSoldByWeight: e.target.checked})}
-                    className="h-5 w-5 accent-indigo-600 cursor-pointer"
-                  />
-                </div>
-
-                {formData.canBeSoldByWeight && (
-                  <div className="grid gap-4 grid-cols-2 animate-in slide-in-from-top-2 duration-200">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-weightCostPrice" className="text-slate-600">Prix Achat Kilo (DH)</Label>
-                      <Input 
-                        id="edit-weightCostPrice" 
-                        type="number" 
-                        step="0.01"
-                        value={formData.weightCostPrice}
-                        onChange={(e) => setFormData({...formData, weightCostPrice: e.target.value})}
-                        className="border-indigo-100 focus:border-indigo-300"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-weightSalePrice" className="text-slate-600">Prix Vente Kilo (DH)</Label>
-                      <Input 
-                        id="edit-weightSalePrice" 
-                        type="number" 
-                        step="0.01"
-                        value={formData.weightSalePrice}
-                        onChange={(e) => setFormData({...formData, weightSalePrice: e.target.value})}
-                        className="border-indigo-100 focus:border-indigo-300"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4 mt-2">
-                <Label htmlFor="edit-supplier" className="text-right text-slate-600">Fournisseur</Label>
-                <div className="col-span-3">
-                  <Select 
-                    value={formData.supplierId} 
-                    onValueChange={(val: string | null) => setFormData({...formData, supplierId: val || "none"})}
-                  >
-                    <SelectTrigger className="border-slate-200">
-                      <SelectValue placeholder="Sélectionner un fournisseur" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Aucun fournisseur (Interne)</SelectItem>
-                      {suppliers.length > 0 && suppliers.map(sup => (
-                         <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={submitting} className="w-full bg-indigo-600 hover:bg-indigo-700">
-                {submitting ? "Mise à jour..." : "Enregistrer les modifications"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        <ProductFormDialog
+          open={openEdit}
+          onOpenChange={setOpenEdit}
+          title="Modifier le produit"
+          description="Mettez à jour les informations du produit. Les changements seront instantanés."
+          formData={formData}
+          setFormData={setFormData}
+          onSubmit={handleEdit}
+          submitting={submitting}
+          categories={categories}
+          suppliers={suppliers}
+          onStartScanner={startBarcodeScanner}
+          onFileUpload={handleFileUpload}
+          uploading={uploading}
+          preview={preview}
+          setPreview={setPreview}
+          fileInputRef={editFileInputRef as any}
+        />
 
       {/* Modal Suppression */}
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
@@ -1167,152 +613,28 @@ export default function ProductsPage() {
         </DialogContent>
       </Dialog>
         {/* Modal Scanner de Code-Barres Universel */}
-        <Dialog open={openBarcodeScanner} onOpenChange={(val) => { if(!val) stopBarcodeScanner(); }}>
-          <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black border-none">
-            <div className="relative h-[400px] flex flex-col items-center justify-center">
-              <div id="barcode-scanner-ui" className="w-full h-full [&_video]:object-cover [&_#qr-shaded-region]:!border-none [&_#qr-shaded-region_div]:!border-none flex items-center justify-center overflow-hidden" />
-              
-              {/* Overlay Viseur Barcode (Style ScanPage) */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                  <div className="relative w-[260px] h-[180px]">
-                      <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500" />
-                      <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-500" />
-                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500" />
-                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500" />
-                      
-                      <div className="absolute top-1/2 left-2 right-2 h-[1px] bg-indigo-500/30 animate-pulse" />
-                  </div>
-              </div>
+        <BarcodeScannerDialog
+          open={openBarcodeScanner}
+          onOpenChange={(val) => { if(!val) stopBarcodeScanner(); }}
+          onStop={stopBarcodeScanner}
+          scanning={scanningBarcode}
+        />
 
-              <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none">
-                <Badge variant="secondary" className="bg-indigo-600 text-white border-none px-3 py-1 flex items-center gap-2">
-                   <ScanLine className="h-3 w-3 animate-pulse" />
-                   Visez un code-barres
-                </Badge>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="bg-black/50 text-white hover:bg-black pointer-events-auto rounded-full"
-                  onClick={stopBarcodeScanner}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+        <CategoryManager 
+          open={openCategories}
+          onOpenChange={setOpenCategories}
+          categories={categories}
+          onAddCategory={handleAddCategory}
+          onDeleteCategory={handleDeleteCategory}
+          submitting={submitting}
+        />
 
-              {scanningBarcode && (
-                <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none">
-                   <div className="bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full border border-white/10 flex items-center gap-2 text-white/80 text-xs">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Recherche universelle active...
-                   </div>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog Gestion Catégories */}
-        <Dialog open={openCategories} onOpenChange={setOpenCategories}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Gérer les catégories</DialogTitle>
-              <DialogDescription>
-                Ajoutez ou supprimez des catégories pour classer vos produits.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-2">
-                <Input 
-                  placeholder="Nom de la catégorie" 
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
-                />
-                <Button onClick={handleAddCategory} disabled={submitting}>Ajouter</Button>
-              </div>
-              <div className="border rounded-md max-h-60 overflow-y-auto">
-                {categories.length === 0 ? (
-                  <p className="p-4 text-center text-slate-400 text-sm">Aucune catégorie</p>
-                ) : (
-                  <div className="divide-y">
-                    {categories.map((cat) => (
-                      <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-slate-50">
-                        <span className="text-sm font-medium">{cat.name}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          disabled={submitting}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpenCategories(false)}>Fermer</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog Historique Stock */}
-        <Dialog open={openHistory} onOpenChange={setOpenHistory}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Historique du stock : {selectedProduct?.name}</DialogTitle>
-              <DialogDescription>
-                Mouvements récents de l'inventaire pour ce produit.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto pr-2">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Quantité</TableHead>
-                    <TableHead>Ancien</TableHead>
-                    <TableHead>Nouveau</TableHead>
-                    <TableHead>Motif</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stockHistory.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-slate-400">Aucun historique disponible.</TableCell>
-                    </TableRow>
-                  ) : (
-                    stockHistory.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell className="text-xs whitespace-nowrap">{new Date(m.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={`text-[10px] uppercase \${
-                            m.type === 'IN' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                            m.type === 'OUT' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                            'bg-slate-50 text-slate-600 border-slate-200'
-                          }`}>
-                            {m.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">{m.quantity}</TableCell>
-                        <TableCell className="text-slate-400">{m.oldStock}</TableCell>
-                        <TableCell className="font-semibold text-slate-900">{m.newStock}</TableCell>
-                        <TableCell className="text-xs text-slate-500 max-w-[150px] truncate" title={m.reason}>{m.reason}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setOpenHistory(false)}>Fermer</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <StockHistoryDialog 
+          open={openHistory}
+          onOpenChange={setOpenHistory}
+          productName={selectedProduct?.name}
+          history={stockHistory}
+        />
     </div>
   );
 }

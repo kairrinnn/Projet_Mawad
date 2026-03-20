@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import bcrypt from "bcryptjs";
+import { recordAuditLog } from "@/lib/audit";
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,14 @@ export async function POST(request: Request) {
         });
       }
     }
+
+    // Audit log
+    await recordAuditLog({
+      action: isValid ? "MANAGER_ACCESS_SUCCESS" : "MANAGER_ACCESS_FAILURE",
+      userId: session.user.id,
+      details: isValid ? "Accès réussi à l'espace gérant" : "Tentative d'accès avec code erroné",
+      entityType: "ManagerAccess"
+    });
 
     if (isValid) {
       return NextResponse.json({ success: true });

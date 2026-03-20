@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { recordAuditLog } from "@/lib/audit";
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ async function processGet(request: NextRequest) {
   }
 
   try {
-    const product = await prisma.product.findFirst({
+    const product = await (prisma.product as any).findFirst({
       where: { 
         OR: [
           { id: id },
@@ -40,9 +41,7 @@ async function processGet(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
-
   await headers();
-
   return await processGet(request);
 }
 
@@ -69,6 +68,16 @@ async function processDelete(request: NextRequest) {
         barcode: null
       }
     });
+
+    // Audit log
+    await recordAuditLog({
+      action: "ARCHIVE_PRODUCT",
+      entityType: "Product",
+      entityId: id,
+      userId: session.user.id,
+      details: `Archivage du produit: ${product.name}`,
+    });
+
     return NextResponse.json({ message: "Product archived" });
   } catch (error) {
     console.error("Archive product error:", error);
@@ -78,9 +87,7 @@ async function processDelete(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
-
   await headers();
-
   return await processDelete(request);
 }
 
@@ -93,8 +100,6 @@ async function processPatch(request: NextRequest) {
 
   try {
     const json = await request.json();
-    console.log("PATCH Product Data received:", json);
-
     const existing = await prisma.product.findFirst({
       where: { id: id, userId: session.user.id }
     });
@@ -120,7 +125,6 @@ async function processPatch(request: NextRequest) {
           NOT: { id: id }
         }
       });
-
       if (duplicate) {
         return NextResponse.json({ error: "Ce code-barres est déjà utilisé par un autre produit." }, { status: 400 });
       }
@@ -143,19 +147,19 @@ async function processPatch(request: NextRequest) {
       image: json.image,
     };
 
-    // Calculate stock difference for logging
     const oldStock = existing.stock;
     const newStock = (json.stock !== undefined) ? Number(json.stock) : oldStock;
     const stockDiff = newStock - oldStock;
 
-    const [product] = await prisma.$transaction([
-      prisma.product.update({
+    const result = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.update({
         where: { id: id },
         data: updateData,
         include: { supplier: true }
-      }),
-      ...(stockDiff !== 0 ? [
-        prisma.stockMovement.create({
+      });
+
+      if (stockDiff !== 0) {
+        await (tx as any).stockMovement.create({
           data: {
             productId: id,
             userId: session.user.id,
@@ -165,23 +169,35 @@ async function processPatch(request: NextRequest) {
             newStock: newStock,
             reason: json.reason || "Ajustement manuel depuis la fiche produit"
           }
-        })
-      ] : []),
-      ...(stockDiff > 0 ? [
-        prisma.stockEntry.create({
+        });
+      }
+
+      if (stockDiff > 0) {
+        await tx.stockEntry.create({
           data: {
             productId: id,
             quantity: stockDiff,
             costPrice: json.costPrice ?? existing.costPrice,
-            totalCost: stockDiff * (json.costPrice ?? existing.costPrice),
+            totalCost: stockDiff * Number(json.costPrice ?? existing.costPrice),
             userId: session.user.id,
             date: new Date()
           }
-        })
-      ] : [])
-    ]);
+        });
+      }
+
+      return product;
+    });
+
+    // Audit log
+    await recordAuditLog({
+      action: "UPDATE_PRODUCT",
+      entityType: "Product",
+      entityId: id,
+      userId: session.user.id,
+      details: `Mise à jour du produit: ${result.name} (Diff stock: ${stockDiff})`,
+    });
     
-    return NextResponse.json(product);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Update product error:", error);
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
@@ -190,9 +206,7 @@ async function processPatch(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
-
   await headers();
-
   return await processPatch(request);
 }
 

@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
@@ -36,8 +36,21 @@ export async function POST(
 
       // 2. Put items back in stock
       await tx.product.update({
-        where: { id: originalSale.productId },
+        where: { id: originalSale.productId, userId: session.user.id },
         data: { stock: { increment: originalSale.quantity } }
+      });
+
+      // 3. Log movement
+      await (tx as any).stockMovement.create({
+        data: {
+          productId: originalSale.productId,
+          userId: session.user.id,
+          type: "RETURN",
+          quantity: originalSale.quantity,
+          oldStock: Number(originalSale.product.stock),
+          newStock: Number(originalSale.product.stock) + originalSale.quantity,
+          reason: `Retour client #${id.slice(-6)}`
+        }
       });
 
       // 3. Create a REFUND record with NEGATIVE values to impact dashboard correctly

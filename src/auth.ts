@@ -47,7 +47,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               name: user.name,
               email: normalizedEmail,
               image: user.image,
-              role: "MANAGER" // Premier utilisateur par défaut
+              role: "CASHIER" 
             },
           });
         }
@@ -59,7 +59,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
-        session.user.role = token.role as string || "MANAGER";
+        session.user.role = token.role as string || "CASHIER";
       }
       return session;
     },
@@ -69,29 +69,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const { prisma } = await import("@/lib/prisma");
           const normalizedEmail = user.email?.toLowerCase().trim();
           
+          const orConditions: any[] = [{ id: user.id }];
+          if (normalizedEmail) {
+            orConditions.push({ email: { equals: normalizedEmail, mode: 'insensitive' } });
+          }
+          
           const dbUser = await prisma.user.findFirst({
-            where: {
-              OR: [
-                { id: user.id },
-                normalizedEmail ? { email: { equals: normalizedEmail, mode: 'insensitive' } } : {}
-              ].filter(Boolean) as any
-            }
+            where: { OR: orConditions }
           });
           
           token.sub = dbUser ? dbUser.id : user.id;
-          token.role = dbUser ? dbUser.role : "MANAGER";
+          token.role = dbUser ? dbUser.role : "CASHIER";
         } catch (error) {
           console.error("Error in JWT callback user sync:", error);
           token.sub = user.id;
-          token.role = "MANAGER";
+          token.role = "CASHIER";
         }
       } else if (token.sub && !token.role) {
           try {
             const { prisma } = await import("@/lib/prisma");
             const dbUser = await prisma.user.findUnique({ where: { id: token.sub as string } });
-            token.role = dbUser?.role || "MANAGER";
+            token.role = dbUser?.role || "CASHIER";
           } catch (e) {
-            token.role = "MANAGER";
+            token.role = "CASHIER";
           }
       }
       return token;

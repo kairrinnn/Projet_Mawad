@@ -10,7 +10,7 @@ async function main() {
 
   let updatedCount = 0;
   for (const sale of sales) {
-    const totalPrice = (sale.salePrice * sale.quantity) - (sale.discount || 0);
+    const totalPrice = (Number(sale.salePrice) * sale.quantity) - Number(sale.discount || 0);
     
     // For existing refunds that might have been created without negative values, 
     // or to ensure consistency with my new logic:

@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Get current product stock
       const product = await tx.product.findUnique({
-        where: { id: productId },
+        where: { id: productId, userId: session.user.id },
         select: { stock: true }
       });
       if (!product) throw new Error("Product not found");
@@ -55,12 +55,12 @@ export async function POST(request: Request) {
 
       // 3. Update product stock
       await tx.product.update({
-        where: { id: productId },
+        where: { id: productId, userId: session.user.id },
         data: { stock: product.stock + Number(quantity) }
       });
 
       // 4. Log movement
-      await tx.stockMovement.create({
+      await (tx as any).stockMovement.create({
         data: {
           productId,
           userId: session.user.id,

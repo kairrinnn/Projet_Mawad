@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { recordAuditLog } from "@/lib/audit";
 
 export const dynamic = 'force-dynamic';
 
@@ -77,12 +78,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Insufficient stock" }, { status: 400 });
     }
 
-    const salePrice = product.salePrice;
-    const costPrice = product.costPrice;
+    const sPrice = Number(product.salePrice);
+    const cPrice = Number(product.costPrice);
     
-    // La réduction est maintenant traitée comme un montant TOTAL sur la vente
-    const totalRevenue = (salePrice * quantity) - discount;
-    const totalCost = costPrice * quantity;
+    const totalRevenue = (sPrice * quantity) - discount;
+    const totalCost = cPrice * quantity;
     const totalProfit = totalRevenue - totalCost;
 
     // 2. Transaction pour créer la vente et mettre à jour le stock
@@ -102,11 +102,11 @@ export async function POST(request: Request) {
       });
 
       await tx.product.update({
-        where: { id: productId },
-        data: { stock: product.stock - quantity }
+        where: { id: productId, userId: session.user.id },
+        data: { stock: Number(product.stock) - quantity }
       });
 
-      await tx.stockMovement.create({
+      await (tx as any).stockMovement.create({
         data: {
           productId,
           userId: session.user.id,
@@ -119,6 +119,15 @@ export async function POST(request: Request) {
       });
 
       return sale;
+    });
+
+    // Audit log (after transaction)
+    await recordAuditLog({
+      action: "CREATE_SALE",
+      entityType: "Sale",
+      entityId: result.id,
+      userId: session.user.id,
+      details: `Vente de ${quantity}x ${result.product?.name || productId} pour ${totalRevenue} DH`,
     });
 
     return NextResponse.json(result, { status: 201 });

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { recordAuditLog } from "@/lib/audit";
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,7 @@ async function processPost(request: Request) {
       if (!productMap.has(item.productId)) {
         return NextResponse.json({ error: `Product ${item.productId} not found` }, { status: 404 });
       }
-      const product = productMap.get(item.productId)!;
+      const product = productMap.get(item.productId)! as any;
       if (product.stock < item.quantity) {
         return NextResponse.json({ error: `Insufficient stock for ${product.name}` }, { status: 400 });
       }
@@ -48,7 +49,7 @@ async function processPost(request: Request) {
       const createdSales = [];
 
       for (const item of items) {
-        const product = productMap.get(item.productId)!;
+        const product = productMap.get(item.productId)! as any;
         const quantity = Number(item.quantity);
         const discount = Number(item.discount || 0);
         const soldByWeight = Boolean(item.soldByWeight);
@@ -76,14 +77,35 @@ async function processPost(request: Request) {
         });
 
         await tx.product.update({
-          where: { id: item.productId },
+          where: { id: item.productId, userId: session.user.id },
           data: { stock: { decrement: quantity } }
+        });
+
+        // 4. Log movement
+        await (tx as any).stockMovement.create({
+          data: {
+            productId: item.productId,
+            userId: session.user.id,
+            type: "OUT",
+            quantity,
+            oldStock: product.stock,
+            newStock: product.stock - quantity,
+            reason: `Vente en lot #${sale.id.slice(-6)}`
+          }
         });
 
         createdSales.push(sale);
       }
 
       return createdSales;
+    });
+
+    // Audit log
+    await recordAuditLog({
+      action: "CREATE_BULK_SALE",
+      entityType: "Sale",
+      userId: session.user.id,
+      details: `Vente en lot de ${items.length} articles pour un total de ${result.length} ventes créées`,
     });
 
     return NextResponse.json(result, { status: 201 });

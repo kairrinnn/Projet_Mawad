@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { recordAuditLog } from "@/lib/audit";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,6 @@ export async function GET(request: Request) {
     const supplierId = searchParams.get("supplierId");
     const barcode = searchParams.get("barcode");
     
-    // Si recherche par code-barres directe
     if (barcode) {
       const product = await prisma.product.findFirst({
         where: { 
@@ -33,14 +33,13 @@ export async function GET(request: Request) {
       return NextResponse.json(product);
     }
 
-    // Filtrage par userId obligatoire et non-archivé
     const whereClause: any = { 
       userId: session.user.id,
       isArchived: false
     };
     if (supplierId) whereClause.supplierId = supplierId;
 
-    const products = await prisma.product.findMany({
+    const products = await (prisma.product as any).findMany({
       where: whereClause,
       include: {
         supplier: true,
@@ -65,19 +64,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Vérifier si l'utilisateur existe en base par ID ou Email (auto-sync robuste)
     const normalizedEmail = session.user.email?.toLowerCase().trim();
+    const orConditions: any[] = [{ id: session.user.id }];
+    if (normalizedEmail) {
+      orConditions.push({ email: { equals: normalizedEmail, mode: 'insensitive' } });
+    }
+
     let dbUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { id: session.user.id },
-          normalizedEmail ? { email: { equals: normalizedEmail, mode: 'insensitive' } } : {}
-        ].filter(Boolean) as any
-      }
+      where: { OR: orConditions }
     });
 
     if (!dbUser && session.user.email) {
-      // Creation si vraiment aucun match
       dbUser = await prisma.user.create({
         data: {
           id: session.user.id,
@@ -87,7 +84,6 @@ export async function POST(request: Request) {
         }
       });
     } else if (dbUser && normalizedEmail && dbUser.email !== normalizedEmail) {
-      // Mise à jour si l'email a changé ou pour normaliser
       dbUser = await prisma.user.update({
         where: { id: dbUser.id },
         data: { 
@@ -113,7 +109,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Vérifier si le code-barres existe déjà POUR CET UTILISATEUR
     if (barcode && barcode.trim() !== "") {
       const existingProduct = await prisma.product.findFirst({
         where: { 
@@ -150,19 +145,27 @@ export async function POST(request: Request) {
       }
     });
 
-    // Log initial stock if > 0
     if (product.stock > 0) {
       await prisma.stockEntry.create({
         data: {
           productId: product.id,
           quantity: product.stock,
           costPrice: product.costPrice,
-          totalCost: product.stock * product.costPrice,
+          totalCost: product.stock * Number(product.costPrice),
           userId: dbUser.id,
           date: new Date()
         }
       });
     }
+
+    // Audit log
+    await recordAuditLog({
+      action: "CREATE_PRODUCT",
+      entityType: "Product",
+      entityId: product.id,
+      userId: dbUser.id,
+      details: `Création du produit: ${product.name} (Stock initial: ${product.stock})`,
+    });
     
     return NextResponse.json(product, { status: 201 });
   } catch (error: any) {

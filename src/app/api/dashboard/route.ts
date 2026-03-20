@@ -15,6 +15,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (session.user.role !== "MANAGER") {
+    return NextResponse.json({ error: "Access denied. Manager role required." }, { status: 403 });
+  }
+
   const userId = session.user.id;
 
   try {
@@ -88,10 +92,9 @@ export async function GET() {
             orderBy: { date: 'desc' }
         }),
         prisma.product.findMany({
-            where: { userId, stock: { lte: 5 }, isArchived: false },
-            select: { id: true, name: true, stock: true, lowStockThreshold: true, image: true },
-            take: 5
-        }),
+            where: { userId, isArchived: false },
+            select: { id: true, name: true, stock: true, lowStockThreshold: true, image: true } as any
+        }).then((products: any) => products.filter((p: any) => p.stock <= p.lowStockThreshold)),
         // OPTIMISATION CRITIQUE: GroupBy au lieu de findMany+Memory loop
         prisma.sale.groupBy({
             by: ['productId'],
@@ -137,13 +140,13 @@ export async function GET() {
     const parentDateMap = new Map(parentSales.map(s => [s.id, s.createdAt]));
 
     for (const t of todaysTransactions) {
-        dailyRevenueTotal += t.totalPrice;
-        dailyProfitTotal += t.profit;
+        dailyRevenueTotal += Number(t.totalPrice);
+        dailyProfitTotal += Number(t.profit);
         dailyQuantityTotal += t.quantity;
 
         const parentDate = parentDateMap.get(t.parentId || "");
         if (t.type === "SALE" || (t.type === "REFUND" && parentDate && parentDate >= startOfDay)) {
-            revenueForCaisse += t.totalPrice;
+            revenueForCaisse += Number(t.totalPrice);
         }
     }
 
@@ -170,57 +173,57 @@ export async function GET() {
     recentSales.forEach(sale => {
         const dateStr = sale.createdAt.toISOString().split('T')[0];
         if (dataByDay[dateStr]) {
-            dataByDay[dateStr].profit += sale.profit;
-            dataByDay[dateStr].revenue += sale.totalPrice;
+            dataByDay[dateStr].profit += Number(sale.profit);
+            dataByDay[dateStr].revenue += Number(sale.totalPrice);
             dataByDay[dateStr].quantity += sale.quantity;
         }
     });
 
     recentExpenses.forEach(exp => {
         const dateStr = exp.date.toISOString().split('T')[0];
-        if (dataByDay[dateStr]) dataByDay[dateStr].expenses += exp.amount;
+        if (dataByDay[dateStr]) dataByDay[dateStr].expenses += Number(exp.amount);
     });
 
-    const grossMonthlyProfit = monthlySales._sum?.profit || 0;
-    const netMonthlyProfit = grossMonthlyProfit - (monthlyExpenses._sum?.amount || 0);
+    const grossMonthlyProfit = Number(monthlySales._sum?.profit || 0);
+    const netMonthlyProfit = grossMonthlyProfit - Number(monthlyExpenses._sum?.amount || 0);
 
     return NextResponse.json({
         daily: { 
             revenue: dailyRevenueTotal,
-            profit: dailyProfitTotal - (dailyExpenses._sum?.amount || 0), 
+            profit: dailyProfitTotal - Number(dailyExpenses._sum?.amount || 0), 
             grossProfit: dailyProfitTotal,
-            expenses: dailyExpenses._sum?.amount || 0,
+            expenses: Number(dailyExpenses._sum?.amount || 0),
             quantity: dailyQuantityTotal 
         },
         weekly: { 
-            revenue: weeklySales._sum?.totalPrice || 0,
-            profit: (weeklySales._sum?.profit || 0) - (weeklyExpenses._sum?.amount || 0), 
-            grossProfit: weeklySales._sum?.profit || 0,
-            expenses: weeklyExpenses._sum?.amount || 0,
-            quantity: weeklySales._sum?.quantity || 0 
+            revenue: Number(weeklySales._sum?.totalPrice || 0),
+            profit: Number(weeklySales._sum?.profit || 0) - Number(weeklyExpenses._sum?.amount || 0), 
+            grossProfit: Number(weeklySales._sum?.profit || 0),
+            expenses: Number(weeklyExpenses._sum?.amount || 0),
+            quantity: Number(weeklySales._sum?.quantity || 0) 
         },
         monthly: { 
-            revenue: monthlySales._sum?.totalPrice || 0,
+            revenue: Number(monthlySales._sum?.totalPrice || 0),
             profit: netMonthlyProfit, 
             grossProfit: grossMonthlyProfit,
-            expenses: monthlyExpenses._sum?.amount || 0,
-            quantity: monthlySales._sum?.quantity || 0 
+            expenses: Number(monthlyExpenses._sum?.amount || 0),
+            quantity: Number(monthlySales._sum?.quantity || 0) 
         },
         total: { 
-            revenue: totalSales._sum?.totalPrice || 0,
-            profit: (totalSales._sum?.profit || 0) - (totalExpenses._sum?.amount || 0), 
-            grossProfit: totalSales._sum?.profit || 0,
-            expenses: totalExpenses._sum?.amount || 0,
-            quantity: totalSales._sum?.quantity || 0 
+            revenue: Number(totalSales._sum?.totalPrice || 0),
+            profit: Number(totalSales._sum?.profit || 0) - Number(totalExpenses._sum?.amount || 0), 
+            grossProfit: Number(totalSales._sum?.profit || 0),
+            expenses: Number(totalExpenses._sum?.amount || 0),
+            quantity: Number(totalSales._sum?.quantity || 0)
         },
         cashDrawer: {
-            startingCash: cashDrawer?.startingCash || 500,
+            startingCash: Number(cashDrawer?.startingCash || 500),
             currentRevenue: revenueForCaisse,
-            currentExpenses: dailyCashOut._sum?.amount || 0,
-            balance: (cashDrawer?.startingCash || 500) + revenueForCaisse - (dailyCashOut._sum?.amount || 0)
+            currentExpenses: Number(dailyCashOut._sum?.amount || 0),
+            balance: Number(cashDrawer?.startingCash || 500) + revenueForCaisse - Number(dailyCashOut._sum?.amount || 0)
         },
         lowStockCount: lowStockItems.length,
-        lowStockProducts: lowStockItems,
+        lowStockProducts: lowStockItems.slice(0, 5),
         topSales: enrichedTopSales,
         chartData: Object.values(dataByDay)
     });

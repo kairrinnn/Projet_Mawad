@@ -52,6 +52,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 interface DashboardData {
   daily: { revenue: number; profit: number; quantity: number };
@@ -96,9 +98,20 @@ export default function DashboardPage() {
     setLoading(false);
   };
 
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (status === "authenticated" && (session?.user as any)?.role === "CASHIER") {
+      router.push("/products");
+    }
+  }, [session, status, router]);
+
+  useEffect(() => {
+    if (status === "authenticated" && (session?.user as any)?.role !== "CASHIER") {
+      fetchData();
+    }
+  }, [status, session]);
 
   const handlePinSubmit = async () => {
     setPinSubmitting(true);
@@ -187,6 +200,14 @@ export default function DashboardPage() {
     }
     setExpSubmitting(false);
   };
+
+  if (status === "loading" || ((session?.user as any)?.role === "CASHIER")) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

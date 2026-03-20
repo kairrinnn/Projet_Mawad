@@ -17,6 +17,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     setOpen(false);
   }, [pathname]);
 
+  if (pathname === '/login') {
+    return <main className="h-screen bg-slate-50">{children}</main>;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Desktop sidebar */}
