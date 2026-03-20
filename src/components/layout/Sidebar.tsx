@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { 
@@ -75,11 +76,14 @@ export function Sidebar() {
       <div className="border-t border-slate-800 p-4">
         <div className="flex items-center gap-3">
           {session?.user?.image ? (
-            <img 
-              src={session.user.image} 
-              alt={session.user.name || "User"} 
-              className="h-9 w-9 rounded-full border border-slate-700"
-            />
+            <div className="relative h-9 w-9">
+              <Image 
+                src={session.user.image} 
+                alt={session.user.name || "User"} 
+                fill
+                className="rounded-full border border-slate-700 object-cover"
+              />
+            </div>
           ) : (
             <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700">
               <UserIcon className="h-5 w-5 text-slate-400" />

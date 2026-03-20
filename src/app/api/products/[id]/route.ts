@@ -24,6 +24,7 @@ async function processGet(request: NextRequest) {
       },
       include: {
         supplier: true,
+        categoryRef: true,
       },
     });
 
@@ -130,18 +131,22 @@ async function processPatch(request: NextRequest) {
       barcode: json.barcode && json.barcode.trim() !== "" ? json.barcode : null,
       category: json.category,
       description: json.description,
-      stock: json.stock,
+      stock: parseFloat(json.stock),
+      lowStockThreshold: parseFloat(json.lowStockThreshold) || 5,
       salePrice: json.salePrice,
       costPrice: json.costPrice,
       weightSalePrice: json.weightSalePrice,
       weightCostPrice: json.weightCostPrice,
       canBeSoldByWeight: json.canBeSoldByWeight,
       supplierId: json.supplierId,
+      categoryId: json.categoryId === "none" ? null : json.categoryId,
       image: json.image,
     };
 
-    // Calculate stock difference
-    const stockDiff = (json.stock !== undefined) ? (json.stock - existing.stock) : 0;
+    // Calculate stock difference for logging
+    const oldStock = existing.stock;
+    const newStock = (json.stock !== undefined) ? Number(json.stock) : oldStock;
+    const stockDiff = newStock - oldStock;
 
     const [product] = await prisma.$transaction([
       prisma.product.update({
@@ -149,6 +154,19 @@ async function processPatch(request: NextRequest) {
         data: updateData,
         include: { supplier: true }
       }),
+      ...(stockDiff !== 0 ? [
+        prisma.stockMovement.create({
+          data: {
+            productId: id,
+            userId: session.user.id,
+            type: "ADJUSTMENT",
+            quantity: Math.abs(stockDiff),
+            oldStock: oldStock,
+            newStock: newStock,
+            reason: json.reason || "Ajustement manuel depuis la fiche produit"
+          }
+        })
+      ] : []),
       ...(stockDiff > 0 ? [
         prisma.stockEntry.create({
           data: {

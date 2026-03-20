@@ -2,6 +2,8 @@
 // Version Restaurée: 15 Mars - Toutes fonctionnalités incluses
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
+import { apiRequest } from "@/lib/api";
 import { 
   Card, 
   CardContent, 
@@ -33,7 +35,8 @@ import {
   EyeOff,
   Pencil,
   Minus,
-  Receipt
+  Receipt,
+  Loader2
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { 
@@ -56,7 +59,9 @@ interface DashboardData {
   monthly: { revenue: number; profit: number; quantity: number };
   total: { revenue: number; profit: number; quantity: number };
   cashDrawer: { startingCash: number; currentRevenue: number; currentExpenses: number; balance: number };
+  currentExpenses: number;
   lowStockCount: number;
+  lowStockProducts: any[];
   topSales: any[];
   chartData: any[];
 }
@@ -72,6 +77,8 @@ export default function DashboardPage() {
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [quickExpense, setQuickExpense] = useState({ amount: "", description: "" });
   const [expSubmitting, setExpSubmitting] = useState(false);
+  const [pinSubmitting, setPinSubmitting] = useState(false);
+  const [cashSubmitting, setCashSubmitting] = useState(false);
   
   // Retrait Gérant replicate from POS
   const [withdrawalForm, setWithdrawalForm] = useState({ amount: "", description: "", code: "" });
@@ -79,105 +86,106 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const res = await fetch("/api/dashboard", { cache: 'no-store' });
-      const json = await res.json();
-      if (json.error) {
-        console.error("Dashboard API error:", json.error);
-        setData(null);
-      } else {
-        setData(json);
-        setNewStartingCash(json.cashDrawer.startingCash.toString());
-      }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+    const { data: json, error } = await apiRequest<DashboardData>("/api/dashboard", { cache: 'no-store' });
+    if (!error && json) {
+      setData(json);
+      setNewStartingCash(json.cashDrawer.startingCash.toString());
+    } else {
       setData(null);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const handlePinSubmit = () => {
-    if (pinInput === "1234") { // Code par défaut souhaité par l'utilisateur
+  const handlePinSubmit = async () => {
+    setPinSubmitting(true);
+    const { data: result, error } = await apiRequest<any>("/api/auth/verify-pin", {
+      method: "POST",
+      body: JSON.stringify({ pin: pinInput }),
+    });
+
+    if (!error && result?.success) {
       setShowProfits(true);
       setShowPinDialog(false);
       setPinInput("");
       toast.success("Mode Gérant activé");
     } else {
-      toast.error("Code PIN incorrect");
       setPinInput("");
     }
+    setPinSubmitting(false);
   };
 
   const updateCashDrawer = async () => {
-    try {
-      const res = await fetch("/api/cash-drawer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ startingCash: Number(newStartingCash) }),
-        cache: 'no-store'
-      });
-      if (res.ok) {
-        toast.success("Fond de caisse mis à jour");
-        setShowCashDialog(false);
-        fetchData();
-      }
-    } catch (error) {
-      toast.error("Erreur lors de la mise à jour");
+    setCashSubmitting(true);
+    const { error } = await apiRequest("/api/cash-drawer", {
+      method: "POST",
+      body: JSON.stringify({ startingCash: Number(newStartingCash) }),
+      cache: 'no-store'
+    });
+    if (!error) {
+      toast.success("Fond de caisse mis à jour");
+      setShowCashDialog(false);
+      fetchData();
     }
+    setCashSubmitting(false);
   };
 
   const submitQuickExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setExpSubmitting(true);
-    try {
-      const res = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "Daily",
-          amount: quickExpense.amount,
-          description: quickExpense.description,
-          date: new Date().toISOString(),
-        }),
-      });
-      if (res.ok) {
-        toast.success("Dépense enregistrée");
-        setQuickExpense({ amount: "", description: "" });
-        setShowExpenseDialog(false);
-        fetchData();
-      }
-    } catch { toast.error("Erreur"); } finally { setExpSubmitting(false); }
+    const { error } = await apiRequest("/api/expenses", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "Daily",
+        amount: quickExpense.amount,
+        description: quickExpense.description,
+        date: new Date().toISOString(),
+      }),
+    });
+    if (!error) {
+      toast.success("Dépense enregistrée");
+      setQuickExpense({ amount: "", description: "" });
+      setShowExpenseDialog(false);
+      fetchData();
+    }
+    setExpSubmitting(false);
   };
 
   const handleManagerWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (withdrawalForm.code !== "1234") {
-        toast.error("Code manager incorrect");
-        return;
-    }
     setExpSubmitting(true);
-    try {
-      const res = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "Withdrawal",
-          amount: parseFloat(withdrawalForm.amount),
-          description: withdrawalForm.description || "Retrait Gérant",
-        })
-      });
-      if (res.ok) {
-        toast.success("Retrait validé");
-        setWithdrawalForm({ amount: "", description: "", code: "" });
-        setIsWithdrawalOpen(false);
-        fetchData();
-      }
-    } catch (e) { toast.error("Erreur"); } finally { setExpSubmitting(false); }
+    
+    // Vérification du PIN via API
+    const { data: pinResult, error: pinError } = await apiRequest<any>("/api/auth/verify-pin", {
+      method: "POST",
+      body: JSON.stringify({ pin: withdrawalForm.code }),
+    });
+    
+    if (pinError || !pinResult?.success) {
+      if (!pinError) toast.error("Code manager incorrect");
+      setExpSubmitting(false);
+      return;
+    }
+
+    const { error: expError } = await apiRequest("/api/expenses", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "Withdrawal",
+        amount: parseFloat(withdrawalForm.amount),
+        description: withdrawalForm.description || "Retrait Gérant",
+      })
+    });
+    
+    if (!expError) {
+      toast.success("Retrait validé");
+      setWithdrawalForm({ amount: "", description: "", code: "" });
+      setIsWithdrawalOpen(false);
+      fetchData();
+    }
+    setExpSubmitting(false);
   };
 
   if (loading) {
@@ -352,15 +360,60 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium text-slate-500">
               Alertes Stock
             </CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${data.lowStockCount > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
+            <AlertTriangle className={`h-4 w-4 \${data.lowStockCount > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${data.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
-              {data.lowStockCount}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className={`text-2xl font-bold \${data.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+                  {data.lowStockCount}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Produit(s) à réapprovisionner
+                </p>
+              </div>
+              {data.lowStockCount > 0 && (
+                <Dialog>
+                  <DialogTrigger className="text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 p-1 h-auto rounded transition-colors">
+                    Voir liste
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-amber-500" />
+                        Produits en alerte stock
+                      </DialogTitle>
+                      <DialogDescription>
+                        Ces articles ont atteint ou sont sous leur seuil d'alerte.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+                      {data.lowStockProducts?.map((p: any) => (
+                        <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 relative rounded bg-slate-100 overflow-hidden">
+                              {p.image ? (
+                                <Image src={p.image} alt={p.name} fill className="object-cover" />
+                              ) : (
+                                <Box className="h-full w-full p-2 text-slate-400" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">{p.name}</p>
+                              <p className="text-[10px] text-slate-500 uppercase">Seuil: {p.lowStockThreshold}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-red-600">{p.stock}</p>
+                            <p className="text-[9px] text-slate-400 uppercase">En stock</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Produit(s) à réapprovisionner
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -441,11 +494,11 @@ export default function DashboardPage() {
               ) : (
                 data.topSales.map((sale, i) => (
                   <div key={i} className="flex items-center gap-3 sm:gap-4">
-                    <div className="h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0">
+                    <div className="h-8 w-8 sm:h-10 sm:w-10 relative rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0">
                       {sale.product?.image ? (
-                        <img src={sale.product.image} alt={sale.product.name} className="h-full w-full object-cover" />
+                        <Image src={sale.product.image} alt={sale.product.name} fill className="object-cover" />
                       ) : (
-                        <Box className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400" />
+                        <Box className="flex h-full w-full items-center justify-center h-4 w-4 sm:h-5 sm:w-5 text-slate-400" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0 space-y-0.5">
@@ -491,7 +544,8 @@ export default function DashboardPage() {
             />
           </div>
           <DialogFooter>
-            <Button onClick={handlePinSubmit} className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold">
+            <Button onClick={handlePinSubmit} className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold" disabled={pinSubmitting}>
+              {pinSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Confirmer
             </Button>
           </DialogFooter>
@@ -517,7 +571,8 @@ export default function DashboardPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={updateCashDrawer} className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold">
+            <Button onClick={updateCashDrawer} className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold" disabled={cashSubmitting}>
+              {cashSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Enregistrer
             </Button>
           </DialogFooter>

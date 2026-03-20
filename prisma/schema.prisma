@@ -33,7 +33,9 @@ model User {
   suppliers     Supplier[]
   cashDrawers   CashDrawer[]
   expenses      Expense[]
+  categories    Category[]
   stockEntries  StockEntry[]
+  stockMovements StockMovement[]
 }
 
 model CashDrawer {
@@ -101,9 +103,15 @@ model Product {
   weightCostPrice   Float?
   canBeSoldByWeight Boolean   @default(false)
   stock             Float     @default(0)
-  category          String?
+  lowStockThreshold Float     @default(5)
+  category          String?   // À supprimer après migration vers categoryId
+  categoryId        String?
+  categoryRef       Category? @relation(fields: [categoryId], references: [id])
   description       String?
   image             String?
+  stockEntries      StockEntry[]
+  stockMovements    StockMovement[]
+  sales             Sale[]
   supplierId        String?
   userId            String?
   isArchived        Boolean   @default(false)
@@ -111,8 +119,6 @@ model Product {
   updatedAt         DateTime  @updatedAt
   user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   supplier          Supplier? @relation(fields: [supplierId], references: [id])
-  sales             Sale[]
-  stockEntries      StockEntry[]
 
   @@unique([barcode, userId])
 }
@@ -160,4 +166,40 @@ model StockEntry {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum MovementType {
+  IN          // Approvisionnement
+  OUT         // Vente
+  ADJUSTMENT  // Ajustement manuel
+  LOSS        // Perte / Casse
+  RETURN      // Retour client
+}
+
+model StockMovement {
+  id          String       @id @default(cuid())
+  productId   String
+  type        MovementType
+  quantity    Float        // Toujours positif, le sens est donné par le type
+  oldStock    Float        // Stock avant mouvement
+  newStock    Float        // Stock après mouvement
+  reason      String?
+  userId      String
+  product     Product      @relation(fields: [productId], references: [id])
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+
+  @@index([productId])
+  @@index([userId])
+}
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  userId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products  Product[]
+
+  @@unique([name, userId])
 }

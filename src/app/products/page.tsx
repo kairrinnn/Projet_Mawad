@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle, Camera, ImagePlus, X, Barcode, ScanLine, Loader2 } from "lucide-react";
+import NextImage from "next/image";
+import { apiRequest } from "@/lib/api";
+import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle, Camera, ImagePlus, X, Barcode, ScanLine, Loader2, Activity } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -37,11 +39,16 @@ import { QRCodeSVG } from "qrcode.react";
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
+  const [openCategories, setOpenCategories] = useState(false);
+  const [openHistory, setOpenHistory] = useState(false);
+  const [stockHistory, setStockHistory] = useState<any[]>([]);
+  const [newCatName, setNewCatName] = useState("");
   const [openQR, setOpenQR] = useState(false);
   const [openBarcodeScanner, setOpenBarcodeScanner] = useState(false);
   const [scanningBarcode, setScanningBarcode] = useState(false);
@@ -58,7 +65,9 @@ export default function ProductsPage() {
     salePrice: "", 
     costPrice: "", 
     stock: "", 
+    lowStockThreshold: "5",
     category: "", 
+    categoryId: "none",
     description: "", 
     supplierId: "none",
     image: "",
@@ -171,34 +180,18 @@ export default function ProductsPage() {
   };
 
   const fetchData = async () => {
-    try {
-      const [prodRes, suppRes] = await Promise.all([
-        fetch("/api/products", { cache: 'no-store' }),
-        fetch("/api/suppliers", { cache: 'no-store' })
-      ]);
-      const [prodData, suppData] = await Promise.all([
-        prodRes.json(),
-        suppRes.json()
-      ]);
-      
-      if (Array.isArray(prodData)) {
-        setProducts(prodData);
-      } else if (prodData.error) {
-        console.error("Products error:", prodData.error);
-        setProducts([]);
-      }
-
-      if (Array.isArray(suppData)) {
-        setSuppliers(suppData);
-      } else if (suppData.error) {
-        console.error("Suppliers error:", suppData.error);
-        setSuppliers([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch data", error);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    const [prodRes, suppRes, catRes] = await Promise.all([
+      apiRequest<any[]>("/api/products", { cache: 'no-store' }),
+      apiRequest<any[]>("/api/suppliers", { cache: 'no-store' }),
+      apiRequest<any[]>("/api/categories", { cache: 'no-store' })
+    ]);
+    
+    if (!prodRes.error && prodRes.data) setProducts(prodRes.data);
+    if (!suppRes.error && suppRes.data) setSuppliers(suppRes.data);
+    if (!catRes.error && catRes.data) setCategories(catRes.data);
+    
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -276,42 +269,35 @@ export default function ProductsPage() {
         supplierId: formData.supplierId === "none" ? null : formData.supplierId
     }
 
-    try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        cache: 'no-store'
+    const { error } = await apiRequest("/api/products", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: 'no-store'
+    });
+
+    if (!error) {
+      setFormData({ 
+        name: "", 
+        salePrice: "", 
+        costPrice: "", 
+        stock: "", 
+        lowStockThreshold: "5",
+        category: "", 
+        categoryId: "none",
+        description: "", 
+        supplierId: "none", 
+        image: "",
+        barcode: "",
+        canBeSoldByWeight: false,
+        weightSalePrice: "",
+        weightCostPrice: ""
       });
-      if (res.ok) {
-        setFormData({ 
-          name: "", 
-          salePrice: "", 
-          costPrice: "", 
-          stock: "", 
-          category: "", 
-          description: "", 
-          supplierId: "none", 
-          image: "",
-          barcode: "",
-          canBeSoldByWeight: false,
-          weightSalePrice: "",
-          weightCostPrice: ""
-        });
-        setPreview(null);
-        setOpenAdd(false);
-        toast.success("Produit ajouté !");
-        fetchData();
-      } else {
-        const errorData = await res.json();
-        toast.error(errorData.error || "Erreur lors de l'ajout.");
-      }
-    } catch (error) {
-      console.error("Error creating product", error);
-      toast.error("Erreur lors de l'ajout.");
-    } finally {
-      setSubmitting(false);
+      setPreview(null);
+      setOpenAdd(false);
+      toast.success("Produit ajouté !");
+      fetchData();
     }
+    setSubmitting(false);
   };
 
   const handleEdit = async (e: React.FormEvent) => {
@@ -324,48 +310,79 @@ export default function ProductsPage() {
         supplierId: formData.supplierId === "none" ? null : formData.supplierId
     };
 
-    try {
-      const res = await fetch(`/api/products/${selectedProduct.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        cache: 'no-store'
-      });
-      if (res.ok) {
-        setOpenEdit(false);
-        toast.success("Produit mis à jour !");
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Error updating product", error);
-      toast.error("Erreur lors de la mise à jour.");
-    } finally {
-      setSubmitting(false);
+    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+      cache: 'no-store'
+    });
+
+    if (!error) {
+      setOpenEdit(false);
+      toast.success("Produit mis à jour !");
+      fetchData();
     }
+    setSubmitting(false);
   };
 
   const handleDelete = async () => {
     if (!selectedProduct) return;
     setSubmitting(true);
 
-    try {
-      const res = await fetch(`/api/products/${selectedProduct.id}`, {
-        method: "DELETE",
-        cache: 'no-store'
-      });
-      if (res.ok) {
-        setOpenDelete(false);
-        toast.success("Produit supprimé !");
-        fetchData();
-      } else {
-        const data = await res.json();
-        toast.error(data.error || "Erreur lors de la suppression.");
-      }
-    } catch (error) {
-      console.error("Error deleting product", error);
-    } finally {
-      setSubmitting(false);
+    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, {
+      method: "DELETE",
+      cache: 'no-store'
+    });
+
+    if (!error) {
+      setOpenDelete(false);
+      toast.success("Produit supprimé !");
+      fetchData();
     }
+    setSubmitting(false);
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCatName.trim()) return;
+    setSubmitting(true);
+    const { error } = await apiRequest("/api/categories", {
+      method: "POST",
+      body: JSON.stringify({ name: newCatName.trim() }),
+      cache: "no-store",
+    });
+    if (!error) {
+      toast.success("Catégorie ajoutée !");
+      setNewCatName("");
+      fetchData();
+    }
+    setSubmitting(false);
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm("Voulez-vous vraiment supprimer cette catégorie ?")) return;
+    setSubmitting(true);
+    const { error } = await apiRequest(`/api/categories?id=\${id}`, {
+      method: "DELETE",
+      cache: "no-store",
+    });
+    if (!error) {
+      toast.success("Catégorie supprimée !");
+      fetchData();
+    }
+    setSubmitting(false);
+  };
+
+  const fetchStockHistory = async (productId: string) => {
+    const { data: movements, error } = await apiRequest<any[]>(`/api/stock-movements?productId=\${productId}`, { cache: "no-store" });
+    if (!error && movements) {
+      setStockHistory(movements);
+    }
+  };
+
+  const openHistoryModal = (product: any) => {
+    setSelectedProduct(product);
+    setStockHistory([]);
+    fetchStockHistory(product.id);
+    setOpenHistory(true);
   };
 
   const openEditModal = (product: any) => {
@@ -375,7 +392,9 @@ export default function ProductsPage() {
       salePrice: product.salePrice.toString(),
       costPrice: product.costPrice.toString(),
       stock: product.stock.toString(),
+      lowStockThreshold: (product.lowStockThreshold || 5).toString(),
       category: product.category || "",
+      categoryId: product.categoryId || "none",
       description: product.description || "",
       supplierId: product.supplierId || "none",
       image: product.image || "",
@@ -439,6 +458,14 @@ export default function ProductsPage() {
         </div>
         
         <Dialog open={openAdd} onOpenChange={setOpenAdd}>
+          <Button 
+            onClick={() => setOpenCategories(true)} 
+            variant="outline" 
+            className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Gérer les Catégories
+          </Button>
           <DialogTrigger render={(props) => (
             <Button className="bg-indigo-600 hover:bg-indigo-700" {...props}>
               <Plus className="mr-2 h-4 w-4" />
@@ -485,7 +512,7 @@ export default function ProductsPage() {
                     >
                       {preview ? (
                         <>
-                          <img src={preview} alt="Aperçu" className="h-full w-full object-cover" />
+                          <NextImage src={preview} alt="Aperçu" fill className="object-cover" />
                           <button 
                             type="button"
                             onClick={(e) => {
@@ -540,13 +567,42 @@ export default function ProductsPage() {
                 </div>
 
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="category" className="text-right text-slate-600">Catégorie</Label>
+                  <Label htmlFor="lowStockThreshold" className="text-right text-slate-600">Seuil d'alerte</Label>
                   <Input 
-                    id="category" 
-                    value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    id="lowStockThreshold" 
+                    type="number"
+                    value={formData.lowStockThreshold}
+                    onChange={(e) => setFormData({...formData, lowStockThreshold: e.target.value})}
                     className="col-span-3 border-slate-200" 
                   />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="category" className="text-right text-slate-600">Catégorie</Label>
+                  <div className="col-span-3">
+                    <Select 
+                      value={formData.categoryId || "none"} 
+                      onValueChange={(val: string | null) => {
+                        if (!val) return;
+                        const selected = categories.find(c => c.id === val);
+                        setFormData({
+                          ...formData, 
+                          categoryId: val, 
+                          category: selected ? selected.name : formData.category 
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="border-slate-200">
+                        <SelectValue placeholder="Choisir une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sans catégorie spéciale</SelectItem>
+                        {categories.map(cat => (
+                           <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -661,11 +717,12 @@ export default function ProductsPage() {
         <Dialog open={!!selectedViewImage} onOpenChange={() => setSelectedViewImage(null)}>
           <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-none shadow-none flex items-center justify-center">
             {selectedViewImage && (
-              <div className="relative group max-h-[80vh] max-w-full">
-                <img 
+              <div className="relative group min-h-[300px] w-full max-h-[80vh]">
+                <NextImage 
                   src={selectedViewImage} 
                   alt="Agrandissement" 
-                  className="rounded-lg shadow-2xl max-h-[80vh] w-auto h-auto object-contain bg-white" 
+                  fill
+                  className="rounded-lg shadow-2xl object-contain bg-white" 
                 />
                 <Button 
                   onClick={() => setSelectedViewImage(null)}
@@ -727,11 +784,11 @@ export default function ProductsPage() {
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
                       <div 
-                        className="h-10 w-10 rounded bg-slate-100 border overflow-hidden flex-shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
+                        className="h-10 w-10 relative rounded bg-slate-100 border overflow-hidden flex-shrink-0 cursor-zoom-in hover:opacity-80 transition-opacity"
                         onClick={() => product.image && setSelectedViewImage(product.image)}
                       >
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                          <NextImage src={product.image} alt={product.name} fill className="object-cover" />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center">
                              <PackageSearch className="h-5 w-5 text-slate-300" />
@@ -739,7 +796,19 @@ export default function ProductsPage() {
                         )}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-slate-900">{product.name}</span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                             <span className="font-medium text-slate-900">{product.name}</span>
+                             {product.stock <= product.lowStockThreshold && (
+                               <Badge variant="destructive" className="bg-red-100 text-red-600 hover:bg-red-100 border-none text-[10px] px-1.5 py-0 h-4 uppercase font-bold">
+                                 Alerte
+                               </Badge>
+                             )}
+                          </div>
+                          {(product.stock <= product.lowStockThreshold) && (
+                            <span className="text-[10px] text-red-500 font-medium">Seuil: {product.lowStockThreshold}</span>
+                          )}
+                        </div>
                         {product.supplier && (
                           <span className="text-xs text-slate-500 line-clamp-1">{product.supplier.name}</span>
                         )}
@@ -785,6 +854,9 @@ export default function ProductsPage() {
                       >
                         <QrCode className="h-4 w-4" />
                       </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-indigo-600 hover:text-indigo-900 hover:bg-slate-100" onClick={() => openHistoryModal(product)} title="Historique">
+                            <Activity className="h-4 w-4" />
+                        </Button>
                       <Button 
                         variant="ghost" 
                         size="sm" 
@@ -937,12 +1009,30 @@ export default function ProductsPage() {
 
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-category" className="text-right text-slate-600">Catégorie</Label>
-                <Input 
-                  id="edit-category" 
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  className="col-span-3 border-slate-200" 
-                />
+                <div className="col-span-3">
+                    <Select 
+                      value={formData.categoryId || "none"} 
+                      onValueChange={(val: string | null) => {
+                        if (!val) return;
+                        const selected = categories.find(c => c.id === val);
+                        setFormData({
+                          ...formData, 
+                          categoryId: val, 
+                          category: selected ? selected.name : formData.category 
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="border-slate-200">
+                        <SelectValue placeholder="Choisir une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sans catégorie spéciale</SelectItem>
+                        {categories.map(cat => (
+                           <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
@@ -1118,6 +1208,109 @@ export default function ProductsPage() {
                 </div>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog Gestion Catégories */}
+        <Dialog open={openCategories} onOpenChange={setOpenCategories}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Gérer les catégories</DialogTitle>
+              <DialogDescription>
+                Ajoutez ou supprimez des catégories pour classer vos produits.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-2">
+                <Input 
+                  placeholder="Nom de la catégorie" 
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                />
+                <Button onClick={handleAddCategory} disabled={submitting}>Ajouter</Button>
+              </div>
+              <div className="border rounded-md max-h-60 overflow-y-auto">
+                {categories.length === 0 ? (
+                  <p className="p-4 text-center text-slate-400 text-sm">Aucune catégorie</p>
+                ) : (
+                  <div className="divide-y">
+                    {categories.map((cat) => (
+                      <div key={cat.id} className="flex items-center justify-between p-3 hover:bg-slate-50">
+                        <span className="text-sm font-medium">{cat.name}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          disabled={submitting}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenCategories(false)}>Fermer</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog Historique Stock */}
+        <Dialog open={openHistory} onOpenChange={setOpenHistory}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Historique du stock : {selectedProduct?.name}</DialogTitle>
+              <DialogDescription>
+                Mouvements récents de l'inventaire pour ce produit.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto pr-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Quantité</TableHead>
+                    <TableHead>Ancien</TableHead>
+                    <TableHead>Nouveau</TableHead>
+                    <TableHead>Motif</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stockHistory.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-slate-400">Aucun historique disponible.</TableCell>
+                    </TableRow>
+                  ) : (
+                    stockHistory.map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell className="text-xs whitespace-nowrap">{new Date(m.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-[10px] uppercase \${
+                            m.type === 'IN' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                            m.type === 'OUT' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                            'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            {m.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">{m.quantity}</TableCell>
+                        <TableCell className="text-slate-400">{m.oldStock}</TableCell>
+                        <TableCell className="font-semibold text-slate-900">{m.newStock}</TableCell>
+                        <TableCell className="text-xs text-slate-500 max-w-[150px] truncate" title={m.reason}>{m.reason}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setOpenHistory(false)}>Fermer</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
     </div>

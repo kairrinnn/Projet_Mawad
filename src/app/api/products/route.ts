@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       where: whereClause,
       include: {
         supplier: true,
+        categoryRef: true,
       },
       orderBy: { name: "asc" },
     });
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
 
     const json = await request.json();
     const { 
-      name, barcode, salePrice, costPrice, stock, category, 
+      name, barcode, salePrice, costPrice, stock, category, categoryId,
       description, supplierId, image, canBeSoldByWeight, 
       weightSalePrice, weightCostPrice 
     } = json;
@@ -136,7 +137,9 @@ export async function POST(request: Request) {
         weightCostPrice: weightCostPrice ? parseFloat(weightCostPrice) : null,
         canBeSoldByWeight: Boolean(canBeSoldByWeight),
         stock: parseFloat(stock) || 0,
+        lowStockThreshold: parseFloat(json.lowStockThreshold) || 5,
         category,
+        categoryId: categoryId === "none" ? null : categoryId,
         description,
         image,
         supplierId: supplierId === "none" ? null : supplierId,

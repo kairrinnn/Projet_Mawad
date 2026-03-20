@@ -38,7 +38,7 @@ export async function GET() {
         totalSales,
         totalExpenses,
         cashDrawer,
-        lowStockCount,
+        lowStockItems,
         topSalesGrouped
     ] = await Promise.all([
         // Dépenses du jour (uniquement celles déjà payées/passées) - EXCLUANT les retraits gérant du profit
@@ -87,8 +87,10 @@ export async function GET() {
             where: { userId, date: { gte: startOfDay } },
             orderBy: { date: 'desc' }
         }),
-        prisma.product.count({
-            where: { userId, stock: { lte: 5 }, isArchived: false }
+        prisma.product.findMany({
+            where: { userId, stock: { lte: 5 }, isArchived: false },
+            select: { id: true, name: true, stock: true, lowStockThreshold: true, image: true },
+            take: 5
         }),
         // OPTIMISATION CRITIQUE: GroupBy au lieu de findMany+Memory loop
         prisma.sale.groupBy({
@@ -217,7 +219,8 @@ export async function GET() {
             currentExpenses: dailyCashOut._sum?.amount || 0,
             balance: (cashDrawer?.startingCash || 500) + revenueForCaisse - (dailyCashOut._sum?.amount || 0)
         },
-        lowStockCount,
+        lowStockCount: lowStockItems.length,
+        lowStockProducts: lowStockItems,
         topSales: enrichedTopSales,
         chartData: Object.values(dataByDay)
     });

@@ -30,6 +30,8 @@ const printStyles = `
 `;
 
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
+import { apiRequest } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Html5Qrcode } from "html5-qrcode";
 import { 
@@ -186,59 +188,65 @@ export default function ScanPage() {
   const handleQuickExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    try {
-      const res = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "Daily",
-          amount: parseFloat(quickExpForm.amount),
-          description: quickExpForm.description || "Dépense Caisse",
-        })
-      });
-      if (res.ok) {
-        toast.success("Dépense enregistrée");
-        setQuickExpForm({ amount: "", description: "" });
-        setIsExpDialogOpen(false);
-      }
-    } catch (e) { toast.error("Erreur"); } finally { setSubmitting(false); }
+    const { error } = await apiRequest("/api/expenses", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "Daily",
+        amount: parseFloat(quickExpForm.amount),
+        description: quickExpForm.description || "Dépense Caisse",
+      })
+    });
+    if (!error) {
+      toast.success("Dépense enregistrée");
+      setQuickExpForm({ amount: "", description: "" });
+      setIsExpDialogOpen(false);
+    }
+    setSubmitting(false);
   };
 
   const handleManagerWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (withdrawalForm.code !== "1234") {
-        toast.error("Code manager incorrect");
-        return;
-    }
     setSubmitting(true);
-    try {
-      const res = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "Withdrawal",
-          amount: parseFloat(withdrawalForm.amount),
-          description: withdrawalForm.description || "Retrait Gérant",
-        })
-      });
-      if (res.ok) {
-        toast.success("Retrait validé");
-        setWithdrawalForm({ amount: "", description: "", code: "" });
-        setIsWithdrawalOpen(false);
-      }
-    } catch (e) { toast.error("Erreur"); } finally { setSubmitting(false); }
+    
+    // Vérification du PIN via API
+    const { data: pinResult, error: pinError } = await apiRequest<any>("/api/auth/verify-pin", {
+      method: "POST",
+      body: JSON.stringify({ pin: withdrawalForm.code }),
+    });
+    
+    if (pinError || !pinResult?.success) {
+      if (!pinError) toast.error("Code manager incorrect");
+      setSubmitting(false);
+      return;
+    }
+
+    const { error: expError } = await apiRequest("/api/expenses", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "Withdrawal",
+        amount: parseFloat(withdrawalForm.amount),
+        description: withdrawalForm.description || "Retrait Gérant",
+      })
+    });
+    
+    if (!expError) {
+      toast.success("Retrait validé");
+      setWithdrawalForm({ amount: "", description: "", code: "" });
+      setIsWithdrawalOpen(false);
+    }
+    setSubmitting(false);
   };
 
   const fetchProductDetails = async (barcode: string) => {
     setLoading(true);
-    try {
-      const res = await fetch(`/api/products?barcode=${barcode}`);
-      const data = await res.json();
-      if (res.ok && data) {
-        addToCart(data);
-        toast.success(`${data.name} ajouté`);
-      } else { toast.error("Produit non trouvé"); }
-    } catch (error) { toast.error("Erreur réseau"); } finally { setLoading(false); }
+    const { data, error } = await apiRequest<any>(`/api/products?barcode=${barcode}`);
+    if (!error && data) {
+      addToCart(data);
+      toast.success(`${data.name} ajouté`);
+    } else if (!error) {
+      toast.error("Produit non trouvé");
+    }
+    setLoading(false);
   };
 
   const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -315,30 +323,28 @@ export default function ScanPage() {
   const finalizeOrder = async () => {
     if (cart.length === 0) return;
     setSubmitting(true);
-    try {
-      const items = cart.map(item => ({
-        productId: item.product.id,
-        quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity,
-        salePrice: getItemPrice(item),
-        costPrice: item.soldByWeight ? (item.product.weightCostPrice || item.product.costPrice) : item.product.costPrice,
-        discount: item.discount,
-        soldByWeight: item.soldByWeight
-      }));
+    const items = cart.map(item => ({
+      productId: item.product.id,
+      quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity,
+      salePrice: getItemPrice(item),
+      costPrice: item.soldByWeight ? (item.product.weightCostPrice || item.product.costPrice) : item.product.costPrice,
+      discount: item.discount,
+      soldByWeight: item.soldByWeight
+    }));
 
-      const res = await fetch("/api/sales/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items })
-      });
+    const { data: resData, error } = await apiRequest<any>("/api/sales/bulk", {
+      method: "POST",
+      body: JSON.stringify({ items })
+    });
 
-      if (res.ok) {
-        setLastSale({ items: [...cart], total: calculateTotal(), cash: cashReceived, change: Math.max(0, cashReceived - calculateTotal()) });
-        toast.success("Vente réussie !");
-        setCart([]);
-        setCashReceived(0);
-        fetchAllProducts();
-      } else { toast.error("Erreur de validation"); }
-    } catch (error) { toast.error("Erreur réseau"); } finally { setSubmitting(false); }
+    if (!error && resData) {
+      setLastSale({ items: [...cart], total: calculateTotal(), cash: cashReceived, change: Math.max(0, cashReceived - calculateTotal()) });
+      toast.success("Vente réussie !");
+      setCart([]);
+      setCashReceived(0);
+      fetchAllProducts();
+    }
+    setSubmitting(false);
   };
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'MAD' }).format(val || 0);
@@ -494,8 +500,8 @@ export default function ScanPage() {
                       <div className="divide-y divide-slate-100">
                           {filteredProducts.map(p => (
                               <div key={p.id} className="p-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => addToCart(p)}>
-                                  <div className="h-10 w-10 bg-slate-100 rounded flex items-center justify-center shrink-0">
-                                      {p.image ? <img src={p.image} className="w-full h-full object-cover rounded" /> : <Box className="h-5 w-5 text-slate-300" />}
+                                  <div className="h-10 w-10 relative bg-slate-100 rounded overflow-hidden shrink-0">
+                                      {p.image ? <Image src={p.image} alt={p.name} fill className="object-cover" /> : <Box className="h-5 w-5 text-slate-300 m-auto flex items-center justify-center h-full" />}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                       <p className="font-bold text-xs text-slate-900 truncate">{p.name}</p>
@@ -529,8 +535,8 @@ export default function ScanPage() {
                               {cart.map((item) => (
                                   <div key={item.product.id} className="p-4 flex items-center justify-between gap-4 group">
                                       <div className="flex items-center gap-4 flex-1 min-w-0">
-                                          <div className="h-12 w-12 bg-slate-100 rounded overflow-hidden shrink-0">
-                                              {item.product.image ? <img src={item.product.image} className="w-full h-full object-cover" /> : <Box className="h-6 w-6 m-auto text-slate-300 h-full" />}
+                                          <div className="h-12 w-12 relative bg-slate-100 rounded overflow-hidden shrink-0">
+                                              {item.product.image ? <Image src={item.product.image} alt={item.product.name} fill className="object-cover" /> : <Box className="h-6 w-6 m-auto text-slate-300 h-full flex items-center justify-center" />}
                                           </div>
                                           <div className="min-w-0 flex-1">
                                               <p className="font-bold text-sm text-slate-900 truncate">{item.product.name}</p>

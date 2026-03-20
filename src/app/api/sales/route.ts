@@ -106,6 +106,18 @@ export async function POST(request: Request) {
         data: { stock: product.stock - quantity }
       });
 
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          userId: session.user.id,
+          type: "OUT",
+          quantity: Number(quantity),
+          oldStock: product.stock,
+          newStock: product.stock - quantity,
+          reason: `Vente #${sale.id.slice(-6)}`
+        }
+      });
+
       return sale;
     });
 

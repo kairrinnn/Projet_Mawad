@@ -32,21 +32,50 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const entry = await prisma.stockEntry.create({
-      data: {
-        productId,
-        quantity: parseInt(quantity),
-        costPrice: parseFloat(costPrice),
-        totalCost: parseInt(quantity) * parseFloat(costPrice),
-        userId: session.user.id,
-        date: new Date()
-      },
-      include: {
-        product: true
-      }
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Get current product stock
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: { stock: true }
+      });
+      if (!product) throw new Error("Product not found");
+
+      // 2. Create the entry
+      const entry = await tx.stockEntry.create({
+        data: {
+          productId,
+          quantity: Number(quantity),
+          costPrice: parseFloat(costPrice),
+          totalCost: Number(quantity) * parseFloat(costPrice),
+          userId: session.user.id,
+          date: new Date()
+        },
+        include: { product: true }
+      });
+
+      // 3. Update product stock
+      await tx.product.update({
+        where: { id: productId },
+        data: { stock: product.stock + Number(quantity) }
+      });
+
+      // 4. Log movement
+      await tx.stockMovement.create({
+        data: {
+          productId,
+          userId: session.user.id,
+          type: "IN",
+          quantity: Number(quantity),
+          oldStock: product.stock,
+          newStock: product.stock + Number(quantity),
+          reason: `Approvisionnement #${entry.id.slice(-6)}`
+        }
+      });
+
+      return entry;
     });
 
-    return NextResponse.json(entry);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Create stock entry error:", error);
     return NextResponse.json({ error: "Failed to create stock entry" }, { status: 500 });
