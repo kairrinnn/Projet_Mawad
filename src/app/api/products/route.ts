@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     };
     if (supplierId) whereClause.supplierId = supplierId;
 
-    const products = await (prisma.product as any).findMany({
+    const products = await prisma.product.findMany({
       where: whereClause,
       include: {
         supplier: true,
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
   try {
     const normalizedEmail = session.user.email?.toLowerCase().trim();
-    const orConditions: any[] = [{ id: session.user.id }];
+    const orConditions: import("@prisma/client").Prisma.UserWhereInput[] = [{ id: session.user.id }];
     if (normalizedEmail) {
       orConditions.push({ email: { equals: normalizedEmail, mode: 'insensitive' } });
     }

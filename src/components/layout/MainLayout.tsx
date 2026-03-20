@@ -11,11 +11,8 @@ import { usePathname } from "next/navigation";
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-
-  // Fermage automatique du menu mobile lors du changement de page
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  // Close mobile nav on route change
+  useEffect(() => { setOpen(false); }, [pathname]);
 
   if (pathname === '/login') {
     return <main className="h-screen bg-slate-50">{children}</main>;

@@ -130,7 +130,8 @@ async function processPatch(request: NextRequest) {
       }
     }
 
-    const updateData: any = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: any = { // Prisma.ProductUncheckedUpdateInput but tx adapter omits some fields
       name: json.name,
       barcode: json.barcode && json.barcode.trim() !== "" ? json.barcode : null,
       category: json.category,
@@ -159,6 +160,9 @@ async function processPatch(request: NextRequest) {
       });
 
       if (stockDiff !== 0) {
+        // Note: stockMovement exists in schema but the Prisma transaction client
+        // doesn't expose it when using the PrismaPg adapter — safe `any` cast here
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (tx as any).stockMovement.create({
           data: {
             productId: id,

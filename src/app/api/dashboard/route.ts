@@ -87,7 +87,7 @@ export async function GET() {
             _sum: { amount: true },
         }),
         // Fond de caisse d'aujourd'hui
-        (prisma as any).cashDrawer.findFirst({
+        prisma.cashDrawer.findFirst({
             where: { userId, date: { gte: startOfDay } },
             orderBy: { date: 'desc' }
         }),

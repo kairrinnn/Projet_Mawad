@@ -9,11 +9,12 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if ((session.user as { role?: string }).role !== "MANAGER") {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
 
-  // Seul un gérant (ou l'utilisateur lui-même via la session) peut voir les logs
-  // Pour l'instant, on filtre par userId de la session
   try {
-    const logs = await (prisma as any).auditLog.findMany({
+    const logs = await prisma.auditLog.findMany({
       where: { userId: session.user.id },
       include: {
         user: {
@@ -21,7 +22,7 @@ export async function GET() {
         }
       },
       orderBy: { createdAt: "desc" },
-      take: 200, // Limite aux 200 derniers logs pour la performance
+      take: 200,
     });
 
     return NextResponse.json(logs);
