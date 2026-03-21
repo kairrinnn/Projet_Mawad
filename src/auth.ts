@@ -1,4 +1,5 @@
 import NextAuth, { DefaultSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
 import authConfig from "./auth.config";
 
 declare module "next-auth" {
@@ -15,7 +16,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ user, account }) {
+    async signIn({ user }) {
       if (!user?.email || !user?.id) return true;
       
       try {
@@ -69,7 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           const { prisma } = await import("@/lib/prisma");
           const normalizedEmail = user.email?.toLowerCase().trim();
           
-          const orConditions: any[] = [{ id: user.id }];
+          const orConditions: Prisma.UserWhereInput[] = [{ id: user.id }];
           if (normalizedEmail) {
             orConditions.push({ email: { equals: normalizedEmail, mode: 'insensitive' } });
           }

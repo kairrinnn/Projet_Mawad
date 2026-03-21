@@ -1,43 +1,86 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { recordAuditLog } from "@/lib/audit";
+import { isBuildPhase, requireSession } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
+import { productSchema } from "@/lib/server/schemas";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+
+async function resolveDbUser(sessionUser: {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  image?: string | null;
+}) {
+  const normalizedEmail = sessionUser.email?.toLowerCase().trim();
+  const orConditions: Prisma.UserWhereInput[] = [{ id: sessionUser.id }];
+  if (normalizedEmail) {
+    orConditions.push({ email: { equals: normalizedEmail, mode: "insensitive" } });
+  }
+
+  let dbUser = await prisma.user.findFirst({
+    where: { OR: orConditions },
+  });
+
+  if (!dbUser && sessionUser.email) {
+    dbUser = await prisma.user.create({
+      data: {
+        id: sessionUser.id,
+        name: sessionUser.name,
+        email: normalizedEmail,
+        image: sessionUser.image,
+      },
+    });
+  } else if (dbUser && normalizedEmail && dbUser.email !== normalizedEmail) {
+    dbUser = await prisma.user.update({
+      where: { id: dbUser.id },
+      data: {
+        name: sessionUser.name,
+        email: normalizedEmail,
+        image: sessionUser.image,
+      },
+    });
+  }
+
+  return dbUser;
+}
 
 export async function GET(request: Request) {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
 
-  await headers();
-
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
   }
 
   try {
     const { searchParams } = new URL(request.url);
     const supplierId = searchParams.get("supplierId");
     const barcode = searchParams.get("barcode");
-    
+
     if (barcode) {
       const product = await prisma.product.findFirst({
-        where: { 
+        where: {
           barcode: barcode.trim(),
-          userId: session.user.id,
-          isArchived: false
+          userId: sessionResult.session.user.id,
+          isArchived: false,
         },
-        include: { supplier: true }
+        include: { supplier: true },
       });
       return NextResponse.json(product);
     }
 
-    const whereClause: any = { 
-      userId: session.user.id,
-      isArchived: false
+    const whereClause: Prisma.ProductWhereInput = {
+      userId: sessionResult.session.user.id,
+      isArchived: false,
     };
-    if (supplierId) whereClause.supplierId = supplierId;
+    if (supplierId) {
+      whereClause.supplierId = supplierId;
+    }
 
     const products = await prisma.product.findMany({
       where: whereClause,
@@ -48,101 +91,74 @@ export async function GET(request: Request) {
       orderBy: { name: "asc" },
     });
     return NextResponse.json(products);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch products" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
 
-  await headers();
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const bodyResult = await parseJsonBody(request, productSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
   }
 
   try {
-    const normalizedEmail = session.user.email?.toLowerCase().trim();
-    const orConditions: import("@prisma/client").Prisma.UserWhereInput[] = [{ id: session.user.id }];
-    if (normalizedEmail) {
-      orConditions.push({ email: { equals: normalizedEmail, mode: 'insensitive' } });
-    }
-
-    let dbUser = await prisma.user.findFirst({
-      where: { OR: orConditions }
-    });
-
-    if (!dbUser && session.user.email) {
-      dbUser = await prisma.user.create({
-        data: {
-          id: session.user.id,
-          name: session.user.name,
-          email: normalizedEmail,
-          image: session.user.image,
-        }
-      });
-    } else if (dbUser && normalizedEmail && dbUser.email !== normalizedEmail) {
-      dbUser = await prisma.user.update({
-        where: { id: dbUser.id },
-        data: { 
-          name: session.user.name,
-          email: normalizedEmail,
-          image: session.user.image 
-        }
-      });
-    }
-
+    const dbUser = await resolveDbUser(sessionResult.session.user);
     if (!dbUser) {
-      return NextResponse.json({ error: "Profil utilisateur introuvable. Veuillez vous déconnecter et vous reconnecter." }, { status: 401 });
+      return NextResponse.json(
+        { error: "User profile not found. Please sign out and sign in again." },
+        { status: 401 }
+      );
     }
 
-    const json = await request.json();
-    const { 
-      name, barcode, salePrice, costPrice, stock, category, categoryId,
-      description, supplierId, image, canBeSoldByWeight, 
-      weightSalePrice, weightCostPrice 
-    } = json;
+    const input = bodyResult.data;
 
-    if (!name || !salePrice || !costPrice) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
-
-    if (barcode && barcode.trim() !== "") {
+    if (input.barcode) {
       const existingProduct = await prisma.product.findFirst({
-        where: { 
-          barcode: barcode.trim(),
-          userId: dbUser.id
-        }
+        where: {
+          barcode: input.barcode,
+          userId: dbUser.id,
+        },
       });
 
       if (existingProduct) {
-        return NextResponse.json({ error: "Ce code-barres est déjà utilisé dans votre inventaire." }, { status: 400 });
+        return NextResponse.json(
+          { error: "This barcode is already used in your inventory." },
+          { status: 400 }
+        );
       }
     }
 
     const product = await prisma.product.create({
       data: {
-        name,
-        barcode: barcode && barcode.trim() !== "" ? barcode : null,
-        salePrice: parseFloat(salePrice),
-        costPrice: parseFloat(costPrice),
-        weightSalePrice: weightSalePrice ? parseFloat(weightSalePrice) : null,
-        weightCostPrice: weightCostPrice ? parseFloat(weightCostPrice) : null,
-        canBeSoldByWeight: Boolean(canBeSoldByWeight),
-        stock: parseFloat(stock) || 0,
-        lowStockThreshold: parseFloat(json.lowStockThreshold) || 5,
-        category,
-        categoryId: categoryId === "none" ? null : categoryId,
-        description,
-        image,
-        supplierId: supplierId === "none" ? null : supplierId,
+        name: input.name,
+        barcode: input.barcode,
+        salePrice: input.salePrice,
+        costPrice: input.costPrice,
+        weightSalePrice: input.weightSalePrice ?? null,
+        weightCostPrice: input.weightCostPrice ?? null,
+        canBeSoldByWeight: input.canBeSoldByWeight,
+        stock: input.stock,
+        lowStockThreshold: input.lowStockThreshold,
+        category: input.category,
+        categoryId: input.categoryId,
+        description: input.description,
+        image: input.image,
+        supplierId: input.supplierId,
         userId: dbUser.id,
       },
       include: {
         supplier: true,
-      }
+      },
     });
 
     if (product.stock > 0) {
@@ -153,26 +169,27 @@ export async function POST(request: Request) {
           costPrice: product.costPrice,
           totalCost: product.stock * Number(product.costPrice),
           userId: dbUser.id,
-          date: new Date()
-        }
+          date: new Date(),
+        },
       });
     }
 
-    // Audit log
     await recordAuditLog({
       action: "CREATE_PRODUCT",
       entityType: "Product",
       entityId: product.id,
       userId: dbUser.id,
-      details: `Création du produit: ${product.name} (Stock initial: ${product.stock})`,
+      details: `Product created: ${product.name} (Initial stock: ${product.stock})`,
     });
-    
+
     return NextResponse.json(product, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Create product error details:", error);
-    return NextResponse.json({ 
-      error: error.message || "Failed to create product",
-      details: error.code || "UNKNOWN"
-    }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to create product";
+    const details =
+      typeof error === "object" && error !== null && "code" in error
+        ? String(error.code)
+        : "UNKNOWN";
+    return NextResponse.json({ error: message, details }, { status: 500 });
   }
 }

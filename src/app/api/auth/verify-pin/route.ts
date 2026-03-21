@@ -1,72 +1,97 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import bcrypt from "bcryptjs";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
 import { recordAuditLog } from "@/lib/audit";
+import { isBuildPhase, requireSession } from "@/lib/server/auth";
+import { consumeRateLimit, resetRateLimit } from "@/lib/server/rate-limit";
+import { parseJsonBody } from "@/lib/server/validation";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+
+const verifyPinSchema = z.object({
+  pin: z
+    .string()
+    .trim()
+    .regex(/^\d{4,10}$/, "PIN must contain between 4 and 10 digits"),
+});
 
 export async function POST(request: Request) {
-  // Ignorer durant le build
-  if (process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1") {
+  if (isBuildPhase()) {
     return NextResponse.json({ success: false });
   }
 
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const bodyResult = await parseJsonBody(request, verifyPinSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
+  }
+
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+  const limiterKey = `verify-pin:${sessionResult.session.user.id}:${ip}`;
+  const rateLimit = consumeRateLimit(limiterKey, 5, 15 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Too many attempts. Please try again later.",
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil(rateLimit.retryAfterMs / 1000)),
+        },
+      }
+    );
   }
 
   try {
-    const { pin } = await request.json();
-
-    if (!pin) {
-      return NextResponse.json({ error: "PIN requis" }, { status: 400 });
-    }
-
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { pinCode: true }
+      where: { id: sessionResult.session.user.id },
+      select: { pinCode: true },
     });
 
-    if (!user || !user.pinCode) {
-      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
+    if (!user?.pinCode) {
+      return NextResponse.json({ error: "Manager PIN is not configured" }, { status: 404 });
     }
 
-    // Vérifier si le PIN est encore en clair (pour la migration transparente)
-    // bcrypt hashes commencent généralement par $2
+    const pin = bodyResult.data.pin;
     const isHashed = user.pinCode.startsWith("$2");
     let isValid = false;
 
     if (isHashed) {
       isValid = await bcrypt.compare(pin, user.pinCode);
-    } else {
-      // Migration transparente : si le PIN clair correspond, on le hache immédiatement
-      if (pin === user.pinCode) {
-        isValid = true;
-        const hashedPin = await bcrypt.hash(pin, 10);
-        await prisma.user.update({
-          where: { id: session.user.id },
-          data: { pinCode: hashedPin }
-        });
-      }
+    } else if (pin === user.pinCode) {
+      isValid = true;
+      const hashedPin = await bcrypt.hash(pin, 10);
+      await prisma.user.update({
+        where: { id: sessionResult.session.user.id },
+        data: { pinCode: hashedPin },
+      });
     }
 
-    // Audit log
     await recordAuditLog({
       action: isValid ? "MANAGER_ACCESS_SUCCESS" : "MANAGER_ACCESS_FAILURE",
-      userId: session.user.id,
-      details: isValid ? "Accès réussi à l'espace gérant" : "Tentative d'accès avec code erroné",
-      entityType: "ManagerAccess"
+      userId: sessionResult.session.user.id,
+      details: isValid
+        ? "Manager PIN accepted"
+        : "Manager PIN rejected",
+      entityType: "ManagerAccess",
     });
 
-    if (isValid) {
-      return NextResponse.json({ success: true });
-    } else {
+    if (!isValid) {
       return NextResponse.json({ success: false, error: "PIN incorrect" }, { status: 403 });
     }
+
+    resetRateLimit(limiterKey);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Erreur vérification PIN:", error);
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    console.error("Verify PIN error:", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

@@ -1,74 +1,80 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { isBuildPhase, requireRole } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export async function GET() {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+const cashDrawerSchema = z.object({
+  startingCash: z.coerce.number().finite().min(0).max(1_000_000),
+});
 
-  await headers();
-
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const userId = session.user.id;
+function getTodayStart() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+export async function GET() {
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
+
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
   try {
     const cashDrawer = await prisma.cashDrawer.findUnique({
       where: {
         userId_date: {
-          userId,
-          date: today,
+          userId: sessionResult.session.user.id,
+          date: getTodayStart(),
         },
       },
     });
 
     return NextResponse.json(cashDrawer || { startingCash: 500 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch cash drawer" }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
-
-  await headers();
-
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(request: Request) {
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
   }
 
-  const userId = session.user.id;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const bodyResult = await parseJsonBody(request, cashDrawerSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
+  }
 
   try {
-    const { startingCash } = await req.json();
-    
     const cashDrawer = await prisma.cashDrawer.upsert({
       where: {
         userId_date: {
-          userId,
-          date: today,
+          userId: sessionResult.session.user.id,
+          date: getTodayStart(),
         },
       },
-      update: { startingCash: Number(startingCash) },
+      update: { startingCash: bodyResult.data.startingCash },
       create: {
-        userId,
-        date: today,
-        startingCash: Number(startingCash),
+        userId: sessionResult.session.user.id,
+        date: getTodayStart(),
+        startingCash: bodyResult.data.startingCash,
       },
     });
 
     return NextResponse.json(cashDrawer);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to update cash drawer" }, { status: 500 });
   }
 }

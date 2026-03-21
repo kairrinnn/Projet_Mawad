@@ -1,6 +1,4 @@
 "use client";
-
-import { Lock, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
   Dialog, 
@@ -8,8 +6,7 @@ import {
   DialogDescription, 
   DialogFooter, 
   DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+  DialogTitle 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -18,32 +15,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface ManagerDialogsProps {
   isWithdrawalOpen: boolean;
   setIsWithdrawalOpen: (o: boolean) => void;
-  withdrawalForm: any;
-  setWithdrawalForm: (f: any) => void;
+  withdrawalForm: { amount: string; description: string; code: string };
+  setWithdrawalForm: (f: { amount: string; description: string; code: string }) => void;
   handleManagerWithdrawal: (e: React.FormEvent) => void;
   
   isExpDialogOpen: boolean;
   setIsExpDialogOpen: (o: boolean) => void;
-  quickExpForm: any;
-  setQuickExpForm: (f: any) => void;
+  quickExpForm: { amount: string; description: string };
+  setQuickExpForm: (f: { amount: string; description: string }) => void;
   handleQuickExpense: (e: React.FormEvent) => void;
   
   addExpOpen: boolean;
   setAddExpOpen: (o: boolean) => void;
-  expForm: any;
-  setExpForm: (f: any) => void;
+  expForm: { type: string; amount: string; description: string; date: string };
+  setExpForm: (f: { type: string; amount: string; description: string; date: string }) => void;
   EXPENSE_TYPES: { value: string; label: string }[];
   addExpense: (e: React.FormEvent) => void;
   
   editExpOpen: boolean;
   setEditExpOpen: (o: boolean) => void;
-  editExp: any;
-  setEditExp: (f: any) => void;
+  editExp: { id: string; type: string | null; amount: string | number; description: string; date: string } | null;
+  setEditExp: (f: { id: string; type: string | null; amount: string | number; description: string; date: string } | null) => void;
   updateExpense: (e: React.FormEvent) => void;
   
   delConfirmOpen: boolean;
   setDelConfirmOpen: (o: boolean) => void;
-  delTarget: any;
+  delTarget: { label: string } | null;
   confirmDelete: () => void;
   
   submitting: boolean;

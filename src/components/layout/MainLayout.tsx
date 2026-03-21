@@ -5,14 +5,12 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  // Close mobile nav on route change
-  useEffect(() => { setOpen(false); }, [pathname]);
 
   if (pathname === '/login') {
     return <main className="h-screen bg-slate-50">{children}</main>;
@@ -40,7 +38,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
                 <SheetHeader className="sr-only">
                     <SheetTitle>Menu de navigation</SheetTitle>
                 </SheetHeader>
-              <Sidebar />
+              <Sidebar onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
           <div className="ml-4 flex grow items-center font-bold text-lg text-slate-900 tracking-tight">

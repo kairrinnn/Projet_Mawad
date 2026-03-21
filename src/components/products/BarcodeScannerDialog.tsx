@@ -19,7 +19,7 @@ export function BarcodeScannerDialog({
   scanning
 }: BarcodeScannerDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={(val) => { if(!val) onStop(); }}>
+    <Dialog open={open} onOpenChange={(val) => { onOpenChange(val); if (!val) onStop(); }}>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black border-none">
         <div className="relative h-[400px] flex flex-col items-center justify-center">
           <div id="barcode-scanner-ui" className="w-full h-full [&_video]:object-cover [&_#qr-shaded-region]:!border-none [&_#qr-shaded-region_div]:!border-none flex items-center justify-center overflow-hidden" />

@@ -1,75 +1,92 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { recordAuditLog } from "@/lib/audit";
+import { requireRole } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
+
+const expenseUpdateSchema = z.object({
+  type: z.string().trim().min(1).max(64),
+  amount: z.coerce.number().finite().positive().max(1_000_000),
+  description: z.string().trim().max(500).optional().nullable(),
+  date: z.coerce.date().optional(),
+});
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const bodyResult = await parseJsonBody(request, expenseUpdateSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
+  }
 
   const { id } = await params;
 
   try {
-    const { type, amount, description, date } = await request.json();
     const expense = await prisma.expense.update({
-      where: { id, userId: session.user.id },
+      where: { id, userId: sessionResult.session.user.id },
       data: {
-        type,
-        amount: parseFloat(amount),
-        description,
-        date: date ? new Date(date) : undefined,
-      }
+        type: bodyResult.data.type,
+        amount: bodyResult.data.amount,
+        description: bodyResult.data.description || null,
+        date: bodyResult.data.date,
+      },
     });
 
-    // Audit log
     await recordAuditLog({
       action: "UPDATE_EXPENSE",
       entityType: "Expense",
       entityId: id,
-      userId: session.user.id,
-      details: `Mise à jour de charge: ${type} - ${amount} DH`,
+      userId: sessionResult.session.user.id,
+      details: `Expense updated: ${expense.type} - ${expense.amount} DH`,
     });
 
     return NextResponse.json(expense);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to update expense" }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
   const { id } = await params;
 
   try {
     const existing = await prisma.expense.findUnique({
-      where: { id, userId: session.user.id }
+      where: { id, userId: sessionResult.session.user.id },
     });
 
-    if (existing) {
-      await prisma.expense.delete({
-        where: { id, userId: session.user.id }
-      });
-
-      // Audit log
-      await recordAuditLog({
-        action: "DELETE_EXPENSE",
-        entityType: "Expense",
-        entityId: id,
-        userId: session.user.id,
-        details: `Suppression de charge: ${existing.type} - ${existing.amount} DH`,
-      });
+    if (!existing) {
+      return NextResponse.json({ error: "Expense not found" }, { status: 404 });
     }
 
+    await prisma.expense.delete({
+      where: { id, userId: sessionResult.session.user.id },
+    });
+
+    await recordAuditLog({
+      action: "DELETE_EXPENSE",
+      entityType: "Expense",
+      entityId: id,
+      userId: sessionResult.session.user.id,
+      details: `Expense deleted: ${existing.type} - ${existing.amount} DH`,
+    });
+
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to delete expense" }, { status: 500 });
   }
 }

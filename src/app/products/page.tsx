@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
-import { Plus, QrCode, Ticket, PackageSearch, Tag, Layers, Search, Pencil, Trash2, AlertCircle, Camera, ImagePlus, X, Barcode, ScanLine, Loader2, Activity } from "lucide-react";
+import { Search, AlertCircle, X } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { CategoryManager } from "@/components/products/CategoryManager";
 import { StockHistoryDialog } from "@/components/products/StockHistoryDialog";
@@ -13,38 +13,76 @@ import { ProductFormDialog } from "@/components/products/ProductFormDialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableBody
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { QRCodeSVG } from "qrcode.react";
 
+interface Supplier {
+  id: string;
+  name: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  barcode: string | null;
+  salePrice: number;
+  costPrice: number;
+  stock: number;
+  lowStockThreshold: number;
+  category: string | null;
+  categoryId: string | null;
+  description: string | null;
+  supplierId: string | null;
+  image: string | null;
+  canBeSoldByWeight: boolean;
+  weightSalePrice: number | null;
+  weightCostPrice: number | null;
+  supplier?: Supplier | null;
+}
+
+interface StockMovement {
+  id: string;
+  createdAt: string;
+  type: string;
+  quantity: number;
+  oldStock: number;
+  newStock: number;
+  reason: string | null;
+}
+
+interface ProductFormState {
+  name: string;
+  salePrice: string;
+  costPrice: string;
+  stock: string;
+  lowStockThreshold: string;
+  category: string;
+  categoryId: string;
+  description: string;
+  supplierId: string;
+  image: string;
+  barcode: string;
+  canBeSoldByWeight: boolean;
+  weightSalePrice: string;
+  weightCostPrice: string;
+}
+
 export default function ProductsPage() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [openAdd, setOpenAdd] = useState(false);
@@ -52,11 +90,11 @@ export default function ProductsPage() {
   const [openDelete, setOpenDelete] = useState(false);
   const [openCategories, setOpenCategories] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
-  const [stockHistory, setStockHistory] = useState<any[]>([]);
+  const [stockHistory, setStockHistory] = useState<StockMovement[]>([]);
   const [openQR, setOpenQR] = useState(false);
   const [openBarcodeScanner, setOpenBarcodeScanner] = useState(false);
   const [scanningBarcode, setScanningBarcode] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   
   const [searchTerm, setSearchTerm] = useState("");
   const [newCatName, setNewCatName] = useState("");
@@ -65,7 +103,7 @@ export default function ProductsPage() {
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedViewImage, setSelectedViewImage] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ 
+  const [formData, setFormData] = useState<ProductFormState>({
     name: "", 
     salePrice: "", 
     costPrice: "", 
@@ -187,9 +225,9 @@ export default function ProductsPage() {
   const fetchData = async () => {
     setLoading(true);
     const [prodRes, suppRes, catRes] = await Promise.all([
-      apiRequest<any[]>("/api/products", { cache: 'no-store' }),
-      apiRequest<any[]>("/api/suppliers", { cache: 'no-store' }),
-      apiRequest<any[]>("/api/categories", { cache: 'no-store' })
+      apiRequest<Product[]>("/api/products", { cache: 'no-store' }),
+      apiRequest<Supplier[]>("/api/suppliers", { cache: 'no-store' }),
+      apiRequest<Category[]>("/api/categories", { cache: 'no-store' })
     ]);
     
     if (!prodRes.error && prodRes.data) setProducts(prodRes.data);
@@ -377,20 +415,20 @@ export default function ProductsPage() {
   };
 
   const fetchStockHistory = async (productId: string) => {
-    const { data: movements, error } = await apiRequest<any[]>(`/api/stock-movements?productId=${productId}`, { cache: "no-store" });
+    const { data: movements, error } = await apiRequest<StockMovement[]>(`/api/stock-movements?productId=${productId}`, { cache: "no-store" });
     if (!error && movements) {
       setStockHistory(movements);
     }
   };
 
-  const openHistoryModal = (product: any) => {
+  const openHistoryModal = (product: Product) => {
     setSelectedProduct(product);
     setStockHistory([]);
     fetchStockHistory(product.id);
     setOpenHistory(true);
   };
 
-  const openEditModal = (product: any) => {
+  const openEditModal = (product: Product) => {
     setSelectedProduct(product);
     setFormData({
       name: product.name,
@@ -478,7 +516,7 @@ export default function ProductsPage() {
           uploading={uploading}
           preview={preview}
           setPreview={setPreview}
-          fileInputRef={fileInputRef as any}
+          fileInputRef={fileInputRef}
         />
 
         {/* Modal d'agrandissement d'image */}
@@ -524,7 +562,7 @@ export default function ProductsPage() {
         onViewQR={(p) => { setSelectedProduct(p); setOpenQR(true); }}
         onHistory={openHistoryModal}
         onEdit={openEditModal}
-        onDelete={(p) => { setSelectedProduct(p); setOpenDelete(true); console.log("Deleting product", p.id); }}
+        onDelete={(p) => { setSelectedProduct(p); setOpenDelete(true); }}
         onViewImage={setSelectedViewImage}
         formatCurrency={formatCurrency}
       />
@@ -560,7 +598,7 @@ export default function ProductsPage() {
           
           <DialogFooter className="w-full gap-2 sm:flex-row !flex-col !items-stretch">
             <Button onClick={handlePrintQR} className="bg-indigo-600 hover:bg-indigo-700">
-              Télécharger l'étiquette
+              Télécharger l&apos;étiquette
             </Button>
             <Button variant="outline" onClick={() => setOpenQR(false)}>
               Fermer
@@ -586,7 +624,7 @@ export default function ProductsPage() {
           uploading={uploading}
           preview={preview}
           setPreview={setPreview}
-          fileInputRef={editFileInputRef as any}
+          fileInputRef={editFileInputRef}
         />
 
       {/* Modal Suppression */}

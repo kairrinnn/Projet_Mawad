@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "src/scripts/**",
     "scripts/**",
     "prisma/**",
+    "tmp/**",
+    "fix_*.js",
   ]),
   // Project-specific rule overrides
   {

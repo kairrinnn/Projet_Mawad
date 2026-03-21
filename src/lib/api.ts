@@ -34,7 +34,7 @@ export async function apiRequest<T>(
     }
 
     return { data, error: null };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const errorMessage = "Erreur de connexion au serveur";
     toast.error(errorMessage);
     console.error(`API Request Error [${url}]:`, err);

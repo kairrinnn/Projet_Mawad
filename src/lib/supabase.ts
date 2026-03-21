@@ -34,7 +34,7 @@ try {
   supabase = createClient(finalUrl, finalKey, { auth: { persistSession: false } });
 } catch (e) {
   // Fallback stub so the import itself never crashes
-  supabase = {} as any;
+  supabase = {} as unknown as ReturnType<typeof createClient>;
 }
 
 export { supabase };

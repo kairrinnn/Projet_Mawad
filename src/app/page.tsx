@@ -22,7 +22,6 @@ import {
   ResponsiveContainer 
 } from "recharts";
 import { 
-  ArrowUpRight, 
   TrendingUp, 
   Box, 
   CreditCard, 
@@ -31,11 +30,6 @@ import {
   Wallet,
   Lock,
   Unlock,
-  Eye,
-  EyeOff,
-  Pencil,
-  Minus,
-  Receipt,
   Loader2
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -55,17 +49,54 @@ import { ShoppingCart } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
+interface DashboardMetric {
+  revenue: number;
+  profit: number;
+  quantity: number;
+}
+
+interface LowStockProduct {
+  id: string;
+  name: string;
+  stock: number;
+  lowStockThreshold: number;
+  image?: string | null;
+}
+
+interface TopSale {
+  _sum: {
+    quantity: number | null;
+  };
+  product: {
+    name: string;
+    image?: string | null;
+    category?: string | null;
+  } | null;
+}
+
+interface ChartPoint {
+  date: string;
+  profit: number;
+  revenue: number;
+  expenses: number;
+  quantity: number;
+}
+
+interface VerifyPinResponse {
+  success: boolean;
+}
+
 interface DashboardData {
-  daily: { revenue: number; profit: number; quantity: number };
-  weekly: { revenue: number; profit: number; quantity: number };
-  monthly: { revenue: number; profit: number; quantity: number };
-  total: { revenue: number; profit: number; quantity: number };
+  daily: DashboardMetric;
+  weekly: DashboardMetric;
+  monthly: DashboardMetric;
+  total: DashboardMetric;
   cashDrawer: { startingCash: number; currentRevenue: number; currentExpenses: number; balance: number };
   currentExpenses: number;
   lowStockCount: number;
-  lowStockProducts: any[];
-  topSales: any[];
-  chartData: any[];
+  lowStockProducts: LowStockProduct[];
+  topSales: TopSale[];
+  chartData: ChartPoint[];
 }
 
 export default function DashboardPage() {
@@ -100,22 +131,26 @@ export default function DashboardPage() {
 
   const { data: session, status } = useSession();
   const router = useRouter();
+  const userRole = session?.user?.role;
 
   useEffect(() => {
-    if (status === "authenticated" && (session?.user as any)?.role === "CASHIER") {
+    if (status === "authenticated" && userRole === "CASHIER") {
       router.push("/products");
     }
-  }, [session, status, router]);
+  }, [status, userRole, router]);
 
   useEffect(() => {
-    if (status === "authenticated" && (session?.user as any)?.role !== "CASHIER") {
-      fetchData();
+    if (status === "authenticated" && userRole !== "CASHIER") {
+      const timeoutId = window.setTimeout(() => {
+        void fetchData();
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
     }
-  }, [status, session]);
+  }, [status, userRole]);
 
   const handlePinSubmit = async () => {
     setPinSubmitting(true);
-    const { data: result, error } = await apiRequest<any>("/api/auth/verify-pin", {
+    const { data: result, error } = await apiRequest<VerifyPinResponse>("/api/auth/verify-pin", {
       method: "POST",
       body: JSON.stringify({ pin: pinInput }),
     });
@@ -172,7 +207,7 @@ export default function DashboardPage() {
     setExpSubmitting(true);
     
     // Vérification du PIN via API
-    const { data: pinResult, error: pinError } = await apiRequest<any>("/api/auth/verify-pin", {
+    const { data: pinResult, error: pinError } = await apiRequest<VerifyPinResponse>("/api/auth/verify-pin", {
       method: "POST",
       body: JSON.stringify({ pin: withdrawalForm.code }),
     });
@@ -201,7 +236,7 @@ export default function DashboardPage() {
     setExpSubmitting(false);
   };
 
-  if (status === "loading" || ((session?.user as any)?.role === "CASHIER")) {
+  if (status === "loading" || userRole === "CASHIER") {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
@@ -405,11 +440,11 @@ export default function DashboardPage() {
                         Produits en alerte stock
                       </DialogTitle>
                       <DialogDescription>
-                        Ces articles ont atteint ou sont sous leur seuil d'alerte.
+                        Ces articles ont atteint ou sont sous leur seuil d&apos;alerte.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                      {data.lowStockProducts?.map((p: any) => (
+                      {data.lowStockProducts?.map((p) => (
                         <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:bg-slate-50">
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-10 relative rounded bg-slate-100 overflow-hidden">
@@ -483,7 +518,7 @@ export default function DashboardPage() {
                         tickFormatter={(value) => `${value} DH`}
                         />
                         <Tooltip 
-                        formatter={(value: any, name: any) => [
+                        formatter={(value: number | string, name: string) => [
                             `${value} DH`, 
                             name === "profit" ? "Bénéfice" : "Chiffre d'Affaire"
                         ]}

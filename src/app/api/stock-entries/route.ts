@@ -1,18 +1,28 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { requireRole } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
+
+const stockEntrySchema = z.object({
+  productId: z.string().trim().min(1),
+  quantity: z.coerce.number().finite().positive().max(1_000_000),
+  costPrice: z.coerce.number().finite().positive().max(1_000_000),
+});
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
   try {
     const entries = await prisma.stockEntry.findMany({
-      where: { userId: session.user.id },
+      where: { userId: sessionResult.session.user.id },
       include: {
-        product: true
+        product: true,
       },
-      orderBy: { date: 'desc' }
+      orderBy: { date: "desc" },
     });
     return NextResponse.json(entries);
   } catch (error) {
@@ -22,54 +32,58 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const bodyResult = await parseJsonBody(request, stockEntrySchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
+  }
 
   try {
-    const { productId, quantity, costPrice } = await request.json();
-    
-    if (!productId || quantity === undefined || costPrice === undefined) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
-
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Get current product stock
-      const product = await tx.product.findUnique({
-        where: { id: productId, userId: session.user.id },
-        select: { stock: true }
+      const product = await tx.product.findFirst({
+        where: {
+          id: bodyResult.data.productId,
+          userId: sessionResult.session.user.id,
+          isArchived: false,
+        },
+        select: { id: true, stock: true },
       });
-      if (!product) throw new Error("Product not found");
 
-      // 2. Create the entry
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
       const entry = await tx.stockEntry.create({
         data: {
-          productId,
-          quantity: Number(quantity),
-          costPrice: parseFloat(costPrice),
-          totalCost: Number(quantity) * parseFloat(costPrice),
-          userId: session.user.id,
-          date: new Date()
+          productId: product.id,
+          quantity: bodyResult.data.quantity,
+          costPrice: bodyResult.data.costPrice,
+          totalCost: bodyResult.data.quantity * bodyResult.data.costPrice,
+          userId: sessionResult.session.user.id,
+          date: new Date(),
         },
-        include: { product: true }
+        include: { product: true },
       });
 
-      // 3. Update product stock
       await tx.product.update({
-        where: { id: productId, userId: session.user.id },
-        data: { stock: product.stock + Number(quantity) }
+        where: { id: product.id },
+        data: { stock: product.stock + bodyResult.data.quantity },
       });
 
-      // 4. Log movement
-      await (tx as any).stockMovement.create({
+      await tx.stockMovement.create({
         data: {
-          productId,
-          userId: session.user.id,
+          productId: product.id,
+          userId: sessionResult.session.user.id,
           type: "IN",
-          quantity: Number(quantity),
+          quantity: bodyResult.data.quantity,
           oldStock: product.stock,
-          newStock: product.stock + Number(quantity),
-          reason: `Approvisionnement #${entry.id.slice(-6)}`
-        }
+          newStock: product.stock + bodyResult.data.quantity,
+          reason: `Stock entry #${entry.id.slice(-6)}`,
+        },
       });
 
       return entry;

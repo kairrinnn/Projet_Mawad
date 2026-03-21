@@ -2,7 +2,7 @@
 
 import React, { useRef } from "react";
 import NextImage from "next/image";
-import { Camera, Barcode, X, Loader2 } from "lucide-react";
+import { Camera, Barcode, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,23 +22,50 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+interface ProductFormCategory {
+  id: string;
+  name: string;
+}
+
+interface ProductFormSupplier {
+  id: string;
+  name: string;
+}
+
+interface ProductFormData {
+  name: string;
+  barcode: string;
+  categoryId: string;
+  category: string;
+  description: string;
+  supplierId: string;
+  stock: string;
+  lowStockThreshold: string;
+  costPrice: string;
+  salePrice: string;
+  canBeSoldByWeight: boolean;
+  weightCostPrice: string;
+  weightSalePrice: string;
+  image: string;
+}
+
 interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
-  formData: any;
-  setFormData: (data: any) => void;
+  formData: ProductFormData;
+  setFormData: (data: ProductFormData) => void;
   onSubmit: (e: React.FormEvent) => void;
   submitting: boolean;
-  categories: any[];
-  suppliers: any[];
+  categories: ProductFormCategory[];
+  suppliers: ProductFormSupplier[];
   onStartScanner: () => void;
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   uploading: boolean;
   preview: string | null;
   setPreview: (p: string | null) => void;
-  fileInputRef?: React.RefObject<HTMLInputElement>;
+  fileInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function ProductFormDialog({
@@ -156,7 +183,8 @@ export function ProductFormDialog({
               <div className="col-span-3">
                 <Select 
                   value={formData.categoryId || "none"} 
-                  onValueChange={(val: string) => {
+                  onValueChange={(value) => {
+                    const val = value ?? "none";
                     const selected = categories.find(c => c.id === val);
                     setFormData({
                       ...formData, 
@@ -191,7 +219,7 @@ export function ProductFormDialog({
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="lowStockThreshold" className="text-right text-slate-600">Seuil d'alerte</Label>
+              <Label htmlFor="lowStockThreshold" className="text-right text-slate-600">Seuil d&apos;alerte</Label>
               <Input 
                 id="lowStockThreshold" 
                 type="number"
@@ -203,7 +231,7 @@ export function ProductFormDialog({
             
             <div className="grid gap-4 grid-cols-2 mt-2 border-t border-slate-100 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="costPrice" className="text-slate-600">Prix d'Achat (DH) *</Label>
+                  <Label htmlFor="costPrice" className="text-slate-600">Prix d&apos;Achat (DH) *</Label>
                   <Input 
                     id="costPrice" 
                     type="number" 
@@ -273,7 +301,7 @@ export function ProductFormDialog({
               <div className="col-span-3">
                 <Select 
                   value={formData.supplierId || "none"} 
-                  onValueChange={(val: string) => setFormData({...formData, supplierId: val})}
+                  onValueChange={(value) => setFormData({ ...formData, supplierId: value ?? "none" })}
                 >
                   <SelectTrigger className="border-slate-200">
                     <SelectValue placeholder="Sélectionner un fournisseur" />

@@ -1,29 +1,30 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { isBuildPhase, requireSession } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
+import { supplierSchema } from "@/lib/server/schemas";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
 
-  await headers();
-
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
   }
 
   try {
     const suppliers = await prisma.supplier.findMany({
-      where: { userId: session.user.id },
+      where: { userId: sessionResult.session.user.id },
       orderBy: { name: "asc" },
       include: {
         _count: {
-          select: { products: true }
-        }
-      }
+          select: { products: true },
+        },
+      },
     });
     return NextResponse.json(suppliers);
   } catch (error) {
@@ -33,37 +34,37 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
 
-  await headers();
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const bodyResult = await parseJsonBody(request, supplierSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
   }
 
   try {
-    // Vérifier si l'utilisateur existe (suite au reset)
     const dbUser = await prisma.user.findUnique({
-      where: { id: session.user.id }
+      where: { id: sessionResult.session.user.id },
     });
 
     if (!dbUser) {
-      return NextResponse.json({ error: "Profil utilisateur introuvable. Veuillez vous déconnecter et vous reconnecter." }, { status: 401 });
-    }
-
-    const json = await request.json();
-    const { name, contact } = json;
-
-    if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "User profile not found. Please sign out and sign in again." },
+        { status: 401 }
+      );
     }
 
     const supplier = await prisma.supplier.create({
-      data: { 
-        name, 
-        contact,
-        userId: session.user.id
+      data: {
+        name: bodyResult.data.name,
+        contact: bodyResult.data.contact,
+        userId: sessionResult.session.user.id,
       },
     });
     return NextResponse.json(supplier, { status: 201 });

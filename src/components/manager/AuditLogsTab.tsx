@@ -30,6 +30,8 @@ import { fr } from "date-fns/locale";
 import { Search, RotateCcw, ShieldAlert, ShoppingBag, Box, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import type { VariantProps } from "class-variance-authority";
+import { badgeVariants } from "@/components/ui/badge";
 
 interface AuditLog {
   id: string;
@@ -40,6 +42,8 @@ interface AuditLog {
   createdAt: string;
   user?: { name: string | null; email: string | null };
 }
+
+type BadgeVariant = NonNullable<VariantProps<typeof badgeVariants>["variant"]>;
 
 export function AuditLogsTab() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -73,7 +77,7 @@ export function AuditLogsTab() {
     return <Search className="h-4 w-4 text-muted-foreground" />;
   };
 
-  const getActionColor = (action: string) => {
+  const getActionColor = (action: string): BadgeVariant => {
     if (action.includes("FAILURE")) return "destructive";
     if (action.includes("CREATE")) return "default";
     if (action.includes("UPDATE")) return "secondary";
@@ -97,7 +101,7 @@ export function AuditLogsTab() {
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <CardTitle>Journaux d'Audit</CardTitle>
+              <CardTitle>Journaux d&apos;Audit</CardTitle>
               <CardDescription>
                 Historique des actions critiques effectuées sur le système.
               </CardDescription>
@@ -153,7 +157,7 @@ export function AuditLogsTab() {
                 ) : filteredLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                      Aucun journal d'audit trouvé.
+                      Aucun journal d&apos;audit trouvé.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -170,7 +174,7 @@ export function AuditLogsTab() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {getActionIcon(log.action)}
-                          <Badge variant={getActionColor(log.action) as any}>
+                          <Badge variant={getActionColor(log.action)}>
                             {log.action}
                           </Badge>
                         </div>

@@ -28,8 +28,14 @@ interface Product {
   stock: number;
   lowStockThreshold: number;
   category: string | null;
+  categoryId: string | null;
+  description: string | null;
+  supplierId: string | null;
   image: string | null;
-  supplier?: { name: string } | null;
+  canBeSoldByWeight: boolean;
+  weightSalePrice: number | null;
+  weightCostPrice: number | null;
+  supplier?: { id: string; name: string } | null;
 }
 
 interface ProductTableProps {
@@ -70,7 +76,7 @@ export function ProductTable({
           {loading ? (
             <TableRow>
               <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                Chargement de l'inventaire...
+                Chargement de l&apos;inventaire...
               </TableCell>
             </TableRow>
           ) : products.length === 0 ? (

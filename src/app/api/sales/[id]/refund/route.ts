@@ -1,22 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { recordAuditLog } from "@/lib/audit";
+import { isBuildPhase, requireSession } from "@/lib/server/auth";
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
   }
 
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const { id } = await params;
+
   try {
-    const originalSale = await prisma.sale.findUnique({
-      where: { id, userId: session.user.id },
-      include: { product: true }
+    const originalSale = await prisma.sale.findFirst({
+      where: { id, userId: sessionResult.session.user.id },
+      include: { product: true },
     });
 
     if (!originalSale) {
@@ -28,49 +33,51 @@ export async function POST(
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Mark original sale as refunded
       await tx.sale.update({
         where: { id },
-        data: { isRefunded: true }
+        data: { isRefunded: true },
       });
 
-      // 2. Put items back in stock
       await tx.product.update({
-        where: { id: originalSale.productId, userId: session.user.id },
-        data: { stock: { increment: originalSale.quantity } }
+        where: { id: originalSale.productId },
+        data: { stock: { increment: originalSale.quantity } },
       });
 
-      // 3. Log movement
-      await (tx as any).stockMovement.create({
+      await tx.stockMovement.create({
         data: {
           productId: originalSale.productId,
-          userId: session.user.id,
+          userId: sessionResult.session.user.id,
           type: "RETURN",
           quantity: originalSale.quantity,
           oldStock: Number(originalSale.product.stock),
           newStock: Number(originalSale.product.stock) + originalSale.quantity,
-          reason: `Retour client #${id.slice(-6)}`
-        }
+          reason: `Customer refund #${id.slice(-6)}`,
+        },
       });
 
-      // 3. Create a REFUND record with NEGATIVE values to impact dashboard correctly
-      const refundRecord = await tx.sale.create({
+      return tx.sale.create({
         data: {
           productId: originalSale.productId,
-          userId: session.user.id,
-          quantity: -originalSale.quantity, // Negative quantity
+          userId: sessionResult.session.user.id,
+          quantity: -originalSale.quantity,
           salePrice: originalSale.salePrice,
           costPrice: originalSale.costPrice,
-          totalPrice: -originalSale.totalPrice, // Negative total price -> decreases revenue
-          profit: -originalSale.profit, // Negative profit -> decreases profit
+          totalPrice: -originalSale.totalPrice,
+          profit: -originalSale.profit,
           discount: originalSale.discount,
           type: "REFUND",
-          parentId: originalSale.id
+          parentId: originalSale.id,
         },
-        include: { product: true }
+        include: { product: true },
       });
+    });
 
-      return refundRecord;
+    await recordAuditLog({
+      action: "REFUND_SALE",
+      entityType: "Sale",
+      entityId: id,
+      userId: sessionResult.session.user.id,
+      details: `Refund processed for sale ${id}`,
     });
 
     return NextResponse.json(result);

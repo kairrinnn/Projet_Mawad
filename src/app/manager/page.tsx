@@ -8,7 +8,6 @@ import {
   TrendingUp,
   Plus,
   Loader2,
-  Calendar as CalendarIcon,
   DollarSign,
   Zap,
   Globe,
@@ -20,7 +19,6 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
@@ -36,6 +34,13 @@ import { AuditLogsTab } from "@/components/manager/AuditLogsTab";
 // ── Type helpers ──────────────────────────────────────────────
 type Expense    = { id: string; type: string; amount: number; description: string; date: string };
 type StockEntry = { id: string; productId: string; quantity: number; costPrice: number; totalCost: number; date: string; product: { name: string } };
+type PeriodKey = "daily" | "weekly" | "monthly" | "total";
+type DashboardPeriod = { profit?: number; grossProfit?: number; expenses?: number };
+type DashboardData = Record<PeriodKey, DashboardPeriod> & {
+  cashDrawer?: { balance?: number };
+  chartData?: Array<{ date: string; profit: number; expenses: number }>;
+};
+type EditableExpense = { id: string; type: string | null; amount: string | number; description: string; date: string };
 
 const EXPENSE_TYPES = [
   { value: "Daily",    label: "Quotidien (Pain, petit achat…)" },
@@ -81,7 +86,7 @@ export default function ManagerPage() {
   // ── data ────────────────────────────────────────────────────
   const [expenses, setExpenses]       = useState<Expense[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
-  const [dashboardData, setDashboard] = useState<any>(null);
+  const [dashboardData, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading]         = useState(true);
 
   // ── forms ───────────────────────────────────────────────────
@@ -107,7 +112,7 @@ export default function ManagerPage() {
   const [delTarget, setDelTarget] = useState<{ type: "expense"; id: string; label: string } | null>(null);
 
   // ── edit buffers ────────────────────────────────────────────
-  const [editExp, setEditExp] = useState<any>(null);
+  const [editExp, setEditExp] = useState<EditableExpense | null>(null);
 
   // ── expense filter ──────────────────────────────────────────
   const [expFilter, setExpFilter] = useState<string>("all");
@@ -117,10 +122,10 @@ export default function ManagerPage() {
   }, [expenses, expFilter]);
 
   // ── calendar ────────────────────────────────────────────────
-  const [calMonth, setCalMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
-  const [hoveredDay, setHoveredDay] = useState<number | null>(null);
+  const [calMonth, _setCalMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
+  const [_hoveredDay, _setHoveredDay] = useState<number | null>(null);
 
-  const calendarGrid = useMemo(() => {
+  const _calendarGrid = useMemo(() => {
     const year = calMonth.getFullYear();
     const month = calMonth.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -195,7 +200,7 @@ export default function ManagerPage() {
   const periodLabels: Record<string, string> = { daily: "Aujourd'hui", weekly: "Cette Semaine", monthly: "Ce Mois", total: "Tout (Annuel)" };
   const periodData = dashboardData?.[bilanPeriod] ?? {};
 
-  const chartConfig = {
+  const _chartConfig = {
     profit: { label: "Bénéfice", color: "#10b981" },
     expenses: { label: "Dépenses", color: "#ef4444" },
   };
@@ -219,6 +224,7 @@ export default function ManagerPage() {
 
   const addExpense = async (e: React.FormEvent) => {
     e.preventDefault(); setSub(true);
+    if (!editExp) { setSub(false); return; }
     try {
       const r = await fetch("/api/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(expForm) });
       if (r.ok) { toast.success("Dépense enregistrée"); setExpForm({ type: "Daily", amount: "", description: "", date: "" }); setAddExpOpen(false); fetchData(); }
@@ -227,6 +233,7 @@ export default function ManagerPage() {
 
   const updateExpense = async (e: React.FormEvent) => {
     e.preventDefault(); setSub(true);
+    if (!editExp) { setSub(false); return; }
     try {
       const r = await fetch(`/api/expenses/${editExp.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editExp) });
       if (r.ok) { toast.success("Dépense mise à jour"); setEditExpOpen(false); fetchData(); }

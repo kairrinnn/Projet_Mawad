@@ -13,9 +13,7 @@ import {
   Settings,
   LogOut,
   User as UserIcon,
-  ShieldCheck,
-  TrendingUp,
-  Wallet
+  ShieldCheck
 } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 
@@ -29,9 +27,10 @@ const navItems = [
   { name: "Paramètres", href: "/settings", icon: Settings, roles: ["MANAGER"] },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const userRole = session?.user?.role ?? "CASHIER";
 
   return (
     <div className="flex h-full w-64 flex-col bg-slate-900 text-slate-50">
@@ -45,13 +44,14 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">
           {navItems
-            .filter(item => !item.roles || item.roles.includes((session?.user as any)?.role || "CASHIER"))
+            .filter((item) => !item.roles || item.roles.includes(userRole))
             .map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onNavigate}
                 className={cn(
                   "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   isActive

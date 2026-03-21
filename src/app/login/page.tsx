@@ -50,7 +50,7 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col space-y-4 text-center text-xs text-slate-400">
           <p>
-            En vous connectant, vous acceptez nos conditions d'utilisation et notre politique de confidentialité.
+            En vous connectant, vous acceptez nos conditions d&apos;utilisation et notre politique de confidentialité.
           </p>
         </CardFooter>
       </Card>

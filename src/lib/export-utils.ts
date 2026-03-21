@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 /**
@@ -15,7 +15,7 @@ export const exportToPDF = ({
   filename: string;
   title: string;
   headers: string[];
-  data: any[][];
+  data: Array<Array<string | number>>;
   orientation?: "p" | "l";
 }) => {
   const doc = new jsPDF(orientation, "mm", "a4");
@@ -30,7 +30,7 @@ export const exportToPDF = ({
   doc.text(`Généré le: ${new Date().toLocaleString("fr-FR")}`, 14, 30);
 
   // Tableau
-  (doc as any).autoTable({
+  autoTable(doc, {
     head: [headers],
     body: data,
     startY: 35,
@@ -50,7 +50,7 @@ export const exportToExcel = ({
   sheetName = "Sheet1",
 }: {
   filename: string;
-  data: any[];
+  data: Array<Record<string, string | number>>;
   sheetName?: string;
 }) => {
   const worksheet = XLSX.utils.json_to_sheet(data);

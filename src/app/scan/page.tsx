@@ -29,35 +29,52 @@ const printStyles = `
   }
 `;
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { apiRequest } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Html5Qrcode } from "html5-qrcode";
 import { 
-  Trash2, Plus, Minus, ShoppingCart, CheckCircle2, ScanLine, Tag, 
-  Search, Box, RefreshCw, Upload, PackageSearch, ChevronRight, 
-  TrendingUp, AlertTriangle, Loader2, Printer, DollarSign, Lock 
+  Trash2, Plus, Minus, ShoppingCart, CheckCircle2,
+  Search, Box, RefreshCw, Upload, PackageSearch,
+  Loader2, DollarSign, Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useMobile } from "@/lib/hooks/use-mobile";
 import { 
   Dialog, 
   DialogContent, 
   DialogDescription, 
-  DialogFooter, 
   DialogHeader, 
   DialogTitle, 
   DialogTrigger 
 } from "@/components/ui/dialog";
 
+interface ScanProduct {
+  id: string;
+  name: string;
+  barcode?: string | null;
+  image?: string | null;
+  salePrice: number;
+  costPrice: number;
+  weightSalePrice?: number | null;
+  weightCostPrice?: number | null;
+  canBeSoldByWeight: boolean;
+}
+
+interface VerifyPinResponse {
+  success: boolean;
+}
+
+interface SaleResponse {
+  id: string;
+}
+
 interface CartItem {
-  product: any;
+  product: ScanProduct;
   quantity: number | string; // Allow string for intermediate typing "0."
   discount: number;
   soldByWeight: boolean;
@@ -65,14 +82,11 @@ interface CartItem {
 
 export default function ScanPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [allProducts, setAllProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const isMobile = useMobile();
+  const [allProducts, setAllProducts] = useState<ScanProduct[]>([]);
+  const [_loading, setLoading] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [permissionDenied, setPermissionDenied] = useState(false);
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [lastSale, setLastSale] = useState<{ items: CartItem[], total: number, cash: number, change: number } | null>(null);
   const [shopName, setShopName] = useState("Mawad Scan");
@@ -89,8 +103,44 @@ export default function ScanPage() {
   const scannerBufferRef = useRef("");
   const lastKeyTimeRef = useRef(Date.now());
 
+  const _fetchAllProducts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/products");
+      if (res.ok) {
+        setAllProducts(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const _addToCart = useCallback((product: ScanProduct) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        if (existing.soldByWeight) return prev;
+        return prev.map((item) => item.product.id === product.id
+          ? { ...item, quantity: Number(item.quantity) + 1 } : item
+        );
+      }
+      return [...prev, { product, quantity: 1, discount: 0, soldByWeight: false }];
+    });
+  }, []);
+
+  const _fetchProductDetails = useCallback(async (barcode: string) => {
+    setLoading(true);
+    const { data, error } = await apiRequest<ScanProduct>(`/api/products?barcode=${barcode}`);
+    if (!error && data) {
+      _addToCart(data);
+      toast.success(`${data.name} ajouté`);
+    } else if (!error) {
+      toast.error("Produit non trouvé");
+    }
+    setLoading(false);
+  }, [_addToCart]);
+
   useEffect(() => {
-    fetchAllProducts();
+    _fetchAllProducts();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Priorité absolue au scanner même si un input est focusé
@@ -103,7 +153,7 @@ export default function ScanPage() {
 
       if (e.key === "Enter") {
         if (scannerBufferRef.current.length > 2) {
-          fetchProductDetails(scannerBufferRef.current);
+          _fetchProductDetails(scannerBufferRef.current);
           scannerBufferRef.current = "";
           // Empêche la soumission de formulaire ou d'autres actions par défaut
           e.preventDefault();
@@ -140,7 +190,7 @@ export default function ScanPage() {
         html5QrCodeRef.current.stop().catch(console.error);
       }
     };
-  }, []);
+  }, [_fetchAllProducts, _fetchProductDetails]);
 
   useEffect(() => {
     if (lastSale) {
@@ -150,16 +200,6 @@ export default function ScanPage() {
       return () => clearTimeout(timer);
     }
   }, [lastSale]);
-
-  const fetchAllProducts = async () => {
-    setLoadingProducts(true);
-    try {
-      const res = await fetch("/api/products");
-      if (res.ok) {
-        setAllProducts(await res.json());
-      }
-    } catch (e) { console.error(e); } finally { setLoadingProducts(false); }
-  };
 
   const startScanner = async () => {
     if (isInitializingRef.current) return;
@@ -176,8 +216,10 @@ export default function ScanPage() {
       const html5QrCode = new Html5Qrcode("qr-reader");
       html5QrCodeRef.current = html5QrCode;
       await html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 260, height: 180 } }, (txt) => handleScanSuccess(txt), () => {});
-    } catch (err: any) {
-      if (err?.toString().includes("NotAllowedError")) setPermissionDenied(true);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.toString().includes("NotAllowedError")) {
+        toast.error("Accès caméra refusé");
+      }
     } finally { isInitializingRef.current = false; }
   };
 
@@ -209,7 +251,7 @@ export default function ScanPage() {
     setSubmitting(true);
     
     // Vérification du PIN via API
-    const { data: pinResult, error: pinError } = await apiRequest<any>("/api/auth/verify-pin", {
+    const { data: pinResult, error: pinError } = await apiRequest<VerifyPinResponse>("/api/auth/verify-pin", {
       method: "POST",
       body: JSON.stringify({ pin: withdrawalForm.code }),
     });
@@ -237,17 +279,17 @@ export default function ScanPage() {
     setSubmitting(false);
   };
 
-  const fetchProductDetails = async (barcode: string) => {
+  const fetchProductDetails = useCallback(async (barcode: string) => {
     setLoading(true);
-    const { data, error } = await apiRequest<any>(`/api/products?barcode=${barcode}`);
+    const { data, error } = await apiRequest<ScanProduct>(`/api/products?barcode=${barcode}`);
     if (!error && data) {
-      addToCart(data);
+      _addToCart(data);
       toast.success(`${data.name} ajouté`);
     } else if (!error) {
       toast.error("Produit non trouvé");
     }
     setLoading(false);
-  };
+  }, [_addToCart]);
 
   const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -261,19 +303,6 @@ export default function ScanPage() {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  };
-
-  const addToCart = (product: any) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      if (existing) {
-        if (existing.soldByWeight) return prev;
-        return prev.map(item => item.product.id === product.id 
-          ? { ...item, quantity: Number(item.quantity) + 1 } : item
-        );
-      }
-      return [...prev, { product, quantity: 1, discount: 0, soldByWeight: false }];
-    });
   };
 
   const removeFromCart = (productId: string) => {
@@ -332,7 +361,7 @@ export default function ScanPage() {
       soldByWeight: item.soldByWeight
     }));
 
-    const { data: resData, error } = await apiRequest<any>("/api/sales/bulk", {
+    const { data: resData, error } = await apiRequest<SaleResponse[]>("/api/sales/bulk", {
       method: "POST",
       body: JSON.stringify({ items })
     });
@@ -342,7 +371,7 @@ export default function ScanPage() {
       toast.success("Vente réussie !");
       setCart([]);
       setCashReceived(0);
-      fetchAllProducts();
+      _fetchAllProducts();
     }
     setSubmitting(false);
   };
@@ -499,7 +528,7 @@ export default function ScanPage() {
                   <CardContent className="p-0 overflow-y-auto flex-1 h-[200px]">
                       <div className="divide-y divide-slate-100">
                           {filteredProducts.map(p => (
-                              <div key={p.id} className="p-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => addToCart(p)}>
+                              <div key={p.id} className="p-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => _addToCart(p)}>
                                   <div className="h-10 w-10 relative bg-slate-100 rounded overflow-hidden shrink-0">
                                       {p.image ? <Image src={p.image} alt={p.name} fill className="object-cover" /> : <Box className="h-5 w-5 text-slate-300 m-auto flex items-center justify-center h-full" />}
                                   </div>

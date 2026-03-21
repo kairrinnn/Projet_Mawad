@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 
@@ -20,6 +21,13 @@ export async function GET() {
   }
 
   const userId = session.user.id;
+  const lowStockSelect = {
+    id: true,
+    name: true,
+    stock: true,
+    lowStockThreshold: true,
+    image: true,
+  } satisfies Prisma.ProductSelect;
 
   try {
     const now = new Date();
@@ -93,8 +101,8 @@ export async function GET() {
         }),
         prisma.product.findMany({
             where: { userId, isArchived: false },
-            select: { id: true, name: true, stock: true, lowStockThreshold: true, image: true } as any
-        }).then((products: any) => products.filter((p: any) => p.stock <= p.lowStockThreshold)),
+            select: lowStockSelect
+        }).then((products) => products.filter((product) => product.stock <= product.lowStockThreshold)),
         // OPTIMISATION CRITIQUE: GroupBy au lieu de findMany+Memory loop
         prisma.sale.groupBy({
             by: ['productId'],
@@ -227,8 +235,9 @@ export async function GET() {
         topSales: enrichedTopSales,
         chartData: Object.values(dataByDay)
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Dashboard error:", error);
-    return NextResponse.json({ error: "Failed to fetch dashboard data", details: error.message }, { status: 500 });
+    const details = error instanceof Error ? error.message : "UNKNOWN";
+    return NextResponse.json({ error: "Failed to fetch dashboard data", details }, { status: 500 });
   }
 }

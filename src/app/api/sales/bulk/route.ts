@@ -1,97 +1,97 @@
-import { headers } from "next/headers";
+import type { Product } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { recordAuditLog } from "@/lib/audit";
+import { isBuildPhase, requireSession } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
+import { bulkSaleSchema } from "@/lib/server/schemas";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 async function processPost(request: Request) {
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const bodyResult = await parseJsonBody(request, bulkSaleSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
   }
 
   try {
-    const json = await request.json();
-    const { items } = json; // Array of { productId, quantity, discount }
+    const items = bodyResult.data.items;
 
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "No items provided" }, { status: 400 });
-    }
-
-    // 1. Fetch all unique products involved
-    const productIds = items.map((item: any) => item.productId);
+    const productIds = items.map((item) => item.productId);
     const products = await prisma.product.findMany({
       where: {
         id: { in: productIds },
-        userId: session.user.id,
-        isArchived: false
-      }
+        userId: sessionResult.session.user.id,
+        isArchived: false,
+      },
     });
 
-    // 2. Map and validate
-    const productMap = new Map(products.map(p => [p.id, p]));
-    
-    // Check if any product is missing
+    const productMap = new Map(products.map((product) => [product.id, product]));
+
     for (const item of items) {
-      if (!productMap.has(item.productId)) {
+      const product = productMap.get(item.productId);
+      if (!product) {
         return NextResponse.json({ error: `Product ${item.productId} not found` }, { status: 404 });
       }
-      const product = productMap.get(item.productId)! as any;
+
       if (product.stock < item.quantity) {
-        return NextResponse.json({ error: `Insufficient stock for ${product.name}` }, { status: 400 });
+        return NextResponse.json(
+          { error: `Insufficient stock for ${product.name}` },
+          { status: 400 }
+        );
       }
     }
 
-    // 3. Process Transaction
     const result = await prisma.$transaction(async (tx) => {
       const createdSales = [];
 
       for (const item of items) {
-        const product = productMap.get(item.productId)! as any;
-        const quantity = Number(item.quantity);
-        const discount = Number(item.discount || 0);
-        const soldByWeight = Boolean(item.soldByWeight);
+        const product = productMap.get(item.productId) as Product;
+        const salePrice = Number(
+          item.soldByWeight ? product.weightSalePrice || product.salePrice : product.salePrice
+        );
+        const costPrice = Number(
+          item.soldByWeight ? product.weightCostPrice || product.costPrice : product.costPrice
+        );
 
-        // Determine prices based on mode
-        const salePrice = soldByWeight ? (product.weightSalePrice || product.salePrice) : product.salePrice;
-        const costPrice = soldByWeight ? (product.weightCostPrice || product.costPrice) : product.costPrice;
-
-        const totalRevenue = (salePrice * quantity) - discount;
-        const totalCost = costPrice * quantity;
+        const totalRevenue = salePrice * item.quantity - item.discount;
+        const totalCost = costPrice * item.quantity;
         const profit = totalRevenue - totalCost;
 
         const sale = await tx.sale.create({
           data: {
             productId: item.productId,
-            userId: session.user.id,
-            quantity,
+            userId: sessionResult.session.user.id,
+            quantity: item.quantity,
             salePrice,
             costPrice,
             totalPrice: totalRevenue,
-            discount,
+            discount: item.discount,
             profit,
-            soldByWeight
-          }
+            soldByWeight: item.soldByWeight,
+          },
         });
 
         await tx.product.update({
-          where: { id: item.productId, userId: session.user.id },
-          data: { stock: { decrement: quantity } }
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } },
         });
 
-        // 4. Log movement
-        await (tx as any).stockMovement.create({
+        await tx.stockMovement.create({
           data: {
             productId: item.productId,
-            userId: session.user.id,
+            userId: sessionResult.session.user.id,
             type: "OUT",
-            quantity,
+            quantity: item.quantity,
             oldStock: product.stock,
-            newStock: product.stock - quantity,
-            reason: `Vente en lot #${sale.id.slice(-6)}`
-          }
+            newStock: product.stock - item.quantity,
+            reason: `Bulk sale #${sale.id.slice(-6)}`,
+          },
         });
 
         createdSales.push(sale);
@@ -100,25 +100,25 @@ async function processPost(request: Request) {
       return createdSales;
     });
 
-    // Audit log
     await recordAuditLog({
       action: "CREATE_BULK_SALE",
       entityType: "Sale",
-      userId: session.user.id,
-      details: `Vente en lot de ${items.length} articles pour un total de ${result.length} ventes créées`,
+      userId: sessionResult.session.user.id,
+      details: `Bulk sale created with ${items.length} items and ${result.length} sale rows`,
     });
 
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Bulk sale error:", error);
-    return NextResponse.json({ error: "Failed to process bulk sale", details: error.message }, { status: 500 });
+    const details = error instanceof Error ? error.message : "UNKNOWN";
+    return NextResponse.json({ error: "Failed to process bulk sale", details }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
 
-  await headers();
-
-  return await processPost(request);
+  return processPost(request);
 }

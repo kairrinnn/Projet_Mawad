@@ -1,65 +1,77 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireSession } from "@/lib/server/auth";
+import { categorySchema } from "@/lib/server/schemas";
+import { badRequest, parseJsonBody } from "@/lib/server/validation";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
   try {
     const categories = await prisma.category.findMany({
-      where: { userId: session.user.id },
-      orderBy: { name: "asc" }
+      where: { userId: sessionResult.session.user.id },
+      orderBy: { name: "asc" },
     });
     return NextResponse.json(categories);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch categories" }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(request: Request) {
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const bodyResult = await parseJsonBody(request, categorySchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
+  }
 
   try {
-    const { name } = await req.json();
-    if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
-
     const category = await prisma.category.upsert({
       where: {
         name_userId: {
-          name: name.trim(),
-          userId: session.user.id
-        }
+          name: bodyResult.data.name,
+          userId: sessionResult.session.user.id,
+        },
       },
       update: {},
       create: {
-        name: name.trim(),
-        userId: session.user.id
-      }
+        name: bodyResult.data.name,
+        userId: sessionResult.session.user.id,
+      },
     });
 
     return NextResponse.json(category);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to create category" }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(request: Request) {
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-    if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    if (!id) {
+      return badRequest("ID is required");
+    }
 
     await prisma.category.delete({
-      where: { id, userId: session.user.id }
+      where: { id, userId: sessionResult.session.user.id },
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to delete category" }, { status: 500 });
   }
 }

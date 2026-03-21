@@ -1,52 +1,66 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { recordAuditLog } from "@/lib/audit";
+import { requireRole } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
+
+const expenseSchema = z.object({
+  type: z.string().trim().min(1).max(64),
+  amount: z.coerce.number().finite().positive().max(1_000_000),
+  description: z.string().trim().max(500).optional().nullable(),
+  date: z.coerce.date().optional(),
+});
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if ((session.user as any).role !== "MANAGER") return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
   try {
     const expenses = await prisma.expense.findMany({
-      where: { userId: session.user.id },
-      orderBy: { date: 'desc' }
+      where: { userId: sessionResult.session.user.id },
+      orderBy: { date: "desc" },
     });
     return NextResponse.json(expenses);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to fetch expenses" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if ((session.user as any).role !== "MANAGER") return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const bodyResult = await parseJsonBody(request, expenseSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
+  }
 
   try {
-    const { type, amount, description, date } = await request.json();
     const expense = await prisma.expense.create({
       data: {
-        type,
-        amount: parseFloat(amount),
-        description,
-        date: date ? new Date(date) : new Date(),
-        userId: session.user.id
-      }
+        type: bodyResult.data.type,
+        amount: bodyResult.data.amount,
+        description: bodyResult.data.description || null,
+        date: bodyResult.data.date ?? new Date(),
+        userId: sessionResult.session.user.id,
+      },
     });
 
-    // Audit log
     await recordAuditLog({
       action: "CREATE_EXPENSE",
       entityType: "Expense",
       entityId: expense.id,
-      userId: session.user.id,
-      details: `Création de charge: ${type} - ${amount} DH`,
+      userId: sessionResult.session.user.id,
+      details: `Expense created: ${expense.type} - ${expense.amount} DH`,
     });
 
     return NextResponse.json(expense);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to create expense" }, { status: 500 });
   }
 }

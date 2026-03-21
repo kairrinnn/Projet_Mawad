@@ -48,7 +48,7 @@ export function StockHistoryDialog({
         <DialogHeader>
           <DialogTitle>Historique du stock : {productName || "Produit"}</DialogTitle>
           <DialogDescription>
-            Mouvements récents de l'inventaire pour ce produit.
+            Mouvements récents de l&apos;inventaire pour ce produit.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto pr-2">

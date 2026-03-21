@@ -6,7 +6,9 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "cross-env BUILD_MODE=1 DATABASE_URL=postgresql://mock:mock@localhost:5432/mock prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

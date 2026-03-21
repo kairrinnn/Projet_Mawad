@@ -1,39 +1,40 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { recordAuditLog } from "@/lib/audit";
+import { isBuildPhase, requireSession } from "@/lib/server/auth";
+import { parseJsonBody } from "@/lib/server/validation";
+import { saleSchema } from "@/lib/server/schemas";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
 
-  await headers();
-
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
   }
 
   try {
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId");
     const limit = searchParams.get("limit");
-    const recent = searchParams.get("recent");
 
-    const whereClause: any = { userId: session.user.id };
-    if (productId) whereClause.productId = productId;
-    
-    const take = limit ? parseInt(limit) : undefined;
-    const orderBy = recent ? { createdAt: "desc" as const } : { createdAt: "desc" as const };
+    const whereClause: Prisma.SaleWhereInput = { userId: sessionResult.session.user.id };
+    if (productId) {
+      whereClause.productId = productId;
+    }
 
+    const take = limit ? Number.parseInt(limit, 10) : undefined;
     const sales = await prisma.sale.findMany({
       where: whereClause,
       include: {
         product: true,
       },
-      orderBy,
+      orderBy: { createdAt: "desc" },
       take,
     });
     return NextResponse.json(sales);
@@ -44,90 +45,86 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if ((process.env.DATABASE_URL?.includes("mock") || process.env.BUILD_MODE === "1")) return NextResponse.json([]);
+  if (isBuildPhase()) {
+    return NextResponse.json([]);
+  }
 
-  await headers();
+  const sessionResult = await requireSession();
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
 
-  let session; try { session = await auth(); } catch (e) { return NextResponse.json({ error: "Auth failed" }, { status: 500 }); }
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const bodyResult = await parseJsonBody(request, saleSchema);
+  if ("response" in bodyResult) {
+    return bodyResult.response;
   }
 
   try {
-    const json = await request.json();
-    const { productId, quantity, discount = 0 } = json;
+    const { productId, quantity, discount } = bodyResult.data;
 
-    if (!productId || !quantity || quantity <= 0) {
-      return NextResponse.json({ error: "Invalid product or quantity" }, { status: 400 });
-    }
-
-    // 1. Récupérer le produit (vérifier qu'il appartient à l'utilisateur)
     const product = await prisma.product.findFirst({
-      where: { 
+      where: {
         id: productId,
-        userId: session.user.id,
-        isArchived: false
-      }
+        userId: sessionResult.session.user.id,
+        isArchived: false,
+      },
     });
 
     if (!product) {
-       return NextResponse.json({ error: "Product not found" }, { status: 404 });
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
     if (product.stock < quantity) {
       return NextResponse.json({ error: "Insufficient stock" }, { status: 400 });
     }
 
-    const sPrice = Number(product.salePrice);
-    const cPrice = Number(product.costPrice);
-    
-    const totalRevenue = (sPrice * quantity) - discount;
-    const totalCost = cPrice * quantity;
+    const salePrice = Number(product.salePrice);
+    const costPrice = Number(product.costPrice);
+    const totalRevenue = salePrice * quantity - discount;
+    const totalCost = costPrice * quantity;
     const totalProfit = totalRevenue - totalCost;
 
-    // 2. Transaction pour créer la vente et mettre à jour le stock
     const result = await prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
         data: {
           productId,
-          userId: session.user.id,
-          quantity: Number(quantity),
+          userId: sessionResult.session.user.id,
+          quantity,
           salePrice: product.salePrice,
           costPrice: product.costPrice,
           totalPrice: totalRevenue,
-          discount: Number(discount),
-          profit: totalProfit
+          discount,
+          profit: totalProfit,
         },
-        include: { product: true }
+        include: { product: true },
       });
 
       await tx.product.update({
-        where: { id: productId, userId: session.user.id },
-        data: { stock: Number(product.stock) - quantity }
+        where: { id: productId },
+        data: { stock: Number(product.stock) - quantity },
       });
 
-      await (tx as any).stockMovement.create({
+      await tx.stockMovement.create({
         data: {
           productId,
-          userId: session.user.id,
+          userId: sessionResult.session.user.id,
           type: "OUT",
-          quantity: Number(quantity),
+          quantity,
           oldStock: product.stock,
           newStock: product.stock - quantity,
-          reason: `Vente #${sale.id.slice(-6)}`
-        }
+          reason: `Sale #${sale.id.slice(-6)}`,
+        },
       });
 
       return sale;
     });
 
-    // Audit log (after transaction)
     await recordAuditLog({
       action: "CREATE_SALE",
       entityType: "Sale",
       entityId: result.id,
-      userId: session.user.id,
-      details: `Vente de ${quantity}x ${result.product?.name || productId} pour ${totalRevenue} DH`,
+      userId: sessionResult.session.user.id,
+      details: `Sale created: ${quantity}x ${result.product?.name || productId} for ${totalRevenue} DH`,
     });
 
     return NextResponse.json(result, { status: 201 });

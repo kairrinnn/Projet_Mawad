@@ -14,12 +14,29 @@ import {
 } from "recharts";
 import { exportToPDF, exportToExcel } from "@/lib/export-utils";
 
+interface PeriodMetrics {
+  profit?: number;
+  grossProfit?: number;
+  expenses?: number;
+}
+
+interface DashboardSummary {
+  cashDrawer?: {
+    balance?: number;
+  };
+  chartData?: Array<{
+    date: string;
+    profit: number;
+    expenses: number;
+  }>;
+}
+
 interface BilanTabProps {
   bilanPeriod: "daily" | "weekly" | "monthly" | "total";
   setBilanPeriod: (p: "daily" | "weekly" | "monthly" | "total") => void;
-  periodData: any;
+  periodData: PeriodMetrics;
   periodLabels: Record<string, string>;
-  dashboardData: any;
+  dashboardData: DashboardSummary | null;
   formatCurrency: (val: number) => string;
 }
 
@@ -143,14 +160,14 @@ export function BilanTab({
           </div>
         </CardHeader>
         <CardContent className="h-[300px] pt-0">
-          {dashboardData?.chartData?.length > 0 ? (
+          {(dashboardData?.chartData?.length ?? 0) > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dashboardData.chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <BarChart data={dashboardData?.chartData ?? []} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(s) => new Date(s).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(v) => `${v} DH`} />
                 <Tooltip
-                  formatter={(value: any, name: string) => [`${Number(value).toFixed(2)} DH`, name === "profit" ? "Bénéfice" : "Dépenses"]}
+                  formatter={(value: number | string, name: string) => [`${Number(value).toFixed(2)} DH`, name === "profit" ? "Bénéfice" : "Dépenses"]}
                   labelFormatter={(l) => new Date(l).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
                   contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 12px rgb(0 0 0 / 0.08)" }}
                 />
@@ -162,7 +179,7 @@ export function BilanTab({
             <div className="h-full flex items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/30">
               <div className="text-slate-400 text-sm italic flex flex-col items-center gap-3 text-center max-w-xs">
                 <AlertCircle className="h-5 w-5 opacity-40" />
-                <p>Le graphique s'affichera après vos premières données.</p>
+                <p>Le graphique s&apos;affichera après vos premières données.</p>
               </div>
             </div>
           )}
