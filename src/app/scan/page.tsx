@@ -525,7 +525,7 @@ export default function ScanPage() {
                           <Input placeholder="Rechercher un produit..." className="pl-9 h-10 text-sm bg-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                       </div>
                   </div>
-                  <CardContent className="p-0 overflow-y-auto flex-1 h-[200px]">
+                  <CardContent className="max-h-[390px] overflow-y-auto p-0">
                       <div className="divide-y divide-slate-100">
                           {filteredProducts.map(p => (
                               <div key={p.id} className="p-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => _addToCart(p)}>
