@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
-import { Search, AlertCircle, X } from "lucide-react";
+import { Search, AlertCircle, X, Plus } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { CategoryManager } from "@/components/products/CategoryManager";
 import { StockHistoryDialog } from "@/components/products/StockHistoryDialog";
@@ -500,6 +500,15 @@ export default function ProductsPage() {
           <p className="text-slate-500">Gérez votre inventaire et générez vos QR codes.</p>
         </div>
         
+        <Button
+          type="button"
+          onClick={() => setOpenAdd(true)}
+          className="bg-indigo-600 hover:bg-indigo-700"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Ajouter un produit
+        </Button>
+
         <ProductFormDialog
           open={openAdd}
           onOpenChange={setOpenAdd}
