@@ -15,6 +15,28 @@ const optionalReferenceId = nullableTrimmedString.transform((value) =>
   value === "none" ? null : value
 );
 
+const optionalNumericInput = z
+  .union([z.number(), z.string(), z.null(), z.undefined()])
+  .transform((value) => {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+        return null;
+      }
+
+      return Number(trimmed);
+    }
+
+    return value;
+  })
+  .refine((value) => value === null || Number.isFinite(value), {
+    message: "Invalid number",
+  });
+
 export const productSchema = z.object({
   name: z.string().trim().min(1).max(120),
   barcode: nullableTrimmedString,
@@ -28,8 +50,20 @@ export const productSchema = z.object({
   supplierId: optionalReferenceId,
   image: nullableTrimmedString,
   canBeSoldByWeight: z.coerce.boolean().default(false),
-  weightSalePrice: z.coerce.number().finite().positive().max(1_000_000).nullable().optional(),
-  weightCostPrice: z.coerce.number().finite().nonnegative().max(1_000_000).nullable().optional(),
+  weightSalePrice: optionalNumericInput
+    .refine((value) => value === null || value > 0, {
+      message: "Weight sale price must be greater than 0",
+    })
+    .refine((value) => value === null || value <= 1_000_000, {
+      message: "Weight sale price is too large",
+    }),
+  weightCostPrice: optionalNumericInput
+    .refine((value) => value === null || value >= 0, {
+      message: "Weight cost price must be 0 or more",
+    })
+    .refine((value) => value === null || value <= 1_000_000, {
+      message: "Weight cost price is too large",
+    }),
 });
 
 export const productUpdateSchema = productSchema.partial();
