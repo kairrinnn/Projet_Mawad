@@ -364,7 +364,7 @@ export default function ManagerPage() {
       </div>
 
       <Tabs defaultValue="balance" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[540px] mb-6">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[680px] mb-6">
           <TabsTrigger value="balance" className="flex gap-2"><TrendingUp className="h-4 w-4" /> Bilan</TabsTrigger>
           <TabsTrigger value="expenses" className="flex gap-2"><Wallet className="h-4 w-4" /> Dépenses</TabsTrigger>
           <TabsTrigger value="stock" className="flex gap-2"><PackageSearch className="h-4 w-4" /> Stock</TabsTrigger>

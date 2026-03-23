@@ -58,3 +58,47 @@ export const exportToExcel = ({
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   XLSX.writeFile(workbook, `${filename}.xlsx`);
 };
+
+/**
+ * Exporte plusieurs feuilles Excel dans un seul classeur.
+ */
+export const exportWorkbook = ({
+  filename,
+  sheets,
+}: {
+  filename: string;
+  sheets: Array<{
+    name: string;
+    data: Array<Record<string, string | number | boolean | null>>;
+  }>;
+}) => {
+  const workbook = XLSX.utils.book_new();
+
+  sheets.forEach((sheet) => {
+    const worksheet = XLSX.utils.json_to_sheet(sheet.data);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name.slice(0, 31));
+  });
+
+  XLSX.writeFile(workbook, `${filename}.xlsx`);
+};
+
+/**
+ * Télécharge un objet JSON brut pour la sauvegarde/support.
+ */
+export const downloadJsonFile = ({
+  filename,
+  data,
+}: {
+  filename: string;
+  data: unknown;
+}) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${filename}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+};

@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { VariantProps } from "class-variance-authority";
 import { badgeVariants } from "@/components/ui/badge";
+import { exportToExcel, exportToPDF } from "@/lib/export-utils";
 
 interface AuditLog {
   id: string;
@@ -95,6 +96,40 @@ export function AuditLogsTab() {
     return matchesSearch && matchesFilter;
   });
 
+  const handleExportPDF = () => {
+    const filename = `Audit_${filterAction}_${new Date().toISOString().split("T")[0]}`;
+    const headers = ["Date", "Heure", "Action", "Details", "Utilisateur"];
+    const data = filteredLogs.map((log) => [
+      format(new Date(log.createdAt), "dd/MM/yyyy", { locale: fr }),
+      format(new Date(log.createdAt), "HH:mm:ss"),
+      log.action,
+      log.details || "-",
+      log.user?.name || log.user?.email || "Systeme",
+    ]);
+
+    exportToPDF({
+      filename,
+      title: "Journal d'audit",
+      headers,
+      data,
+      orientation: "l",
+    });
+  };
+
+  const handleExportExcel = () => {
+    const filename = `Audit_${filterAction}_${new Date().toISOString().split("T")[0]}`;
+    const data = filteredLogs.map((log) => ({
+      Date: format(new Date(log.createdAt), "dd/MM/yyyy", { locale: fr }),
+      Heure: format(new Date(log.createdAt), "HH:mm:ss"),
+      Action: log.action,
+      Details: log.details || "",
+      Utilisateur: log.user?.name || "",
+      Email: log.user?.email || "",
+    }));
+
+    exportToExcel({ filename, data, sheetName: "Audit" });
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -106,10 +141,18 @@ export function AuditLogsTab() {
                 Historique des actions critiques effectuées sur le système.
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
-              <RotateCcw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Actualiser
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={loading || filteredLogs.length === 0}>
+                PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={loading || filteredLogs.length === 0}>
+                Excel
+              </Button>
+              <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
+                <RotateCcw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Actualiser
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

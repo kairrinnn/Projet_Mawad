@@ -4,7 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { 
+import {
+  useEffect,
+  useState,
+} from "react";
+import {
   LayoutDashboard, 
   Package, 
   QrCode, 
@@ -16,6 +20,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
+import { readLocalShopSettings } from "@/lib/shop-settings";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["MANAGER"] },
@@ -31,13 +36,24 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const userRole = session?.user?.role ?? "CASHIER";
+  const [shopName, setShopName] = useState("Mawad Scan");
+
+  useEffect(() => {
+    const syncSettings = () => {
+      setShopName(readLocalShopSettings().shopName);
+    };
+
+    syncSettings();
+    window.addEventListener("shop-settings-updated", syncSettings);
+    return () => window.removeEventListener("shop-settings-updated", syncSettings);
+  }, []);
 
   return (
     <div className="flex h-full w-64 flex-col bg-slate-900 text-slate-50">
       <div className="flex h-16 items-center justify-center border-b border-slate-800 px-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
           <QrCode className="h-6 w-6 text-indigo-400" />
-          <span>Mawad<span className="text-indigo-400">Scan</span></span>
+          <span>{shopName}</span>
         </Link>
       </div>
       

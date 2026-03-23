@@ -33,6 +33,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { apiRequest } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { DEFAULT_SHOP_SETTINGS, readLocalShopSettings } from "@/lib/shop-settings";
 import { Html5Qrcode } from "html5-qrcode";
 import { 
   Trash2, Plus, Minus, ShoppingCart, CheckCircle2,
@@ -89,7 +90,7 @@ export default function ScanPage() {
   const [submitting, setSubmitting] = useState(false);
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [lastSale, setLastSale] = useState<{ items: CartItem[], total: number, cash: number, change: number } | null>(null);
-  const [shopName, setShopName] = useState("Mawad Scan");
+  const [shopSettings, setShopSettings] = useState(DEFAULT_SHOP_SETTINGS);
 
   // Expenses & Withdrawals logic
   const [quickExpForm, setQuickExpForm] = useState({ amount: "", description: "" });
@@ -139,8 +140,13 @@ export default function ScanPage() {
     setLoading(false);
   }, [_addToCart]);
 
+  const fetchShopSettings = useCallback(async () => {
+    setShopSettings(readLocalShopSettings());
+  }, []);
+
   useEffect(() => {
     _fetchAllProducts();
+    void fetchShopSettings();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Priorité absolue au scanner même si un input est focusé
@@ -180,17 +186,22 @@ export default function ScanPage() {
     // Utilisation de la phase de CAPTURE (true) pour intercepter avant tout le monde
     window.addEventListener("keydown", handleKeyDown, true);
     
-    // Load shop name from settings
-    const savedName = localStorage.getItem("shop_name");
-    if (savedName) setShopName(savedName);
-
     return () => {
       window.removeEventListener("keydown", handleKeyDown, true);
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(console.error);
       }
     };
-  }, [_fetchAllProducts, _fetchProductDetails]);
+  }, [_fetchAllProducts, _fetchProductDetails, fetchShopSettings]);
+
+  useEffect(() => {
+    const reloadShopSettings = () => {
+      void fetchShopSettings();
+    };
+
+    window.addEventListener("shop-settings-updated", reloadShopSettings);
+    return () => window.removeEventListener("shop-settings-updated", reloadShopSettings);
+  }, [fetchShopSettings]);
 
   useEffect(() => {
     if (lastSale) {
@@ -376,7 +387,11 @@ export default function ScanPage() {
     setSubmitting(false);
   };
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'MAD' }).format(val || 0);
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: shopSettings.currency,
+    }).format(val || 0);
 
   const filteredProducts = allProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.barcode?.includes(searchQuery));
 
@@ -389,9 +404,15 @@ export default function ScanPage() {
       {lastSale && (
         <div id="printable-receipt" className="hidden">
             <div className="text-center mb-4">
-                <h2 className="text-xl font-bold">{shopName.toUpperCase()}</h2>
+                <h2 className="text-xl font-bold">{shopSettings.shopName.toUpperCase()}</h2>
                 <div className="h-[1px] w-12 bg-black/20 mx-auto my-1" />
                 <p className="text-[10px] uppercase tracking-widest leading-none mt-2">{new Date().toLocaleString('fr-FR')}</p>
+                {shopSettings.address ? (
+                  <p className="text-[9px] mt-2 leading-tight">{shopSettings.address}</p>
+                ) : null}
+                {shopSettings.phone ? (
+                  <p className="text-[9px] leading-tight">{shopSettings.phone}</p>
+                ) : null}
             </div>
             
             <div className="border-t border-b border-dashed border-black/30 py-2 my-4">
@@ -423,8 +444,10 @@ export default function ScanPage() {
             )}
             
             <div className="mt-8 text-center space-y-1 opacity-50">
+                {shopSettings.receiptFooter ? (
+                  <p className="text-[8px] uppercase tracking-widest leading-none">{shopSettings.receiptFooter}</p>
+                ) : null}
                 <p className="text-[8px] uppercase tracking-widest leading-none">Document non contractuel</p>
-                <p className="text-[8px] uppercase tracking-widest leading-none">Logiciel par Mawad Dev</p>
             </div>
         </div>
       )}

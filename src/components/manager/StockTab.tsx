@@ -1,9 +1,10 @@
 "use client";
 
-import { DollarSign, PackageSearch } from "lucide-react";
+import { DollarSign, FileText, PackageSearch, Table as TableIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { exportToExcel, exportToPDF } from "@/lib/export-utils";
 
 interface StockEntry {
   id: string;
@@ -34,6 +35,39 @@ export function StockTab({
   formatCurrency,
   formatQty
 }: StockTabProps) {
+  const handleExportPDF = () => {
+    const filename = `Stock_${stockPeriod}_${new Date().toISOString().split("T")[0]}`;
+    const headers = ["Date", "Produit", "Quantite", "PA unitaire", "Cout total"];
+    const data = filteredStock.map((entry) => [
+      new Date(entry.date).toLocaleDateString("fr-FR"),
+      entry.product?.name || "Produit inconnu",
+      formatQty(entry.quantity),
+      formatCurrency(entry.costPrice),
+      formatCurrency(entry.totalCost),
+    ]);
+
+    exportToPDF({
+      filename,
+      title: `Historique stock - ${periodLabels[stockPeriod]}`,
+      headers,
+      data,
+      orientation: "l",
+    });
+  };
+
+  const handleExportExcel = () => {
+    const filename = `Stock_${stockPeriod}_${new Date().toISOString().split("T")[0]}`;
+    const data = filteredStock.map((entry) => ({
+      Date: new Date(entry.date).toLocaleDateString("fr-FR"),
+      Produit: entry.product?.name || "Produit inconnu",
+      Quantite: entry.quantity,
+      PrixAchatUnitaire: entry.costPrice,
+      CoutTotal: entry.totalCost,
+    }));
+
+    exportToExcel({ filename, data, sheetName: "Stock" });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -50,6 +84,14 @@ export function StockTab({
               {periodLabels[p]}
             </Button>
           ))}
+          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={filteredStock.length === 0}>
+            <FileText className="mr-2 h-4 w-4" />
+            PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={filteredStock.length === 0}>
+            <TableIcon className="mr-2 h-4 w-4" />
+            Excel
+          </Button>
         </div>
       </div>
 

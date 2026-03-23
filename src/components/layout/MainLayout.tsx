@@ -5,12 +5,24 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { readLocalShopSettings } from "@/lib/shop-settings";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [shopName, setShopName] = useState("Mawad Scan");
   const pathname = usePathname();
+
+  useEffect(() => {
+    const syncSettings = () => {
+      setShopName(readLocalShopSettings().shopName);
+    };
+
+    syncSettings();
+    window.addEventListener("shop-settings-updated", syncSettings);
+    return () => window.removeEventListener("shop-settings-updated", syncSettings);
+  }, []);
 
   if (pathname === '/login') {
     return <main className="h-screen bg-slate-50">{children}</main>;
@@ -42,7 +54,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
           <div className="ml-4 flex grow items-center font-bold text-lg text-slate-900 tracking-tight">
-            Mawad<span className="text-indigo-600">Scan</span>
+            {shopName}
           </div>
         </header>
 
