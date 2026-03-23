@@ -73,12 +73,45 @@ async function processDelete(request: NextRequest) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    await prisma.product.update({
-      where: { id },
-      data: {
-        isArchived: true,
-        barcode: null,
-      },
+    await prisma.$transaction(async (tx) => {
+      const currentStock = product.stock;
+      const unitCost = Number(product.costPrice);
+
+      if (currentStock !== 0) {
+        await tx.stockEntry.create({
+          data: {
+            productId: id,
+            quantity: -currentStock,
+            costPrice: unitCost,
+            totalCost: -currentStock * unitCost,
+            userId: sessionResult.session.user.id,
+            date: new Date(),
+          },
+        });
+
+        // PrismaPg transaction client does not currently expose stockMovement typing
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (tx as any).stockMovement.create({
+          data: {
+            productId: id,
+            userId: sessionResult.session.user.id,
+            type: "ADJUSTMENT",
+            quantity: Math.abs(currentStock),
+            oldStock: currentStock,
+            newStock: 0,
+            reason: "Product archived and remaining stock removed from history",
+          },
+        });
+      }
+
+      await tx.product.update({
+        where: { id },
+        data: {
+          isArchived: true,
+          barcode: null,
+          stock: 0,
+        },
+      });
     });
 
     await recordAuditLog({
@@ -86,7 +119,7 @@ async function processDelete(request: NextRequest) {
       entityType: "Product",
       entityId: id,
       userId: sessionResult.session.user.id,
-      details: `Product archived: ${product.name}`,
+      details: `Product archived: ${product.name} (remaining stock removed: ${product.stock})`,
     });
 
     return NextResponse.json({ message: "Product archived" });
@@ -186,7 +219,7 @@ async function processPatch(request: NextRequest) {
         });
       }
 
-      if (stockDiff > 0) {
+      if (stockDiff !== 0) {
         const costPrice = input.costPrice ?? Number(existing.costPrice);
         await tx.stockEntry.create({
           data: {

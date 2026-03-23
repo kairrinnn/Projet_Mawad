@@ -170,11 +170,13 @@ export default function ManagerPage() {
 
   // ── pin ────────────────────────────────────────────────────
   const [stockPeriod, setStockPeriod] = useState<"daily" | "weekly" | "monthly" | "total">("monthly");
+  const activeProductIds = useMemo(() => new Set(products.map((product) => product.id)), [products]);
 
   // ── stock filtering & stats ────────────────────────────────
   const filteredStock = useMemo(() => {
     const now = new Date();
     return stockEntries.filter(e => {
+      if (!loading && !activeProductIds.has(e.productId)) return false;
       const d = new Date(e.date);
       if (stockPeriod === "daily")   return d.toDateString() === now.toDateString();
       if (stockPeriod === "weekly")  {
@@ -185,7 +187,7 @@ export default function ManagerPage() {
       if (stockPeriod === "total")   return d.getFullYear() === now.getFullYear();
       return true;
     });
-  }, [stockEntries, stockPeriod]);
+  }, [stockEntries, stockPeriod, activeProductIds, loading]);
 
   const stockStats = useMemo(() => {
     const qty = filteredStock.reduce((s, e) => s + e.quantity, 0);
@@ -418,6 +420,7 @@ export default function ManagerPage() {
             filteredStock={filteredStock}
             formatCurrency={fmt}
             formatQty={fmtQty}
+            onHistoryChanged={fetchData}
           />
         </TabsContent>
 
