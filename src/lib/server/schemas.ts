@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PAYMENT_METHODS } from "@/lib/payments";
 
 const nullableTrimmedString = z
   .union([z.string(), z.null(), z.undefined()])
@@ -72,6 +73,14 @@ export const saleSchema = z.object({
   productId: z.string().trim().min(1),
   quantity: z.coerce.number().finite().positive().max(1_000_000),
   discount: z.coerce.number().finite().min(0).max(1_000_000).default(0),
+  paymentMethod: z.enum(PAYMENT_METHODS).default("CASH"),
+  cashReceived: optionalNumericInput
+    .refine((value) => value === null || value >= 0, {
+      message: "Cash received must be 0 or more",
+    })
+    .refine((value) => value === null || value <= 1_000_000, {
+      message: "Cash received is too large",
+    }),
 });
 
 export const bulkSaleItemSchema = z.object({
@@ -83,6 +92,14 @@ export const bulkSaleItemSchema = z.object({
 
 export const bulkSaleSchema = z.object({
   items: z.array(bulkSaleItemSchema).min(1).max(250),
+  paymentMethod: z.enum(PAYMENT_METHODS).default("CASH"),
+  cashReceived: optionalNumericInput
+    .refine((value) => value === null || value >= 0, {
+      message: "Cash received must be 0 or more",
+    })
+    .refine((value) => value === null || value <= 1_000_000, {
+      message: "Cash received is too large",
+    }),
 });
 
 export const supplierSchema = z.object({

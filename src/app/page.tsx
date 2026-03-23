@@ -91,7 +91,17 @@ interface DashboardData {
   weekly: DashboardMetric;
   monthly: DashboardMetric;
   total: DashboardMetric;
-  cashDrawer: { startingCash: number; currentRevenue: number; currentExpenses: number; balance: number };
+  cashDrawer: {
+    startingCash: number;
+    expectedCash: number;
+    currentRevenue: number;
+    currentExpenses: number;
+    balance: number;
+    closingCash: number;
+    variance: number;
+    isClosed: boolean;
+    closedAt?: string | null;
+  };
   currentExpenses: number;
   lowStockCount: number;
   lowStockProducts: LowStockProduct[];
@@ -107,11 +117,15 @@ export default function DashboardPage() {
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [newStartingCash, setNewStartingCash] = useState<string>("");
   const [showCashDialog, setShowCashDialog] = useState(false);
+  const [showCloseCashDialog, setShowCloseCashDialog] = useState(false);
+  const [closingCash, setClosingCash] = useState("");
+  const [closingNotes, setClosingNotes] = useState("");
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [quickExpense, setQuickExpense] = useState({ amount: "", description: "" });
   const [expSubmitting, setExpSubmitting] = useState(false);
   const [pinSubmitting, setPinSubmitting] = useState(false);
   const [cashSubmitting, setCashSubmitting] = useState(false);
+  const [closeCashSubmitting, setCloseCashSubmitting] = useState(false);
   
   // Retrait Gérant replicate from POS
   const [withdrawalForm, setWithdrawalForm] = useState({ amount: "", description: "", code: "" });
@@ -123,6 +137,7 @@ export default function DashboardPage() {
     if (!error && json) {
       setData(json);
       setNewStartingCash(json.cashDrawer.startingCash.toString());
+      setClosingCash((json.cashDrawer.closingCash || json.cashDrawer.balance).toString());
     } else {
       setData(null);
     }
@@ -179,6 +194,28 @@ export default function DashboardPage() {
       fetchData();
     }
     setCashSubmitting(false);
+  };
+
+  const closeCashDrawer = async () => {
+    if (!data) return;
+
+    setCloseCashSubmitting(true);
+    const { error } = await apiRequest("/api/cash-drawer", {
+      method: "PATCH",
+      body: JSON.stringify({
+        closingCash: Number(closingCash),
+        expectedCash: data.cashDrawer.balance,
+        notes: closingNotes,
+      }),
+      cache: "no-store"
+    });
+    if (!error) {
+      toast.success("Caisse cloturee");
+      setShowCloseCashDialog(false);
+      setClosingNotes("");
+      fetchData();
+    }
+    setCloseCashSubmitting(false);
   };
 
   const submitQuickExpense = async (e: React.FormEvent) => {
@@ -359,15 +396,31 @@ export default function DashboardPage() {
             <div className="text-2xl font-bold">
                 {formatCurrency(data.cashDrawer.balance)}
             </div>
-            <div className="flex items-center justify-between mt-1">
-                <p className="text-xs opacity-80 leading-tight">
-                    Fond: {formatCurrency(data.cashDrawer.startingCash)}
-                </p>
+            <div className="space-y-2 mt-1 text-xs opacity-80 leading-tight">
+                <p>Fond: {formatCurrency(data.cashDrawer.startingCash)}</p>
+                <p>Espèces du jour: {formatCurrency(data.cashDrawer.currentRevenue)}</p>
+                <p>Dépenses caisse: {formatCurrency(data.cashDrawer.currentExpenses)}</p>
+                {data.cashDrawer.isClosed ? (
+                  <p>
+                    Clôturée: {formatCurrency(data.cashDrawer.closingCash)} ({formatCurrency(data.cashDrawer.variance)} d&apos;écart)
+                  </p>
+                ) : (
+                  <p>Statut: ouverte</p>
+                )}
+            </div>
+            <div className="flex items-center gap-2 mt-3">
                 <button 
                     onClick={() => setShowCashDialog(true)}
                     className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors"
                 >
                     Modifier
+                </button>
+                <button
+                    onClick={() => setShowCloseCashDialog(true)}
+                    className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors disabled:opacity-50"
+                    disabled={data.cashDrawer.isClosed}
+                >
+                    {data.cashDrawer.isClosed ? "Cloturee" : "Cloturer"}
                 </button>
             </div>
           </CardContent>
@@ -630,6 +683,43 @@ export default function DashboardPage() {
             <Button onClick={updateCashDrawer} className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold" disabled={cashSubmitting}>
               {cashSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCloseCashDialog} onOpenChange={setShowCloseCashDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Cloturer la Caisse</DialogTitle>
+            <CardDescription>Comparez le montant theorique avec le cash compte en fin de journee.</CardDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600">
+              Attendu: <span className="font-bold text-slate-900">{formatCurrency(data.cashDrawer.balance)}</span>
+            </div>
+            <div className="flex flex-col space-y-2">
+                <label className="text-sm font-medium text-slate-700">Cash compte (MAD)</label>
+                <Input
+                    type="number"
+                    value={closingCash}
+                    onChange={(e) => setClosingCash(e.target.value)}
+                    className="text-lg font-bold"
+                />
+            </div>
+            <div className="flex flex-col space-y-2">
+                <label className="text-sm font-medium text-slate-700">Notes</label>
+                <Input
+                    value={closingNotes}
+                    onChange={(e) => setClosingNotes(e.target.value)}
+                    placeholder="Ex: depot banque, ecart justifie"
+                />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={closeCashDrawer} className="w-full bg-indigo-600 hover:bg-indigo-700 font-bold" disabled={closeCashSubmitting}>
+              {closeCashSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirmer la cloture
             </Button>
           </DialogFooter>
         </DialogContent>

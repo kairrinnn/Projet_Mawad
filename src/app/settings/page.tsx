@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  AlertTriangle,
   Download,
   FileArchive,
   FileJson,
@@ -15,6 +16,14 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -58,6 +67,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     const settings = readLocalShopSettings();
@@ -147,6 +159,42 @@ export default function SettingsPage() {
       toast.error(error instanceof Error ? error.message : "Export impossible");
     } finally {
       setBackupLoading(false);
+    }
+  };
+
+  const handleResetAllData = async () => {
+    if (resetConfirmText.trim().toUpperCase() !== "RESET") {
+      toast.error("Tape RESET pour confirmer.");
+      return;
+    }
+
+    setResetting(true);
+
+    try {
+      const response = await fetch("/api/settings/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "Impossible de reinitialiser les donnees");
+      }
+
+      saveLocalShopSettings(DEFAULT_SHOP_SETTINGS);
+      setShopName(DEFAULT_SHOP_SETTINGS.shopName);
+      setCurrency(DEFAULT_SHOP_SETTINGS.currency);
+      setPhone(DEFAULT_SHOP_SETTINGS.phone);
+      setAddress(DEFAULT_SHOP_SETTINGS.address);
+      setReceiptFooter(DEFAULT_SHOP_SETTINGS.receiptFooter);
+      setResetConfirmText("");
+      setResetDialogOpen(false);
+      toast.success("Toutes les donnees du compte ont ete reinitialisees.");
+      window.setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Reset impossible");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -302,8 +350,66 @@ export default function SettingsPage() {
               </p>
             </CardContent>
           </Card>
+
+          <Card className="border-red-200 bg-red-50/70">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-900">
+                <AlertTriangle className="h-5 w-5" />
+                Zone dangereuse
+              </CardTitle>
+              <CardDescription className="text-red-800/80">
+                Remet le compte courant a zero comme pour un nouveau client, sans supprimer la connexion.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-red-900/80">
+                Cette action supprime produits, ventes, depenses, categories, fournisseurs, stock, caisse et journaux d&apos;audit du compte courant.
+              </p>
+              <Button variant="destructive" className="w-full sm:w-auto" onClick={() => setResetDialogOpen(true)}>
+                Reinitialiser toutes les donnees
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
+
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Reinitialiser totalement le compte</DialogTitle>
+            <DialogDescription>
+              Pour confirmer, tape <strong>RESET</strong>. L&apos;authentification reste active, mais toutes les donnees metier du compte seront effacees.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900/80">
+              Pense a exporter une sauvegarde Excel ou JSON avant de continuer.
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="resetConfirm">Confirmation</Label>
+              <Input
+                id="resetConfirm"
+                value={resetConfirmText}
+                onChange={(event) => setResetConfirmText(event.target.value)}
+                placeholder="Tape RESET"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => void handleJsonBackup()} disabled={backupLoading || resetting}>
+              Exporter JSON d&apos;abord
+            </Button>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)} disabled={resetting}>
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={() => void handleResetAllData()} disabled={resetting}>
+              {resetting ? "Reinitialisation..." : "Tout effacer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

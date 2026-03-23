@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RotateCcw, Loader2, ShoppingCart, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/payments";
 import { cn } from "@/lib/utils";
 
 interface SaleRow {
@@ -26,6 +27,8 @@ interface SaleRow {
   discount: number;
   totalPrice: number;
   salePrice: number;
+  ticketNumber?: string | null;
+  paymentMethod?: PaymentMethod;
   isRefunded: boolean;
   type: "SALE" | "REFUND";
   product?: {
@@ -122,6 +125,8 @@ export default function SalesPage() {
               <TableRow>
                 <TableHead>Date & Heure</TableHead>
                 <TableHead>Produit</TableHead>
+                <TableHead>Ticket</TableHead>
+                <TableHead>Paiement</TableHead>
                 <TableHead className="text-center">Quantité</TableHead>
                 <TableHead className="text-right">Réduction</TableHead>
                 <TableHead className="text-right font-semibold">Net à Payer</TableHead>
@@ -131,13 +136,13 @@ export default function SalesPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                  <TableCell colSpan={8} className="text-center py-10 text-slate-500">
                     Chargement de l&apos;historique...
                   </TableCell>
                 </TableRow>
               ) : filteredSales.length === 0 ? (
                  <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10">
+                  <TableCell colSpan={8} className="text-center py-10">
                     <span className="text-slate-500">Aucune vente enregistrée pour le moment.</span>
                   </TableCell>
                 </TableRow>
@@ -179,6 +184,10 @@ export default function SalesPage() {
                              </Badge>
                            )}
                          </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-500">{sale.ticketNumber || "-"}</TableCell>
+                      <TableCell className="text-xs text-slate-600">
+                        {sale.paymentMethod ? PAYMENT_METHOD_LABELS[sale.paymentMethod] : "-"}
                       </TableCell>
                       <TableCell className="text-center">
                          <Badge 

@@ -32,6 +32,7 @@ const printStyles = `
 import { useCallback, useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { apiRequest } from "@/lib/api";
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/payments";
 import { cn } from "@/lib/utils";
 import { DEFAULT_SHOP_SETTINGS, readLocalShopSettings } from "@/lib/shop-settings";
 import { Html5Qrcode } from "html5-qrcode";
@@ -43,6 +44,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { 
@@ -72,6 +74,10 @@ interface VerifyPinResponse {
 
 interface SaleResponse {
   id: string;
+  ticketNumber?: string | null;
+  paymentMethod?: PaymentMethod;
+  cashReceived?: number | null;
+  changeGiven?: number | null;
 }
 
 interface CartItem {
@@ -88,8 +94,16 @@ export default function ScanPage() {
   
   const [searchQuery, setSearchQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [cashReceived, setCashReceived] = useState<number>(0);
-  const [lastSale, setLastSale] = useState<{ items: CartItem[], total: number, cash: number, change: number } | null>(null);
+  const [lastSale, setLastSale] = useState<{
+    items: CartItem[];
+    total: number;
+    cash: number;
+    change: number;
+    paymentMethod: PaymentMethod;
+    ticketNumber: string | null;
+  } | null>(null);
   const [shopSettings, setShopSettings] = useState(DEFAULT_SHOP_SETTINGS);
 
   // Expenses & Withdrawals logic
@@ -362,6 +376,11 @@ export default function ScanPage() {
 
   const finalizeOrder = async () => {
     if (cart.length === 0) return;
+    const total = calculateTotal();
+    if (paymentMethod === "CASH" && cashReceived < total) {
+      toast.error("Le montant recu doit couvrir le total a payer");
+      return;
+    }
     setSubmitting(true);
     const items = cart.map(item => ({
       productId: item.product.id,
@@ -374,14 +393,29 @@ export default function ScanPage() {
 
     const { data: resData, error } = await apiRequest<SaleResponse[]>("/api/sales/bulk", {
       method: "POST",
-      body: JSON.stringify({ items })
+      body: JSON.stringify({
+        items,
+        paymentMethod,
+        cashReceived: paymentMethod === "CASH" ? cashReceived : null,
+      })
     });
 
     if (!error && resData) {
-      setLastSale({ items: [...cart], total: calculateTotal(), cash: cashReceived, change: Math.max(0, cashReceived - calculateTotal()) });
+      const primarySale = resData[0];
+      setLastSale({
+        items: [...cart],
+        total,
+        cash: paymentMethod === "CASH" ? Number(primarySale?.cashReceived ?? cashReceived) : 0,
+        change: paymentMethod === "CASH"
+          ? Number(primarySale?.changeGiven ?? Math.max(0, cashReceived - total))
+          : 0,
+        paymentMethod,
+        ticketNumber: primarySale?.ticketNumber ?? null,
+      });
       toast.success("Vente réussie !");
       setCart([]);
       setCashReceived(0);
+      setPaymentMethod("CASH");
       _fetchAllProducts();
     }
     setSubmitting(false);
@@ -407,6 +441,9 @@ export default function ScanPage() {
                 <h2 className="text-xl font-bold">{shopSettings.shopName.toUpperCase()}</h2>
                 <div className="h-[1px] w-12 bg-black/20 mx-auto my-1" />
                 <p className="text-[10px] uppercase tracking-widest leading-none mt-2">{new Date().toLocaleString('fr-FR')}</p>
+                {lastSale.ticketNumber ? (
+                  <p className="text-[9px] mt-1 leading-tight">Ticket: {lastSale.ticketNumber}</p>
+                ) : null}
                 {shopSettings.address ? (
                   <p className="text-[9px] mt-2 leading-tight">{shopSettings.address}</p>
                 ) : null}
@@ -430,7 +467,12 @@ export default function ScanPage() {
                 <span className="text-xl font-black">{formatCurrency(lastSale.total)}</span>
             </div>
             
-            {lastSale.cash > 0 && (
+            <div className="flex justify-between text-[10px] uppercase tracking-widest opacity-70 mt-2">
+                <span>Paiement</span>
+                <span>{PAYMENT_METHOD_LABELS[lastSale.paymentMethod]}</span>
+            </div>
+
+            {lastSale.paymentMethod === "CASH" && lastSale.cash > 0 && (
                 <div className="mt-4 pt-2 border-t border-dashed border-black/10 space-y-1">
                     <div className="flex justify-between text-[10px] opacity-70">
                         <span>Reçu</span>
@@ -650,18 +692,33 @@ export default function ScanPage() {
                               <span className="text-3xl font-black text-indigo-600">{formatCurrency(calculateTotal())}</span>
                           </div>
                           
+                          <div className="space-y-1.5">
+                              <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Mode de Paiement</Label>
+                              <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}>
+                                  <SelectTrigger className="h-11 bg-slate-50 border-slate-200 font-semibold">
+                                      <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-white">
+                                      <SelectItem value="CASH">Especes</SelectItem>
+                                      <SelectItem value="CARD">Carte</SelectItem>
+                                      <SelectItem value="TRANSFER">Virement</SelectItem>
+                                      <SelectItem value="OTHER">Autre</SelectItem>
+                                  </SelectContent>
+                              </Select>
+                          </div>
+
                           <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-1.5">
                                   <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Espèces Reçues</Label>
                                   <div className="relative">
                                       <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                      <Input type="number" placeholder="0.00" value={cashReceived || ""} onChange={e => setCashReceived(Number(e.target.value))} className="pl-9 h-11 text-base font-bold bg-slate-50 border-slate-200" />
+                                      <Input type="number" placeholder={paymentMethod === "CASH" ? "0.00" : "Non utilise"} value={cashReceived || ""} onChange={e => setCashReceived(Number(e.target.value))} disabled={paymentMethod !== "CASH"} className="pl-9 h-11 text-base font-bold bg-slate-50 border-slate-200 disabled:opacity-50" />
                                   </div>
                               </div>
                               <div className="space-y-1.5">
                                   <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Rendu Monnaie</Label>
-                                  <div className={cn("h-11 flex items-center justify-center rounded-md font-black text-lg shadow-inner", cashReceived >= calculateTotal() ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400")}>
-                                      {formatCurrency(Math.max(0, cashReceived - calculateTotal()))}
+                                  <div className={cn("h-11 flex items-center justify-center rounded-md font-black text-lg shadow-inner", paymentMethod === "CASH" && cashReceived >= calculateTotal() ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400")}>
+                                      {formatCurrency(paymentMethod === "CASH" ? Math.max(0, cashReceived - calculateTotal()) : 0)}
                                   </div>
                               </div>
                           </div>

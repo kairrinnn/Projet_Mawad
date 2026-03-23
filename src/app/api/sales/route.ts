@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAuditLog } from "@/lib/audit";
 import { isBuildPhase, requireSession } from "@/lib/server/auth";
+import { createTicketNumber, getCashHandling } from "@/lib/server/sales";
 import { parseJsonBody } from "@/lib/server/validation";
 import { saleSchema } from "@/lib/server/schemas";
 
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { productId, quantity, discount } = bodyResult.data;
+    const { productId, quantity, discount, paymentMethod, cashReceived } = bodyResult.data;
 
     const product = await prisma.product.findFirst({
       where: {
@@ -80,29 +81,56 @@ export async function POST(request: Request) {
 
     const salePrice = Number(product.salePrice);
     const costPrice = Number(product.costPrice);
-    const totalRevenue = salePrice * quantity - discount;
+    const subtotal = salePrice * quantity;
+    if (discount > subtotal) {
+      return NextResponse.json(
+        { error: "Discount cannot exceed the sale subtotal" },
+        { status: 400 }
+      );
+    }
+
+    const totalRevenue = subtotal - discount;
     const totalCost = costPrice * quantity;
     const totalProfit = totalRevenue - totalCost;
+    const ticketNumber = createTicketNumber();
+    const { normalizedCashReceived, changeGiven } = getCashHandling(
+      paymentMethod,
+      cashReceived,
+      totalRevenue
+    );
 
     const result = await prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
         data: {
           productId,
           userId: sessionResult.session.user.id,
+          ticketNumber,
+          paymentMethod,
           quantity,
           salePrice: product.salePrice,
           costPrice: product.costPrice,
           totalPrice: totalRevenue,
           discount,
           profit: totalProfit,
+          cashReceived: normalizedCashReceived,
+          changeGiven,
         },
         include: { product: true },
       });
 
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: Number(product.stock) - quantity },
+      const stockUpdate = await tx.product.updateMany({
+        where: {
+          id: productId,
+          userId: sessionResult.session.user.id,
+          isArchived: false,
+          stock: { gte: quantity },
+        },
+        data: { stock: { decrement: quantity } },
       });
+
+      if (stockUpdate.count === 0) {
+        throw new Error("INSUFFICIENT_STOCK");
+      }
 
       await tx.stockMovement.create({
         data: {
@@ -124,12 +152,22 @@ export async function POST(request: Request) {
       entityType: "Sale",
       entityId: result.id,
       userId: sessionResult.session.user.id,
-      details: `Sale created: ${quantity}x ${result.product?.name || productId} for ${totalRevenue} DH`,
+      details: `Sale created: ${quantity}x ${result.product?.name || productId} for ${totalRevenue} DH via ${paymentMethod}`,
     });
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Sale error:", error);
+    if (error instanceof Error && error.message === "INSUFFICIENT_STOCK") {
+      return NextResponse.json({ error: "Insufficient stock" }, { status: 400 });
+    }
+    if (error instanceof Error && error.message === "INSUFFICIENT_CASH_RECEIVED") {
+      return NextResponse.json(
+        { error: "Cash received must cover the total amount" },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json({ error: "Failed to process sale" }, { status: 500 });
   }
 }

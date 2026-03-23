@@ -54,6 +54,7 @@ export async function GET() {
       categories,
       suppliers,
       sales,
+      cashDrawers,
       expenses,
       stockEntries,
       stockMovements,
@@ -81,6 +82,10 @@ export async function GET() {
         include: {
           product: { select: { name: true, barcode: true } },
         },
+      }),
+      prisma.cashDrawer.findMany({
+        where: { userId },
+        orderBy: { date: "desc" },
       }),
       prisma.expense.findMany({
         where: { userId },
@@ -114,6 +119,7 @@ export async function GET() {
         categories: categories.length,
         suppliers: suppliers.length,
         sales: sales.length,
+        cashDrawers: cashDrawers.length,
         expenses: expenses.length,
         stockEntries: stockEntries.length,
         stockMovements: stockMovements.length,
@@ -149,6 +155,7 @@ export async function GET() {
       sales: sales.map((sale) => ({
         id: sale.id,
         date: sale.createdAt.toISOString(),
+        ticketNumber: sale.ticketNumber || "",
         product: sale.product.name,
         barcode: sale.product.barcode || "",
         quantity: sale.quantity,
@@ -157,9 +164,23 @@ export async function GET() {
         totalPrice: toNumber(sale.totalPrice),
         profit: toNumber(sale.profit),
         discount: toNumber(sale.discount),
+        paymentMethod: sale.paymentMethod,
+        cashReceived: toNumber(sale.cashReceived),
+        changeGiven: toNumber(sale.changeGiven),
         type: sale.type,
         refunded: sale.isRefunded,
+        refundReason: sale.refundReason || "",
         soldByWeight: sale.soldByWeight,
+      })),
+      cashDrawers: cashDrawers.map((cashDrawer) => ({
+        id: cashDrawer.id,
+        date: cashDrawer.date.toISOString(),
+        startingCash: toNumber(cashDrawer.startingCash),
+        expectedCash: toNumber(cashDrawer.expectedCash),
+        closingCash: toNumber(cashDrawer.closingCash),
+        variance: toNumber(cashDrawer.variance),
+        closedAt: cashDrawer.closedAt?.toISOString() || "",
+        notes: cashDrawer.notes || "",
       })),
       expenses: expenses.map((expense) => ({
         id: expense.id,

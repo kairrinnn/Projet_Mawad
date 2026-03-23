@@ -2,6 +2,16 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
+function normalizePdfText(value: string | number) {
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  // jsPDF built-in fonts render some unicode spacing characters badly
+  // (notably the French thousands separator from Intl.NumberFormat).
+  return value.replace(/[\u00A0\u202F]/g, " ");
+}
+
 /**
  * Exporte des données vers un fichier PDF.
  */
@@ -32,7 +42,7 @@ export const exportToPDF = ({
   // Tableau
   autoTable(doc, {
     head: [headers],
-    body: data,
+    body: data.map((row) => row.map((cell) => normalizePdfText(cell))),
     startY: 35,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [79, 70, 229] }, // Indigo-600 inspired
