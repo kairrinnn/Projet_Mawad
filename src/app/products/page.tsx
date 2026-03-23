@@ -378,7 +378,7 @@ export default function ProductsPage() {
 
     if (!error) {
       setOpenDelete(false);
-      toast.success("Produit supprimé !");
+      toast.success("Produit archivé avec succès");
       fetchData();
     }
     setSubmitting(false);
@@ -636,25 +636,25 @@ export default function ProductsPage() {
           fileInputRef={editFileInputRef}
         />
 
-      {/* Modal Suppression */}
+      {/* Modal Archivage */}
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <div className="flex justify-center mb-4">
-              <div className="rounded-full bg-red-100 p-3">
-                <AlertCircle className="h-6 w-6 text-red-600" />
+              <div className="rounded-full bg-amber-100 p-3">
+                <AlertCircle className="h-6 w-6 text-amber-600" />
               </div>
             </div>
-            <DialogTitle className="text-center">Confirmer la suppression</DialogTitle>
+            <DialogTitle className="text-center">Archiver le produit</DialogTitle>
             <DialogDescription className="text-center pt-2">
-              Êtes-vous sûr de vouloir supprimer le produit **{selectedProduct?.name}** ? <br/>
-              Cette action est irréversible et pourrait affecter vos historiques.
+              Le produit <strong>{selectedProduct?.name}</strong> disparaîtra de la liste active et de la caisse. <br />
+              Son historique de ventes et de stock restera conservé pour garder des chiffres fiables.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-center mt-4">
             <Button variant="outline" onClick={() => setOpenDelete(false)}>Annuler</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
-              {submitting ? "Suppression..." : "Supprimer définitivement"}
+            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleDelete} disabled={submitting}>
+              {submitting ? "Archivage..." : "Archiver le produit"}
             </Button>
           </DialogFooter>
         </DialogContent>

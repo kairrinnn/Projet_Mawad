@@ -20,7 +20,7 @@ interface StockTabProps {
   stockPeriod: "daily" | "weekly" | "monthly" | "total";
   setStockPeriod: (p: "daily" | "weekly" | "monthly" | "total") => void;
   periodLabels: Record<string, string>;
-  stockStats: { qty: number; cost: number };
+  stockStats: { qty: number; purchasesCost: number; currentValue: number };
   filteredStock: StockEntry[];
   formatCurrency: (val: number) => string;
   formatQty: (q: number) => string;
@@ -95,15 +95,26 @@ export function StockTab({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border-l-4 border-l-amber-500 shadow-sm">
           <CardContent className="pt-4 flex items-center gap-4">
             <div className="h-10 w-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
               <DollarSign className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Investi</p>
-              <p className="text-xl font-bold text-slate-900">{formatCurrency(stockStats.cost)}</p>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Achats sur la periode</p>
+              <p className="text-xl font-bold text-slate-900">{formatCurrency(stockStats.purchasesCost)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-emerald-500 shadow-sm">
+          <CardContent className="pt-4 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <DollarSign className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Valeur du stock actuel</p>
+              <p className="text-xl font-bold text-slate-900">{formatCurrency(stockStats.currentValue)}</p>
             </div>
           </CardContent>
         </Card>
@@ -121,6 +132,12 @@ export function StockTab({
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-slate-200 bg-slate-50/80 shadow-sm">
+        <CardContent className="pt-4 text-sm text-slate-600">
+          Les ajouts de stock restent dans l&apos;historique meme si un produit est archive. Les achats sur la periode tracent les approvisionnements, alors que la valeur du stock actuel montre seulement ce qui reste en stock actif.
+        </CardContent>
+      </Card>
 
       <Card className="shadow-sm">
         <CardContent className="p-0 overflow-x-auto">

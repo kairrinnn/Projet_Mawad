@@ -34,6 +34,7 @@ import { AuditLogsTab } from "@/components/manager/AuditLogsTab";
 // ── Type helpers ──────────────────────────────────────────────
 type Expense    = { id: string; type: string; amount: number; description: string; date: string };
 type StockEntry = { id: string; productId: string; quantity: number; costPrice: number; totalCost: number; date: string; product: { name: string } };
+type ProductSummary = { id: string; stock: number; costPrice: number };
 type PeriodKey = "daily" | "weekly" | "monthly" | "total";
 type DashboardPeriod = { profit?: number; grossProfit?: number; expenses?: number };
 type DashboardData = Record<PeriodKey, DashboardPeriod> & {
@@ -86,6 +87,7 @@ export default function ManagerPage() {
   // ── data ────────────────────────────────────────────────────
   const [expenses, setExpenses]       = useState<Expense[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
+  const [products, setProducts] = useState<ProductSummary[]>([]);
   const [dashboardData, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading]         = useState(true);
 
@@ -187,9 +189,12 @@ export default function ManagerPage() {
 
   const stockStats = useMemo(() => {
     const qty = filteredStock.reduce((s, e) => s + e.quantity, 0);
-    const cost = filteredStock.reduce((s, e) => s + e.totalCost, 0);
-    return { qty, cost };
-  }, [filteredStock]);
+    const purchasesCost = filteredStock.reduce((s, e) => s + e.totalCost, 0);
+    const currentValue = products.reduce((sum, product) => {
+      return sum + product.stock * product.costPrice;
+    }, 0);
+    return { qty, purchasesCost, currentValue };
+  }, [filteredStock, products]);
 
   const [authorized, setAuthorized] = useState(false);
   const [pin, setPin]               = useState("");
@@ -211,12 +216,13 @@ export default function ManagerPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [xR, dR, sR] = await Promise.all([
-        fetch("/api/expenses"), fetch("/api/dashboard"), fetch("/api/stock-entries"),
+      const [xR, dR, sR, pR] = await Promise.all([
+        fetch("/api/expenses"), fetch("/api/dashboard"), fetch("/api/stock-entries"), fetch("/api/products"),
       ]);
       if (xR.ok) setExpenses(await xR.json());
       if (dR.ok) setDashboard(await dR.json());
       if (sR.ok) setStockEntries(await sR.json());
+      if (pR.ok) setProducts(await pR.json());
     } catch { toast.error("Erreur de chargement"); } finally { setLoading(false); }
   };
 
