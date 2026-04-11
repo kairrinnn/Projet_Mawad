@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { recordAuditLog } from "@/lib/audit";
 import { requireRole } from "@/lib/server/auth";
 import { parseJsonBody } from "@/lib/server/validation";
 
@@ -9,6 +10,30 @@ const stockEntrySchema = z.object({
   quantity: z.coerce.number().finite().positive().max(1_000_000),
   costPrice: z.coerce.number().finite().positive().max(1_000_000),
 });
+
+export async function DELETE() {
+  const sessionResult = await requireRole("MANAGER");
+  if ("response" in sessionResult) {
+    return sessionResult.response;
+  }
+
+  const userId = sessionResult.session.user.id;
+
+  try {
+    const { count } = await prisma.stockEntry.deleteMany({ where: { userId } });
+
+    await recordAuditLog({
+      action: "CLEAR_STOCK_HISTORY",
+      entityType: "StockEntry",
+      userId,
+      details: `Historique stock vidé : ${count} ligne(s) supprimée(s). Stocks produits inchangés.`,
+    });
+
+    return NextResponse.json({ deleted: count });
+  } catch {
+    return NextResponse.json({ error: "Échec de la suppression" }, { status: 500 });
+  }
+}
 
 export async function GET() {
   const sessionResult = await requireRole("MANAGER");

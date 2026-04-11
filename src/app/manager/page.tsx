@@ -191,10 +191,10 @@ export default function ManagerPage() {
   }, [stockEntries, stockPeriod, activeProductIds, loading]);
 
   const stockStats = useMemo(() => {
-    const qty = filteredStock.reduce((s, e) => s + e.quantity, 0);
-    const purchasesCost = filteredStock.reduce((s, e) => s + e.totalCost, 0);
+    const qty = filteredStock.reduce((s, e) => s + Number(e.quantity), 0);
+    const purchasesCost = filteredStock.reduce((s, e) => s + Number(e.totalCost), 0);
     const currentValue = products.reduce((sum, product) => {
-      return sum + product.stock * product.costPrice;
+      return sum + Number(product.stock) * Number(product.costPrice);
     }, 0);
     return { qty, purchasesCost, currentValue };
   }, [filteredStock, products]);

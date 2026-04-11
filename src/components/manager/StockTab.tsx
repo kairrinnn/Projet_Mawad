@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DollarSign, FileText, PackageSearch, Table as TableIcon, Trash2 } from "lucide-react";
+import { DollarSign, FileText, PackageSearch, Table as TableIcon, Trash2, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,8 @@ export function StockTab({
   const [deleteTarget, setDeleteTarget] = useState<StockEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [hasExportedHistory, setHasExportedHistory] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     setHasExportedHistory(false);
@@ -89,6 +91,24 @@ export function StockTab({
 
     exportToExcel({ filename, data, sheetName: "Stock" });
     setHasExportedHistory(true);
+  };
+
+  const handleClearHistory = async () => {
+    setClearing(true);
+    try {
+      const res = await fetch("/api/stock-entries", { method: "DELETE", cache: "no-store" });
+      if (res.ok) {
+        toast.success("Historique stock vidé. Les stocks produits sont inchangés.");
+        setClearConfirmOpen(false);
+        await onHistoryChanged();
+      } else {
+        toast.error("Échec de la suppression");
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setClearing(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -139,6 +159,16 @@ export function StockTab({
           <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={filteredStock.length === 0}>
             <TableIcon className="mr-2 h-4 w-4" />
             Excel
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setClearConfirmOpen(true)}
+            disabled={filteredStock.length === 0}
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Vider l&apos;historique
           </Button>
         </div>
       </div>
@@ -279,6 +309,29 @@ export function StockTab({
             </Button>
             <Button className="bg-red-600 text-white hover:bg-red-700" onClick={() => void confirmDelete()} disabled={deleting}>
               {deleting ? "Suppression..." : "Exporter puis supprimer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={clearConfirmOpen} onOpenChange={(open) => !open && setClearConfirmOpen(false)}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Vider l&apos;historique du stock</DialogTitle>
+            <DialogDescription>
+              Toutes les lignes d&apos;historique seront supprimées définitivement. Les stocks actuels des produits restent inchangés.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearConfirmOpen(false)} disabled={clearing}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => void handleClearHistory()}
+              disabled={clearing}
+            >
+              {clearing ? "Suppression..." : "Vider l'historique"}
             </Button>
           </DialogFooter>
         </DialogContent>
