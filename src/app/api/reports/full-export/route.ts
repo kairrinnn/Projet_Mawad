@@ -222,8 +222,9 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Full export error:", error);
+    const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Failed to build full export" },
+      { error: `Failed to build full export: ${detail}` },
       { status: 500 }
     );
   }
