@@ -14,37 +14,24 @@ async function resolveDbUser(sessionUser: {
   name?: string | null;
   image?: string | null;
 }) {
-  const normalizedEmail = sessionUser.email?.toLowerCase().trim();
-  const orConditions: Prisma.UserWhereInput[] = [{ id: sessionUser.id }];
-  if (normalizedEmail) {
-    orConditions.push({ email: { equals: normalizedEmail, mode: "insensitive" } });
-  }
+  if (!sessionUser.email) return null;
 
-  let dbUser = await prisma.user.findFirst({
-    where: { OR: orConditions },
+  const normalizedEmail = sessionUser.email.toLowerCase().trim();
+
+  return prisma.user.upsert({
+    where: { id: sessionUser.id },
+    update: {
+      name: sessionUser.name,
+      email: normalizedEmail,
+      image: sessionUser.image,
+    },
+    create: {
+      id: sessionUser.id,
+      name: sessionUser.name,
+      email: normalizedEmail,
+      image: sessionUser.image,
+    },
   });
-
-  if (!dbUser && sessionUser.email) {
-    dbUser = await prisma.user.create({
-      data: {
-        id: sessionUser.id,
-        name: sessionUser.name,
-        email: normalizedEmail,
-        image: sessionUser.image,
-      },
-    });
-  } else if (dbUser && normalizedEmail && dbUser.email !== normalizedEmail) {
-    dbUser = await prisma.user.update({
-      where: { id: dbUser.id },
-      data: {
-        name: sessionUser.name,
-        email: normalizedEmail,
-        image: sessionUser.image,
-      },
-    });
-  }
-
-  return dbUser;
 }
 
 export async function GET(request: Request) {

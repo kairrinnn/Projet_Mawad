@@ -79,6 +79,7 @@ export async function GET() {
       prisma.sale.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
+        take: 5000,
         include: {
           product: { select: { name: true, barcode: true } },
         },
@@ -94,6 +95,7 @@ export async function GET() {
       prisma.stockEntry.findMany({
         where: { userId },
         orderBy: { date: "desc" },
+        take: 2000,
         include: {
           product: { select: { name: true } },
         },
@@ -101,6 +103,7 @@ export async function GET() {
       prisma.stockMovement.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
+        take: 2000,
         include: {
           product: { select: { name: true } },
         },

@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import {
@@ -34,14 +33,6 @@ export async function GET() {
   }
 
   const userId = session.user.id;
-  const lowStockSelect = {
-    id: true,
-    name: true,
-    stock: true,
-    lowStockThreshold: true,
-    image: true,
-  } satisfies Prisma.ProductSelect;
-
   try {
     const now = new Date();
     const { startOfDay, nextDay, startOfWeek, startOfMonth } = getBusinessPeriodBounds(now);
@@ -98,12 +89,14 @@ export async function GET() {
       prisma.cashDrawer.findUnique({
         where: { userId_date: { userId, date: startOfDay } },
       }),
-      prisma.product
-        .findMany({
-          where: { userId, isArchived: false },
-          select: lowStockSelect,
-        })
-        .then((products) => products.filter((product) => product.stock <= product.lowStockThreshold)),
+      prisma.$queryRaw<Array<{ id: string; name: string; stock: number; lowStockThreshold: number; image: string | null }>>`
+        SELECT id, name, stock, "lowStockThreshold", image
+        FROM "Product"
+        WHERE "userId" = ${userId}
+          AND "isArchived" = false
+          AND stock <= "lowStockThreshold"
+        LIMIT 50
+      `,
       prisma.sale.groupBy({
         by: ["productId"],
         where: { userId },

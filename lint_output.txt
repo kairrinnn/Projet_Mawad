@@ -1,9 +1,0 @@
-﻿node.exe : Invalid project directory provided, no such directory: 
-F:\Projet_Mawad\lint
-Au caractère C:\Program Files\nodejs\npx.ps1:29 : 3
-+   & $NODE_EXE $NPX_CLI_JS $args
-+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (Invalid project...ojet_Mawad\lint:Strin 
-   g) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 

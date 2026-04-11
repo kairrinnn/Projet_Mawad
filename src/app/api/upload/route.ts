@@ -12,6 +12,22 @@ const ALLOWED_IMAGE_TYPES = new Set([
 ]);
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
+// Magic bytes signatures (first bytes of file content)
+const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
+  { mime: "image/jpeg", bytes: [0xff, 0xd8, 0xff] },
+  { mime: "image/png",  bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  { mime: "image/webp", bytes: [0x52, 0x49, 0x46, 0x46], offset: 0 }, // RIFF header
+];
+
+function detectMimeFromBytes(buffer: Buffer): string | null {
+  for (const sig of MAGIC_BYTES) {
+    const start = sig.offset ?? 0;
+    const match = sig.bytes.every((byte, i) => buffer[start + i] === byte);
+    if (match) return sig.mime;
+  }
+  return null;
+}
+
 function sanitizeFilename(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
 }
@@ -44,6 +60,12 @@ export async function POST(request: Request) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    const detectedMime = detectMimeFromBytes(buffer);
+    if (!detectedMime || !ALLOWED_IMAGE_TYPES.has(detectedMime)) {
+      return NextResponse.json({ error: "Invalid file content" }, { status: 400 });
+    }
+
     const filename = `${sessionResult.session.user.id}/${randomUUID()}-${sanitizeFilename(file.name)}`;
 
     const { error } = await supabase.storage
