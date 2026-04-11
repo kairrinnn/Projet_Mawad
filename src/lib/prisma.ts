@@ -15,7 +15,11 @@ function createPrismaClient(): PrismaClient {
   }
 
   // Runtime: create connection pool then pass to PrismaPg adapter
-  const pool = new pg.Pool({ connectionString: url });
+  // SSL is required for Supabase (both pooler and direct connections)
+  const pool = new pg.Pool({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false },
+  });
   const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
