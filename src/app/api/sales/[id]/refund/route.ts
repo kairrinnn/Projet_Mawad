@@ -82,7 +82,7 @@ export async function POST(
       entityType: "Sale",
       entityId: id,
       userId: sessionResult.session.user.id,
-      details: `Refund processed for sale ${id}`,
+      details: `Remboursement effectué pour la vente ${id}`,
     });
 
     return NextResponse.json(result);

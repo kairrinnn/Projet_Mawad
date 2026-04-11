@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       entityType: "CashDrawer",
       entityId: cashDrawer.id,
       userId: sessionResult.session.user.id,
-      details: `Opening cash set to ${bodyResult.data.startingCash} DH`,
+      details: `Fond de caisse ouvert : ${bodyResult.data.startingCash} DH`,
     });
 
     return NextResponse.json(cashDrawer);
@@ -191,7 +191,7 @@ export async function PATCH(request: Request) {
       entityType: "CashDrawer",
       entityId: cashDrawer.id,
       userId: sessionResult.session.user.id,
-      details: `Cash drawer closed. Expected ${bodyResult.data.expectedCash} DH, counted ${bodyResult.data.closingCash} DH, variance ${variance} DH`,
+      details: `Caisse clôturée — Attendu : ${bodyResult.data.expectedCash} DH, Compté : ${bodyResult.data.closingCash} DH, Écart : ${variance} DH`,
     });
 
     return NextResponse.json(cashDrawer);

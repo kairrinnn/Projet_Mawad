@@ -119,7 +119,7 @@ async function processDelete(request: NextRequest) {
       entityType: "Product",
       entityId: id,
       userId: sessionResult.session.user.id,
-      details: `Product archived: ${product.name} (remaining stock removed: ${product.stock})`,
+      details: `Produit archivé : ${product.name} (stock retiré : ${product.stock})`,
     });
 
     return NextResponse.json({ message: "Product archived" });
@@ -241,7 +241,7 @@ async function processPatch(request: NextRequest) {
       entityType: "Product",
       entityId: id,
       userId: sessionResult.session.user.id,
-      details: `Product updated: ${result.name} (Stock diff: ${stockDiff})`,
+      details: `Produit modifié : ${result.name}${stockDiff !== 0 ? ` (ajustement stock : ${stockDiff > 0 ? "+" : ""}${stockDiff})` : ""}`,
     });
 
     return NextResponse.json(result);

@@ -18,7 +18,6 @@ import {
   LogOut,
   User as UserIcon,
   ShieldCheck,
-  ClipboardList,
 } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { readLocalShopSettings } from "@/lib/shop-settings";
@@ -26,7 +25,6 @@ import { readLocalShopSettings } from "@/lib/shop-settings";
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["MANAGER"] },
   { name: "Gérant", href: "/manager", icon: ShieldCheck, roles: ["MANAGER"] },
-  { name: "Inventaire", href: "/inventory", icon: ClipboardList, roles: ["MANAGER"] },
   { name: "Produits", href: "/products", icon: Package, roles: ["MANAGER", "CASHIER"] },
   { name: "Scanner", href: "/scan", icon: QrCode, roles: ["MANAGER", "CASHIER"] },
   { name: "Ventes", href: "/sales", icon: ShoppingCart, roles: ["MANAGER", "CASHIER"] },

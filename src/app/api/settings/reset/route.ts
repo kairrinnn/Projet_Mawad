@@ -47,7 +47,7 @@ export async function POST() {
       entityType: "User",
       entityId: userId,
       userId,
-      details: `Account data reset completed: ${JSON.stringify(counts)}`,
+      details: `Réinitialisation du compte effectuée`,
     });
 
     return NextResponse.json({ reset: true, counts });

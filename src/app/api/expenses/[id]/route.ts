@@ -44,7 +44,7 @@ export async function PATCH(
       entityType: "Expense",
       entityId: id,
       userId: sessionResult.session.user.id,
-      details: `Expense updated: ${expense.type} - ${expense.amount} DH`,
+      details: `Dépense modifiée : ${expense.type} — ${expense.amount} DH`,
     });
 
     return NextResponse.json(expense);
@@ -82,7 +82,7 @@ export async function DELETE(
       entityType: "Expense",
       entityId: id,
       userId: sessionResult.session.user.id,
-      details: `Expense deleted: ${existing.type} - ${existing.amount} DH`,
+      details: `Dépense supprimée : ${existing.type} — ${existing.amount} DH`,
     });
 
     return NextResponse.json({ success: true });

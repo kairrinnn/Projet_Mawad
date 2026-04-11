@@ -79,8 +79,8 @@ export async function POST(request: Request) {
       action: isValid ? "MANAGER_ACCESS_SUCCESS" : "MANAGER_ACCESS_FAILURE",
       userId: sessionResult.session.user.id,
       details: isValid
-        ? "Manager PIN accepted"
-        : "Manager PIN rejected",
+        ? "Accès gérant autorisé"
+        : "Accès gérant refusé — code incorrect",
       entityType: "ManagerAccess",
     });
 

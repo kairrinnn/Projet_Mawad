@@ -71,7 +71,7 @@ export async function DELETE(request: NextRequest) {
       entityType: "StockEntry",
       entityId: entry.id,
       userId,
-      details: `Deleted stock history entry for ${entry.product.name} (quantity: ${entry.quantity})`,
+      details: `Entrée stock supprimée : ${entry.product.name} (quantité : ${entry.quantity})`,
     });
 
     return NextResponse.json({ message: "Stock history entry deleted" });

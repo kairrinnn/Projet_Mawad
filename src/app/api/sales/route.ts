@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       entityType: "Sale",
       entityId: result.id,
       userId: sessionResult.session.user.id,
-      details: `Sale created: ${quantity}x ${result.product?.name || productId} for ${totalRevenue} DH via ${paymentMethod}`,
+      details: `Vente créée : ${quantity}x ${result.product?.name || productId} — ${totalRevenue} DH (${paymentMethod})`,
     });
 
     return NextResponse.json(result, { status: 201 });

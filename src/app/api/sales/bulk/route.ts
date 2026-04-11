@@ -166,7 +166,7 @@ async function processPost(request: Request) {
       action: "CREATE_BULK_SALE",
       entityType: "Sale",
       userId: sessionResult.session.user.id,
-      details: `Bulk sale created with ${items.length} items and ${result.length} sale rows via ${paymentMethod}`,
+      details: `Vente en lot : ${items.length} produit(s), ${result.length} ligne(s) — paiement ${paymentMethod}`,
     });
 
     return NextResponse.json(result, { status: 201 });

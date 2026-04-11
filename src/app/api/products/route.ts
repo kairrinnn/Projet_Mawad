@@ -166,7 +166,7 @@ export async function POST(request: Request) {
       entityType: "Product",
       entityId: product.id,
       userId: dbUser.id,
-      details: `Product created: ${product.name} (Initial stock: ${product.stock})`,
+      details: `Produit créé : ${product.name} (stock initial : ${product.stock})`,
     });
 
     return NextResponse.json(product, { status: 201 });

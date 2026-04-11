@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       entityType: "Expense",
       entityId: expense.id,
       userId: sessionResult.session.user.id,
-      details: `Expense created: ${expense.type} - ${expense.amount} DH`,
+      details: `Dépense créée : ${expense.type} — ${expense.amount} DH`,
     });
 
     return NextResponse.json(expense);
