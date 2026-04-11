@@ -19,13 +19,14 @@ export function getCashHandling(
     };
   }
 
-  const normalizedCashReceived = cashReceived ?? totalAmount;
-  if (normalizedCashReceived < totalAmount) {
-    throw new Error("INSUFFICIENT_CASH_RECEIVED");
-  }
+  const normalizedCashReceived = cashReceived ?? null;
+  const changeGiven =
+    normalizedCashReceived !== null && normalizedCashReceived >= totalAmount
+      ? normalizedCashReceived - totalAmount
+      : 0;
 
   return {
     normalizedCashReceived,
-    changeGiven: normalizedCashReceived - totalAmount,
+    changeGiven,
   };
 }
