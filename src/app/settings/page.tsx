@@ -48,6 +48,7 @@ interface FullExportResponse {
   categories: Array<Record<string, string | number | boolean | null>>;
   suppliers: Array<Record<string, string | number | boolean | null>>;
   sales: Array<Record<string, string | number | boolean | null>>;
+  cashDrawers: Array<Record<string, string | number | boolean | null>>;
   expenses: Array<Record<string, string | number | boolean | null>>;
   stockEntries: Array<Record<string, string | number | boolean | null>>;
   stockMovements: Array<Record<string, string | number | boolean | null>>;

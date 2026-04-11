@@ -232,10 +232,9 @@ export default function ManagerPage() {
 
   const addExpense = async (e: React.FormEvent) => {
     e.preventDefault(); setSub(true);
-    if (!editExp) { setSub(false); return; }
     try {
       const r = await fetch("/api/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(expForm) });
-      if (r.ok) { toast.success("Dépense enregistrée"); setExpForm({ type: "Daily", amount: "", description: "", date: "" }); setAddExpOpen(false); fetchData(); }
+      if (r.ok) { toast.success("Dépense enregistrée"); setExpForm({ type: "Daily", amount: "", description: "", date: new Date().toISOString().split("T")[0] }); setAddExpOpen(false); fetchData(); }
     } catch { toast.error("Erreur"); } finally { setSub(false); }
   };
 

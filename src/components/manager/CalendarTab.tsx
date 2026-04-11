@@ -110,6 +110,7 @@ export function CalendarTab({
               const total = hasPayment ? exps.reduce((s, e) => s + e.amount, 0) : 0;
               const isToday = day === new Date().getDate() && calMonth.getMonth() === new Date().getMonth() && calMonth.getFullYear() === new Date().getFullYear();
               const uniqueTypes = hasPayment ? [...new Set(exps.map(e => e.type))] : [];
+              const hasOnlyProjected = hasPayment && exps.every(e => e.id.startsWith("proj-"));
 
               const colIdx = (calendarGrid.firstDow + i) % 7;
               const tooltipPos = colIdx < 2 ? "left-0 translate-x-0" : colIdx > 4 ? "right-0 translate-x-0" : "left-1/2 -translate-x-1/2";
@@ -117,20 +118,22 @@ export function CalendarTab({
               return (
                 <div
                   key={day}
-                  className={`relative h-14 border border-slate-100 flex flex-col items-center pt-1.5 cursor-default transition-colors
-                    ${hasPayment ? "bg-red-50/60 hover:bg-red-50" : "hover:bg-slate-50"}
+                  className={`relative h-14 flex flex-col items-center pt-1.5 cursor-default transition-colors
+                    ${hasPayment && !hasOnlyProjected ? "border border-slate-100 bg-red-50/60 hover:bg-red-50" : ""}
+                    ${hasOnlyProjected ? "border border-dashed border-slate-300 bg-slate-50/60 hover:bg-slate-50 opacity-60" : "border border-slate-100"}
                     ${isToday ? "ring-2 ring-inset ring-indigo-400 bg-indigo-50/30" : ""}
+                    ${!hasPayment ? "hover:bg-slate-50" : ""}
                   `}
                   onMouseEnter={() => hasPayment && setHoveredDay(day)}
                   onMouseLeave={() => setHoveredDay(null)}
                 >
-                  <span className={`text-sm ${isToday ? "font-bold text-indigo-600" : hasPayment ? "font-semibold text-slate-800" : "text-slate-500"}`}>
+                  <span className={`text-sm ${isToday ? "font-bold text-indigo-600" : hasPayment && !hasOnlyProjected ? "font-semibold text-slate-800" : "text-slate-400"}`}>
                     {day}
                   </span>
                   {hasPayment && (
                     <div className="flex items-center gap-0.5 mt-1">
                       {uniqueTypes.slice(0, 4).map(t => (
-                        <span key={t} className={`h-1.5 w-1.5 rounded-full ${getExpenseColor(t)}`} />
+                        <span key={t} className={`h-1.5 w-1.5 rounded-full ${hasOnlyProjected ? "opacity-50" : ""} ${getExpenseColor(t)}`} />
                       ))}
                     </div>
                   )}
@@ -139,21 +142,26 @@ export function CalendarTab({
                     <div className={`absolute bottom-full ${tooltipPos} mb-2 w-60 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 pointer-events-none`}>
                       <p className="text-xs font-bold text-slate-800 mb-2 border-b pb-1">
                         {new Date(calMonth.getFullYear(), calMonth.getMonth(), day).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                        {hasOnlyProjected && <span className="ml-2 text-[10px] font-normal text-slate-400 italic">projection</span>}
                       </p>
                       <div className="space-y-1.5">
-                        {exps.map(exp => (
-                          <div key={exp.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`h-2 w-2 rounded-full ${getExpenseColor(exp.type)}`} />
-                              <span className="text-[11px] text-slate-700 truncate max-w-[130px]">{exp.description}</span>
+                        {exps.map(exp => {
+                          const isProjected = exp.id.startsWith("proj-");
+                          return (
+                            <div key={exp.id} className={`flex items-center justify-between ${isProjected ? "opacity-60" : ""}`}>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`h-2 w-2 rounded-full ${getExpenseColor(exp.type)}`} />
+                                <span className={`text-[11px] truncate max-w-[110px] ${isProjected ? "text-slate-400 italic" : "text-slate-700"}`}>{exp.description}</span>
+                                {isProjected && <span className="text-[9px] text-slate-400">↻</span>}
+                              </div>
+                              <span className={`text-[11px] font-bold ${isProjected ? "text-slate-400" : "text-red-600"}`}>−{formatCurrency(exp.amount)}</span>
                             </div>
-                            <span className="text-[11px] font-bold text-red-600">−{formatCurrency(exp.amount)}</span>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       <div className="border-t mt-2 pt-1.5 flex justify-between">
-                        <span className="text-[10px] font-medium text-slate-500">Total</span>
-                        <span className="text-xs font-black text-red-700">−{formatCurrency(total)}</span>
+                        <span className="text-[10px] font-medium text-slate-500">{hasOnlyProjected ? "Projection" : "Total"}</span>
+                        <span className={`text-xs font-black ${hasOnlyProjected ? "text-slate-400" : "text-red-700"}`}>−{formatCurrency(total)}</span>
                       </div>
                     </div>
                   )}
