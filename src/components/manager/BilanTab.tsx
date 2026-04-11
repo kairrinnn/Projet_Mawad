@@ -1,23 +1,42 @@
 "use client";
 
-import { TrendingUp, Receipt, Wallet, DollarSign, AlertCircle, FileText, Table as TableIcon } from "lucide-react";
+import { TrendingUp, TrendingDown, Receipt, Wallet, DollarSign, AlertCircle, FileText, Table as TableIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  ResponsiveContainer, 
-  BarChart, 
-  CartesianGrid, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  Bar 
+import {
+  ResponsiveContainer,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Bar
 } from "recharts";
 import { exportToPDF, exportToExcel } from "@/lib/export-utils";
+
+interface PrevPeriod {
+  profit: number;
+  grossProfit: number;
+  expenses: number;
+}
 
 interface PeriodMetrics {
   profit?: number;
   grossProfit?: number;
   expenses?: number;
+  prev?: PrevPeriod;
+}
+
+function ComparisonBadge({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0) return null;
+  const pct = ((current - previous) / Math.abs(previous)) * 100;
+  const up = pct >= 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${up ? "text-emerald-600" : "text-red-500"}`}>
+      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {up ? "+" : ""}{pct.toFixed(1)}%
+    </span>
+  );
 }
 
 interface DashboardSummary {
@@ -109,7 +128,10 @@ export function BilanTab({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-600">{formatCurrency(periodData?.profit ?? 0)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{periodLabels[bilanPeriod]} — après charges ({formatCurrency(periodData?.expenses ?? 0)}).</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground">{periodLabels[bilanPeriod]} — après charges.</p>
+              {periodData?.prev && <ComparisonBadge current={periodData.profit ?? 0} previous={periodData.prev.profit} />}
+            </div>
           </CardContent>
         </Card>
 
@@ -120,7 +142,10 @@ export function BilanTab({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(periodData?.grossProfit ?? periodData?.profit ?? 0)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Marge sur les ventes uniquement.</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground">Marge sur les ventes.</p>
+              {periodData?.prev && <ComparisonBadge current={periodData.grossProfit ?? 0} previous={periodData.prev.grossProfit} />}
+            </div>
           </CardContent>
         </Card>
 
@@ -131,7 +156,10 @@ export function BilanTab({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">{formatCurrency(periodData?.expenses ?? 0)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Salaires, factures et loyer.</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground">Salaires, factures et loyer.</p>
+              {periodData?.prev && <ComparisonBadge current={periodData.expenses ?? 0} previous={periodData.prev.expenses} />}
+            </div>
           </CardContent>
         </Card>
 

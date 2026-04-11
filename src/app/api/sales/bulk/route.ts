@@ -53,6 +53,17 @@ async function processPost(request: Request) {
         );
       }
 
+      const MAX_CASHIER_DISCOUNT_PCT = 0.30;
+      if (
+        sessionResult.session.user.role !== "MANAGER" &&
+        item.discount > subtotal * MAX_CASHIER_DISCOUNT_PCT
+      ) {
+        return NextResponse.json(
+          { error: `Remise limitée à ${MAX_CASHIER_DISCOUNT_PCT * 100}% pour un caissier (${product.name}). Contactez le gérant.` },
+          { status: 400 }
+        );
+      }
+
       const remainingStock = productStockTracker.get(item.productId) ?? Number(product.stock);
       if (remainingStock < item.quantity) {
         return NextResponse.json(

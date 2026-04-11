@@ -37,6 +37,12 @@ export async function GET() {
     const now = new Date();
     const { startOfDay, nextDay, startOfWeek, startOfMonth } = getBusinessPeriodBounds(now);
 
+    // Previous period bounds
+    const prevDayStart = new Date(startOfDay); prevDayStart.setUTCDate(prevDayStart.getUTCDate() - 1);
+    const prevWeekStart = new Date(startOfWeek); prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7);
+    const prevMonthDate = new Date(startOfMonth); prevMonthDate.setUTCMonth(prevMonthDate.getUTCMonth() - 1);
+    const { startOfMonth: prevMonthStart } = getBusinessPeriodBounds(prevMonthDate);
+
     const [
       dailyExpenses,
       monthlyExpenses,
@@ -50,6 +56,12 @@ export async function GET() {
       cashDrawer,
       lowStockItems,
       topSalesGrouped,
+      prevDaySales,
+      prevDayExpenses,
+      prevWeekSales,
+      prevWeekExpenses,
+      prevMonthSales,
+      prevMonthExpenses,
     ] = await Promise.all([
       prisma.expense.aggregate({
         where: { userId, date: { gte: startOfDay, lt: nextDay }, type: { not: "Withdrawal" } },
@@ -103,6 +115,31 @@ export async function GET() {
         _sum: { quantity: true },
         orderBy: { _sum: { quantity: "desc" } },
         take: 5,
+      }),
+      // Previous periods for N vs N-1 comparison
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: prevDayStart, lt: startOfDay } },
+        _sum: { profit: true, totalPrice: true },
+      }),
+      prisma.expense.aggregate({
+        where: { userId, date: { gte: prevDayStart, lt: startOfDay }, type: { not: "Withdrawal" } },
+        _sum: { amount: true },
+      }),
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: prevWeekStart, lt: startOfWeek } },
+        _sum: { profit: true, totalPrice: true },
+      }),
+      prisma.expense.aggregate({
+        where: { userId, date: { gte: prevWeekStart, lt: startOfWeek }, type: { not: "Withdrawal" } },
+        _sum: { amount: true },
+      }),
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: prevMonthStart, lt: startOfMonth } },
+        _sum: { profit: true, totalPrice: true },
+      }),
+      prisma.expense.aggregate({
+        where: { userId, date: { gte: prevMonthStart, lt: startOfMonth }, type: { not: "Withdrawal" } },
+        _sum: { amount: true },
       }),
     ]);
 
@@ -186,6 +223,23 @@ export async function GET() {
     const startingCash = Number(cashDrawer?.startingCash || 500);
     const expectedCash = startingCash + revenueForCaisse - currentExpenses;
 
+    // Previous period net profits
+    const prevDay = {
+      profit: Number(prevDaySales._sum?.profit || 0) - Number(prevDayExpenses._sum?.amount || 0),
+      grossProfit: Number(prevDaySales._sum?.profit || 0),
+      expenses: Number(prevDayExpenses._sum?.amount || 0),
+    };
+    const prevWeek = {
+      profit: Number(prevWeekSales._sum?.profit || 0) - Number(prevWeekExpenses._sum?.amount || 0),
+      grossProfit: Number(prevWeekSales._sum?.profit || 0),
+      expenses: Number(prevWeekExpenses._sum?.amount || 0),
+    };
+    const prevMonth = {
+      profit: Number(prevMonthSales._sum?.profit || 0) - Number(prevMonthExpenses._sum?.amount || 0),
+      grossProfit: Number(prevMonthSales._sum?.profit || 0),
+      expenses: Number(prevMonthExpenses._sum?.amount || 0),
+    };
+
     return NextResponse.json({
       daily: {
         revenue: dailyRevenueTotal,
@@ -193,6 +247,7 @@ export async function GET() {
         grossProfit: dailyProfitTotal,
         expenses: Number(dailyExpenses._sum?.amount || 0),
         quantity: dailyQuantityTotal,
+        prev: prevDay,
       },
       weekly: {
         revenue: Number(weeklySales._sum?.totalPrice || 0),
@@ -200,6 +255,7 @@ export async function GET() {
         grossProfit: Number(weeklySales._sum?.profit || 0),
         expenses: Number(weeklyExpenses._sum?.amount || 0),
         quantity: Number(weeklySales._sum?.quantity || 0),
+        prev: prevWeek,
       },
       monthly: {
         revenue: Number(monthlySales._sum?.totalPrice || 0),
@@ -207,6 +263,7 @@ export async function GET() {
         grossProfit: grossMonthlyProfit,
         expenses: Number(monthlyExpenses._sum?.amount || 0),
         quantity: Number(monthlySales._sum?.quantity || 0),
+        prev: prevMonth,
       },
       total: {
         revenue: Number(totalSales._sum?.totalPrice || 0),

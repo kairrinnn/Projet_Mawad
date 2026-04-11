@@ -89,6 +89,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const MAX_CASHIER_DISCOUNT_PCT = 0.30;
+    if (
+      sessionResult.session.user.role !== "MANAGER" &&
+      discount > subtotal * MAX_CASHIER_DISCOUNT_PCT
+    ) {
+      return NextResponse.json(
+        { error: `Remise limitée à ${MAX_CASHIER_DISCOUNT_PCT * 100}% pour un caissier. Contactez le gérant.` },
+        { status: 400 }
+      );
+    }
+
     const totalRevenue = subtotal - discount;
     const totalCost = costPrice * quantity;
     const totalProfit = totalRevenue - totalCost;

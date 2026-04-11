@@ -36,7 +36,8 @@ type Expense    = { id: string; type: string; amount: number; description: strin
 type StockEntry = { id: string; productId: string; quantity: number; costPrice: number; totalCost: number; date: string; product: { name: string } };
 type ProductSummary = { id: string; stock: number; costPrice: number };
 type PeriodKey = "daily" | "weekly" | "monthly" | "total";
-type DashboardPeriod = { profit?: number; grossProfit?: number; expenses?: number };
+type PrevPeriod = { profit: number; grossProfit: number; expenses: number };
+type DashboardPeriod = { profit?: number; grossProfit?: number; expenses?: number; prev?: PrevPeriod };
 type DashboardData = Record<PeriodKey, DashboardPeriod> & {
   cashDrawer?: { balance?: number };
   chartData?: Array<{ date: string; profit: number; expenses: number }>;
