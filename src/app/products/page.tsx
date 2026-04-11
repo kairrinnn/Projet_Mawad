@@ -3,13 +3,14 @@
 import { useEffect, useState, useRef } from "react";
 import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
-import { Search, AlertCircle, X, Plus } from "lucide-react";
+import { Search, AlertCircle, X, Plus, FileSpreadsheet } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { CategoryManager } from "@/components/products/CategoryManager";
 import { StockHistoryDialog } from "@/components/products/StockHistoryDialog";
 import { ProductTable } from "@/components/products/ProductTable";
 import { BarcodeScannerDialog } from "@/components/products/BarcodeScannerDialog";
 import { ProductFormDialog } from "@/components/products/ProductFormDialog";
+import { ProductImportDialog } from "@/components/products/ProductImportDialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   
   const [openAdd, setOpenAdd] = useState(false);
+  const [openImport, setOpenImport] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [openCategories, setOpenCategories] = useState(false);
@@ -500,14 +502,25 @@ export default function ProductsPage() {
           <p className="text-slate-500">Gérez votre inventaire et générez vos QR codes.</p>
         </div>
         
-        <Button
-          type="button"
-          onClick={() => setOpenAdd(true)}
-          className="bg-indigo-600 hover:bg-indigo-700"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Ajouter un produit
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpenImport(true)}
+            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Importer Excel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setOpenAdd(true)}
+            className="bg-indigo-600 hover:bg-indigo-700"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Ajouter un produit
+          </Button>
+        </div>
 
         <ProductFormDialog
           open={openAdd}
@@ -676,11 +689,17 @@ export default function ProductsPage() {
           submitting={submitting}
         />
 
-        <StockHistoryDialog 
+        <StockHistoryDialog
           open={openHistory}
           onOpenChange={setOpenHistory}
           productName={selectedProduct?.name}
           history={stockHistory}
+        />
+
+        <ProductImportDialog
+          open={openImport}
+          onOpenChange={setOpenImport}
+          onImportComplete={fetchData}
         />
     </div>
   );

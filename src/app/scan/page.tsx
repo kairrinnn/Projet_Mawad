@@ -377,10 +377,6 @@ export default function ScanPage() {
   const finalizeOrder = async () => {
     if (cart.length === 0) return;
     const total = calculateTotal();
-    if (paymentMethod === "CASH" && cashReceived < total) {
-      toast.error("Le montant recu doit couvrir le total a payer");
-      return;
-    }
     setSubmitting(true);
     const items = cart.map(item => ({
       productId: item.product.id,
