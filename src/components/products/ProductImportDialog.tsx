@@ -38,6 +38,7 @@ interface ProductImportDialogProps {
 
 const REQUIRED_COLUMNS = ["name", "salePrice", "costPrice"];
 const COLUMN_ALIASES: Record<string, string> = {
+  // Noms français
   nom: "name",
   produit: "name",
   "prix de vente": "salePrice",
@@ -46,7 +47,6 @@ const COLUMN_ALIASES: Record<string, string> = {
   "prix d'achat": "costPrice",
   "prix achat": "costPrice",
   prixachat: "costPrice",
-  stock: "stock",
   "seuil alerte": "lowStockThreshold",
   "seuil bas": "lowStockThreshold",
   "code-barres": "barcode",
@@ -55,6 +55,14 @@ const COLUMN_ALIASES: Record<string, string> = {
   "code barre": "barcode",
   categorie: "category",
   "catégorie": "category",
+  // Noms canoniques anglais en minuscules (fix: normalizeHeader() applique .toLowerCase())
+  name: "name",
+  saleprice: "salePrice",
+  costprice: "costPrice",
+  stock: "stock",
+  lowstockthreshold: "lowStockThreshold",
+  barcode: "barcode",
+  category: "category",
   description: "description",
 };
 
