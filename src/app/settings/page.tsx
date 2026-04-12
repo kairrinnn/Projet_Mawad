@@ -65,6 +65,7 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState(DEFAULT_SHOP_SETTINGS.phone);
   const [address, setAddress] = useState(DEFAULT_SHOP_SETTINGS.address);
   const [receiptFooter, setReceiptFooter] = useState(DEFAULT_SHOP_SETTINGS.receiptFooter);
+  const [defaultCashFund, setDefaultCashFund] = useState(String(DEFAULT_SHOP_SETTINGS.defaultCashFund));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -79,6 +80,7 @@ export default function SettingsPage() {
     setPhone(settings.phone);
     setAddress(settings.address);
     setReceiptFooter(settings.receiptFooter);
+    setDefaultCashFund(String(settings.defaultCashFund));
     setLoading(false);
   }, []);
 
@@ -90,6 +92,7 @@ export default function SettingsPage() {
       phone: phone.trim(),
       address: address.trim(),
       receiptFooter: receiptFooter.trim() || DEFAULT_SHOP_SETTINGS.receiptFooter,
+      defaultCashFund: Number(defaultCashFund) || DEFAULT_SHOP_SETTINGS.defaultCashFund,
     });
     toast.success("Parametres du poste enregistres avec succes");
     setSaving(false);
@@ -188,6 +191,7 @@ export default function SettingsPage() {
       setPhone(DEFAULT_SHOP_SETTINGS.phone);
       setAddress(DEFAULT_SHOP_SETTINGS.address);
       setReceiptFooter(DEFAULT_SHOP_SETTINGS.receiptFooter);
+      setDefaultCashFund(String(DEFAULT_SHOP_SETTINGS.defaultCashFund));
       setResetConfirmText("");
       setResetDialogOpen(false);
       toast.success("Toutes les donnees du compte ont ete reinitialisees.");
@@ -269,6 +273,19 @@ export default function SettingsPage() {
                   onChange={(event) => setReceiptFooter(event.target.value)}
                   placeholder="Ex: Merci pour votre visite."
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="defaultCashFund">Fond de caisse par défaut (MAD)</Label>
+                <Input
+                  id="defaultCashFund"
+                  type="number"
+                  min="0"
+                  value={defaultCashFund}
+                  onChange={(event) => setDefaultCashFund(event.target.value)}
+                  placeholder="Ex: 500"
+                />
+                <p className="text-xs text-slate-400">Utilisé à l&apos;ouverture si aucune clôture précédente n&apos;existe.</p>
               </div>
             </CardContent>
           </Card>

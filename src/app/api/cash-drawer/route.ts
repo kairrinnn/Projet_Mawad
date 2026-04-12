@@ -33,25 +33,39 @@ export async function GET() {
   }
 
   try {
+    const userId = sessionResult.session.user.id;
+    const todayStart = getTodayStart();
+
     const cashDrawer = await prisma.cashDrawer.findUnique({
-      where: {
-        userId_date: {
-          userId: sessionResult.session.user.id,
-          date: getTodayStart(),
-        },
-      },
+      where: { userId_date: { userId, date: todayStart } },
     });
 
-    return NextResponse.json(
-      cashDrawer || {
-        startingCash: 500,
-        expectedCash: 500,
-        closingCash: 0,
-        variance: 0,
-        closedAt: null,
-        notes: null,
-      }
-    );
+    if (cashDrawer) {
+      return NextResponse.json({ ...cashDrawer, carriedOver: false });
+    }
+
+    // Pas encore de caisse aujourd'hui — chercher la plus récente pour carry-over
+    const prevDrawer = await prisma.cashDrawer.findFirst({
+      where: { userId, date: { lt: todayStart } },
+      orderBy: { date: "desc" },
+    });
+
+    // Si clôturée → reprendre le montant compté ; sinon → reprendre le fond de départ
+    const suggestedFund = prevDrawer
+      ? prevDrawer.closedAt
+        ? Number(prevDrawer.closingCash)
+        : Number(prevDrawer.startingCash)
+      : null;
+
+    return NextResponse.json({
+      startingCash: suggestedFund ?? 500,
+      expectedCash: suggestedFund ?? 500,
+      closingCash: 0,
+      variance: 0,
+      closedAt: null,
+      notes: null,
+      carriedOver: suggestedFund !== null,
+    });
   } catch {
     return NextResponse.json({ error: "Failed to fetch cash drawer" }, { status: 500 });
   }

@@ -48,6 +48,7 @@ import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { readLocalShopSettings } from "@/lib/shop-settings";
 
 interface DashboardMetric {
   revenue: number;
@@ -102,6 +103,7 @@ interface DashboardData {
     variance: number;
     isClosed: boolean;
     closedAt?: string | null;
+    carriedOver?: boolean;
   };
   currentExpenses: number;
   lowStockCount: number;
@@ -137,7 +139,11 @@ export default function DashboardPage() {
     const { data: json, error } = await apiRequest<DashboardData>("/api/dashboard", { cache: 'no-store' });
     if (!error && json) {
       setData(json);
-      setNewStartingCash(json.cashDrawer.startingCash.toString());
+      // Si carry-over depuis la veille → utiliser ce montant ; sinon → fond par défaut des paramètres
+      const suggestedFund = json.cashDrawer.carriedOver
+        ? json.cashDrawer.startingCash
+        : readLocalShopSettings().defaultCashFund;
+      setNewStartingCash(suggestedFund.toString());
       setClosingCash((json.cashDrawer.closingCash || json.cashDrawer.balance).toString());
     } else {
       setData(null);

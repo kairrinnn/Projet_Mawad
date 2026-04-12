@@ -4,6 +4,7 @@ export interface ShopSettingsPayload {
   phone: string;
   address: string;
   receiptFooter: string;
+  defaultCashFund: number;
 }
 
 export type LocalShopSettings = ShopSettingsPayload;
@@ -14,6 +15,7 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettingsPayload = {
   phone: "",
   address: "",
   receiptFooter: "Merci pour votre visite.",
+  defaultCashFund: 500,
 };
 
 const STORAGE_KEYS = {
@@ -22,17 +24,20 @@ const STORAGE_KEYS = {
   phone: "shop_phone",
   address: "shop_address",
   receiptFooter: "shop_receipt_footer",
+  defaultCashFund: "shop_default_cash_fund",
 } as const;
 
 export function normalizeShopSettings(
   input?: Partial<ShopSettingsPayload> | null
 ): ShopSettingsPayload {
+  const rawFund = Number(input?.defaultCashFund);
   return {
     shopName: input?.shopName?.trim() || DEFAULT_SHOP_SETTINGS.shopName,
     currency: input?.currency || DEFAULT_SHOP_SETTINGS.currency,
     phone: input?.phone?.trim() || "",
     address: input?.address?.trim() || "",
     receiptFooter: input?.receiptFooter?.trim() || DEFAULT_SHOP_SETTINGS.receiptFooter,
+    defaultCashFund: rawFund > 0 ? rawFund : DEFAULT_SHOP_SETTINGS.defaultCashFund,
   };
 }
 
@@ -51,6 +56,9 @@ export function readLocalShopSettings(): LocalShopSettings {
     receiptFooter:
       localStorage.getItem(STORAGE_KEYS.receiptFooter) ||
       DEFAULT_SHOP_SETTINGS.receiptFooter,
+    defaultCashFund:
+      Number(localStorage.getItem(STORAGE_KEYS.defaultCashFund)) ||
+      DEFAULT_SHOP_SETTINGS.defaultCashFund,
   });
 }
 
@@ -66,6 +74,7 @@ export function saveLocalShopSettings(settings: LocalShopSettings) {
   localStorage.setItem(STORAGE_KEYS.phone, normalized.phone);
   localStorage.setItem(STORAGE_KEYS.address, normalized.address);
   localStorage.setItem(STORAGE_KEYS.receiptFooter, normalized.receiptFooter);
+  localStorage.setItem(STORAGE_KEYS.defaultCashFund, String(normalized.defaultCashFund));
   window.dispatchEvent(new Event("storage"));
   window.dispatchEvent(new Event("shop-settings-updated"));
 }
