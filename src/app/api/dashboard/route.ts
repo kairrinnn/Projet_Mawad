@@ -62,6 +62,9 @@ export async function GET() {
       prevWeekExpenses,
       prevMonthSales,
       prevMonthExpenses,
+      weeklyWeightSales,
+      monthlyWeightSales,
+      totalWeightSales,
     ] = await Promise.all([
       prisma.expense.aggregate({
         where: { userId, date: { gte: startOfDay, lt: nextDay }, type: { not: "Withdrawal" } },
@@ -141,6 +144,18 @@ export async function GET() {
         where: { userId, date: { gte: prevMonthStart, lt: startOfMonth }, type: { not: "Withdrawal" } },
         _sum: { amount: true },
       }),
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: startOfWeek }, soldByWeight: true },
+        _sum: { quantity: true },
+      }),
+      prisma.sale.aggregate({
+        where: { userId, createdAt: { gte: startOfMonth }, soldByWeight: true },
+        _sum: { quantity: true },
+      }),
+      prisma.sale.aggregate({
+        where: { userId, soldByWeight: true },
+        _sum: { quantity: true },
+      }),
     ]);
 
     const productIds = topSalesGrouped.map((sale) => sale.productId).filter(Boolean) as string[];
@@ -164,7 +179,8 @@ export async function GET() {
 
     let dailyRevenueTotal = 0;
     let dailyProfitTotal = 0;
-    let dailyQuantitySold = 0;
+    let dailyUnitsSold = 0;
+    let dailyWeightKg = 0;
     let cashIn = 0;       // espèces reçues (ventes cash positives)
     let cashRefunds = 0;  // espèces rendues (remboursements cash)
 
@@ -177,7 +193,11 @@ export async function GET() {
 
       // Quantité : uniquement les ventes réelles (pas les remboursements, pas les ventes annulées)
       if (transaction.type !== "REFUND" && !transaction.isRefunded) {
-        dailyQuantitySold += transaction.quantity;
+        if (transaction.soldByWeight) {
+          dailyWeightKg += transaction.quantity;
+        } else {
+          dailyUnitsSold += transaction.quantity;
+        }
       }
 
       if (transaction.paymentMethod === "CASH") {
@@ -258,7 +278,8 @@ export async function GET() {
         profit: dailyProfitTotal - Number(dailyExpenses._sum?.amount || 0),
         grossProfit: dailyProfitTotal,
         expenses: Number(dailyExpenses._sum?.amount || 0),
-        quantity: dailyQuantitySold,
+        quantity: dailyUnitsSold,
+        weightKg: dailyWeightKg,
         prev: prevDay,
       },
       weekly: {
@@ -266,7 +287,8 @@ export async function GET() {
         profit: Number(weeklySales._sum?.profit || 0) - Number(weeklyExpenses._sum?.amount || 0),
         grossProfit: Number(weeklySales._sum?.profit || 0),
         expenses: Number(weeklyExpenses._sum?.amount || 0),
-        quantity: Number(weeklySales._sum?.quantity || 0),
+        quantity: Number(weeklySales._sum?.quantity || 0) - Number(weeklyWeightSales._sum?.quantity || 0),
+        weightKg: Number(weeklyWeightSales._sum?.quantity || 0),
         prev: prevWeek,
       },
       monthly: {
@@ -274,7 +296,8 @@ export async function GET() {
         profit: netMonthlyProfit,
         grossProfit: grossMonthlyProfit,
         expenses: Number(monthlyExpenses._sum?.amount || 0),
-        quantity: Number(monthlySales._sum?.quantity || 0),
+        quantity: Number(monthlySales._sum?.quantity || 0) - Number(monthlyWeightSales._sum?.quantity || 0),
+        weightKg: Number(monthlyWeightSales._sum?.quantity || 0),
         prev: prevMonth,
       },
       total: {
@@ -282,7 +305,8 @@ export async function GET() {
         profit: Number(totalSales._sum?.profit || 0) - Number(totalExpenses._sum?.amount || 0),
         grossProfit: Number(totalSales._sum?.profit || 0),
         expenses: Number(totalExpenses._sum?.amount || 0),
-        quantity: Number(totalSales._sum?.quantity || 0),
+        quantity: Number(totalSales._sum?.quantity || 0) - Number(totalWeightSales._sum?.quantity || 0),
+        weightKg: Number(totalWeightSales._sum?.quantity || 0),
       },
       cashDrawer: {
         startingCash,

@@ -54,6 +54,17 @@ interface DashboardMetric {
   revenue: number;
   profit: number;
   quantity: number;
+  weightKg?: number;
+}
+
+function formatSoldLabel(units: number, weightKg: number): string {
+  const parts: string[] = [];
+  if (units > 0) parts.push(`${units} unité${units > 1 ? "s" : ""}`);
+  if (weightKg > 0) {
+    const grams = Math.round(weightKg * 1000);
+    parts.push(grams < 1000 ? `${grams} g` : `${new Intl.NumberFormat("fr-FR").format(Math.round(weightKg * 100) / 100)} kg`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "0 vente";
 }
 
 interface LowStockProduct {
@@ -454,7 +465,7 @@ export default function DashboardPage() {
                 {showProfits ? formatCurrency(data.daily.profit) : formatCurrency(data.daily.revenue)}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {data.daily.quantity} produit(s) vendu(s)
+              {formatSoldLabel(data.daily.quantity, data.daily.weightKg ?? 0)}
             </p>
           </CardContent>
         </Card>
@@ -471,7 +482,7 @@ export default function DashboardPage() {
                 {showProfits ? formatCurrency(data.weekly.profit) : formatCurrency(data.weekly.revenue)}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {data.weekly.quantity} produit(s) vendu(s)
+              {formatSoldLabel(data.weekly.quantity, data.weekly.weightKg ?? 0)}
             </p>
           </CardContent>
         </Card>
