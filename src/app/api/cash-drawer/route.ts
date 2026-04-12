@@ -90,22 +90,6 @@ export async function POST(request: Request) {
   const date = getTodayStart();
 
   try {
-    const existing = await prisma.cashDrawer.findUnique({
-      where: {
-        userId_date: {
-          userId: sessionResult.session.user.id,
-          date,
-        },
-      },
-    });
-
-    if (existing?.closedAt) {
-      return NextResponse.json(
-        { error: "This cash drawer is already closed for today" },
-        { status: 400 }
-      );
-    }
-
     const cashDrawer = await prisma.cashDrawer.upsert({
       where: {
         userId_date: {
@@ -115,7 +99,11 @@ export async function POST(request: Request) {
       },
       update: {
         startingCash: bodyResult.data.startingCash,
-        expectedCash: existing?.expectedCash ?? bodyResult.data.startingCash,
+        expectedCash: bodyResult.data.startingCash,
+        closedAt: null,
+        closingCash: null,
+        variance: null,
+        notes: null,
       },
       create: {
         userId: sessionResult.session.user.id,
