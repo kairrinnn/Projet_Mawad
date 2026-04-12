@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Loader2, ShoppingCart, CalendarDays } from "lucide-react";
+import { RotateCcw, Loader2, ShoppingCart, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/payments";
 import { cn } from "@/lib/utils";
@@ -36,11 +36,24 @@ interface SaleRow {
   } | null;
 }
 
+const PAGE_SIZE = 20;
+
+function getPageNumbers(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "…")[] = [1];
+  if (current > 3) pages.push("…");
+  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
+  if (current < total - 2) pages.push("…");
+  pages.push(total);
+  return pages;
+}
+
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchSales = async () => {
     try {
@@ -90,9 +103,18 @@ export default function SalesPage() {
   };
 
   const filteredSales = (Array.isArray(sales) ? sales : []).filter(s => {
-      const prodName = s.product?.name?.toLowerCase() || "";
-      return prodName.includes(searchTerm.toLowerCase());
+    const prodName = s.product?.name?.toLowerCase() || "";
+    return prodName.includes(searchTerm.toLowerCase());
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredSales.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedSales = filteredSales.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const handleSearch = (val: string) => {
+    setSearchTerm(val);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="flex-1 space-y-6">
@@ -104,10 +126,10 @@ export default function SalesPage() {
       </div>
 
       <div className="flex items-center space-x-2">
-         <Input 
-            placeholder="Rechercher par produit..." 
+         <Input
+            placeholder="Rechercher par produit..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="max-w-sm bg-white shadow-sm"
          />
       </div>
@@ -140,14 +162,14 @@ export default function SalesPage() {
                     Chargement de l&apos;historique...
                   </TableCell>
                 </TableRow>
-              ) : filteredSales.length === 0 ? (
+              ) : paginatedSales.length === 0 ? (
                  <TableRow>
                   <TableCell colSpan={8} className="text-center py-10">
                     <span className="text-slate-500">Aucune vente enregistrée pour le moment.</span>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredSales.map((sale) => {
+                paginatedSales.map((sale) => {
                   const isRefunded = sale.isRefunded;
                   const isRefundOperation = sale.type === "REFUND";
 
@@ -238,6 +260,49 @@ export default function SalesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-slate-500">
+          <span>
+            {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredSales.length)} sur {filteredSales.length} résultat(s)
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {getPageNumbers(safePage, totalPages).map((p, i) =>
+              p === "…" ? (
+                <span key={`ellipsis-${i}`} className="px-1">…</span>
+              ) : (
+                <Button
+                  key={p}
+                  variant={safePage === p ? "default" : "outline"}
+                  size="sm"
+                  className={`h-8 w-8 p-0 ${safePage === p ? "bg-indigo-600 hover:bg-indigo-700" : ""}`}
+                  onClick={() => setCurrentPage(p)}
+                >
+                  {p}
+                </Button>
+              )
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
