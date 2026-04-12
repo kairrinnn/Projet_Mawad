@@ -113,6 +113,7 @@ interface DashboardData {
     closingCash: number;
     variance: number;
     isClosed: boolean;
+    isOpened: boolean;
     closedAt?: string | null;
     carriedOver?: boolean;
   };
@@ -433,11 +434,11 @@ export default function DashboardPage() {
                 )}
             </div>
             <div className="flex items-center gap-2 mt-3">
-                <button 
+                <button
                     onClick={() => setShowCashDialog(true)}
                     className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors"
                 >
-                    Modifier
+                    {data.cashDrawer.isOpened ? "Modifier fond" : "Ouvrir"}
                 </button>
                 <button
                     onClick={() => setShowCloseCashDialog(true)}

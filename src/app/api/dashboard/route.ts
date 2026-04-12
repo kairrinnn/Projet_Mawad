@@ -321,6 +321,7 @@ export async function GET() {
         closingCash: Number(cashDrawer?.closingCash || 0),
         variance: Number(cashDrawer?.variance || 0),
         isClosed: Boolean(cashDrawer?.closedAt),
+        isOpened: Boolean(cashDrawer),
         closedAt: cashDrawer?.closedAt ?? null,
         balance: expectedCash,
       },
