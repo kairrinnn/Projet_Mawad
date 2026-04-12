@@ -434,18 +434,20 @@ export default function DashboardPage() {
                 )}
             </div>
             <div className="flex items-center gap-2 mt-3">
-                <button
-                    onClick={() => setShowCashDialog(true)}
-                    className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors"
-                >
-                    {data.cashDrawer.isOpened ? "Modifier fond" : "Ouvrir"}
-                </button>
+                {!data.cashDrawer.isClosed && (
+                  <button
+                      onClick={() => setShowCashDialog(true)}
+                      className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors"
+                  >
+                      {data.cashDrawer.isOpened ? "Modifier fond" : "Ouvrir"}
+                  </button>
+                )}
                 <button
                     onClick={() => setShowCloseCashDialog(true)}
                     className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded transition-colors disabled:opacity-50"
                     disabled={data.cashDrawer.isClosed}
                 >
-                    {data.cashDrawer.isClosed ? "Cloturee" : "Cloturer"}
+                    {data.cashDrawer.isClosed ? "Clôturée" : "Clôturer"}
                 </button>
             </div>
           </CardContent>
