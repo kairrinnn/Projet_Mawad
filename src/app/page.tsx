@@ -223,6 +223,7 @@ export default function DashboardPage() {
       body: JSON.stringify({
         closingCash: Number(closingCash),
         expectedCash: data.cashDrawer.balance,
+        startingCash: data.cashDrawer.startingCash,
         notes: closingNotes,
       }),
       cache: "no-store"

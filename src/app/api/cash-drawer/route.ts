@@ -15,6 +15,7 @@ const cashDrawerSchema = z.object({
 const closeDrawerSchema = z.object({
   closingCash: z.coerce.number().finite().min(0).max(1_000_000),
   expectedCash: z.coerce.number().finite().min(0).max(1_000_000),
+  startingCash: z.coerce.number().finite().min(0).max(1_000_000).optional().default(500),
   notes: z.string().trim().max(500).optional().nullable(),
 });
 
@@ -191,7 +192,7 @@ export async function PATCH(request: Request) {
       create: {
         userId: sessionResult.session.user.id,
         date,
-        startingCash: 500,
+        startingCash: bodyResult.data.startingCash,
         expectedCash: bodyResult.data.expectedCash,
         closingCash: bodyResult.data.closingCash,
         variance,
