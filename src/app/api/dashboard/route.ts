@@ -75,7 +75,11 @@ export async function GET() {
         _sum: { amount: true },
       }),
       prisma.expense.aggregate({
-        where: { userId, date: { gte: startOfDay, lt: nextDay }, type: { in: ["Daily", "Withdrawal"] } },
+        where: {
+          userId,
+          date: { gte: startOfDay, lt: nextDay },
+          OR: [{ type: { in: ["Daily", "Withdrawal"] } }, { paidInCash: true }],
+        },
         _sum: { amount: true },
       }),
       prisma.expense.aggregate({

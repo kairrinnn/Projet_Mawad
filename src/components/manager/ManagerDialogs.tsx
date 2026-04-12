@@ -1,12 +1,13 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -27,15 +28,15 @@ interface ManagerDialogsProps {
   
   addExpOpen: boolean;
   setAddExpOpen: (o: boolean) => void;
-  expForm: { type: string; amount: string; description: string; date: string };
-  setExpForm: (f: { type: string; amount: string; description: string; date: string }) => void;
+  expForm: { type: string; amount: string; description: string; date: string; paidInCash: boolean };
+  setExpForm: (f: { type: string; amount: string; description: string; date: string; paidInCash: boolean }) => void;
   EXPENSE_TYPES: { value: string; label: string }[];
   addExpense: (e: React.FormEvent) => void;
   
   editExpOpen: boolean;
   setEditExpOpen: (o: boolean) => void;
-  editExp: { id: string; type: string | null; amount: string | number; description: string; date: string } | null;
-  setEditExp: (f: { id: string; type: string | null; amount: string | number; description: string; date: string } | null) => void;
+  editExp: { id: string; type: string | null; amount: string | number; description: string; date: string; paidInCash?: boolean } | null;
+  setEditExp: (f: { id: string; type: string | null; amount: string | number; description: string; date: string; paidInCash?: boolean } | null) => void;
   updateExpense: (e: React.FormEvent) => void;
   
   delConfirmOpen: boolean;
@@ -137,6 +138,18 @@ export function ManagerDialogs({
               <Label>Date de paiement</Label>
               <Input type="date" value={expForm.date} onChange={(e) => setExpForm({ ...expForm, date: e.target.value })} />
             </div>
+            {expForm.type !== "Daily" && expForm.type !== "Withdrawal" && (
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <Checkbox
+                  id="paidInCash-add"
+                  checked={expForm.paidInCash}
+                  onCheckedChange={(checked: boolean | "indeterminate") => setExpForm({ ...expForm, paidInCash: checked === true })}
+                />
+                <Label htmlFor="paidInCash-add" className="cursor-pointer text-sm font-normal text-slate-700">
+                  Payé en espèces (déduit de la caisse)
+                </Label>
+              </div>
+            )}
             <DialogFooter>
               <Button type="submit" className="w-full bg-indigo-600" disabled={submitting}>
                 {submitting ? "Enregistrement…" : "Enregistrer"}
@@ -177,6 +190,18 @@ export function ManagerDialogs({
                 <Label>Date</Label>
                 <Input type="date" value={editExp.date ? new Date(editExp.date).toISOString().split("T")[0] : ""} onChange={(e) => setEditExp({ ...editExp, date: e.target.value })} />
               </div>
+              {editExp.type !== "Daily" && editExp.type !== "Withdrawal" && (
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <Checkbox
+                    id="paidInCash-edit"
+                    checked={editExp.paidInCash ?? false}
+                    onCheckedChange={(checked: boolean | "indeterminate") => setEditExp({ ...editExp, paidInCash: checked === true })}
+                  />
+                  <Label htmlFor="paidInCash-edit" className="cursor-pointer text-sm font-normal text-slate-700">
+                    Payé en espèces (déduit de la caisse)
+                  </Label>
+                </div>
+              )}
               <DialogFooter>
                 <Button type="submit" className="w-full bg-indigo-600" disabled={submitting}>
                   {submitting ? "Mise à jour…" : "Mettre à jour"}

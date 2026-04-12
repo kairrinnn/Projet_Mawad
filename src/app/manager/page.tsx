@@ -42,7 +42,7 @@ type DashboardData = Record<PeriodKey, DashboardPeriod> & {
   cashDrawer?: { balance?: number };
   chartData?: Array<{ date: string; profit: number; expenses: number }>;
 };
-type EditableExpense = { id: string; type: string | null; amount: string | number; description: string; date: string };
+type EditableExpense = { id: string; type: string | null; amount: string | number; description: string; date: string; paidInCash?: boolean };
 
 const EXPENSE_TYPES = [
   { value: "Daily",    label: "Quotidien (Pain, petit achat…)" },
@@ -98,7 +98,8 @@ export default function ManagerPage() {
     type: "Daily" as string,
     amount: "",
     description: "",
-    date: new Date().toISOString().split("T")[0]
+    date: new Date().toISOString().split("T")[0],
+    paidInCash: false,
   });
   const [submitting, setSub]  = useState(false);
 
@@ -235,7 +236,7 @@ export default function ManagerPage() {
     e.preventDefault(); setSub(true);
     try {
       const r = await fetch("/api/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(expForm) });
-      if (r.ok) { toast.success("Dépense enregistrée"); setExpForm({ type: "Daily", amount: "", description: "", date: new Date().toISOString().split("T")[0] }); setAddExpOpen(false); fetchData(); }
+      if (r.ok) { toast.success("Dépense enregistrée"); setExpForm({ type: "Daily", amount: "", description: "", date: new Date().toISOString().split("T")[0], paidInCash: false }); setAddExpOpen(false); fetchData(); }
     } catch { toast.error("Erreur"); } finally { setSub(false); }
   };
 

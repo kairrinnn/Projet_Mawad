@@ -184,9 +184,10 @@ model Sale {
 
 model Expense {
   id          String   @id @default(cuid())
-  type        String   // Salary, Utility, Rent, Internet, Stock, Daily
+  type        String   // Salary, Utility, Rent, Internet, Stock, Daily, Withdrawal
   amount      Decimal @db.Decimal(12, 2)
   description String?
+  paidInCash  Boolean  @default(false)
   date        DateTime @default(now())
   userId      String
   createdAt   DateTime @default(now())

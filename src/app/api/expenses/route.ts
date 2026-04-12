@@ -5,11 +5,14 @@ import { recordAuditLog } from "@/lib/audit";
 import { requireRole } from "@/lib/server/auth";
 import { parseJsonBody } from "@/lib/server/validation";
 
+const EXPENSE_TYPE_VALUES = ["Daily", "Salary", "Utility", "Rent", "Internet", "Stock", "Withdrawal"] as const;
+
 const expenseSchema = z.object({
-  type: z.string().trim().min(1).max(64),
+  type: z.enum(EXPENSE_TYPE_VALUES),
   amount: z.coerce.number().finite().positive().max(1_000_000),
   description: z.string().trim().max(500).optional().nullable(),
   date: z.coerce.date().optional(),
+  paidInCash: z.boolean().optional().default(false),
 });
 
 export async function GET() {
@@ -47,6 +50,7 @@ export async function POST(request: Request) {
         amount: bodyResult.data.amount,
         description: bodyResult.data.description || null,
         date: bodyResult.data.date ?? new Date(),
+        paidInCash: bodyResult.data.paidInCash ?? false,
         userId: sessionResult.session.user.id,
       },
     });
