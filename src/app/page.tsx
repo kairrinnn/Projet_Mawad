@@ -95,6 +95,7 @@ interface DashboardData {
     startingCash: number;
     expectedCash: number;
     currentRevenue: number;
+    cashRefunds: number;
     currentExpenses: number;
     balance: number;
     closingCash: number;
@@ -398,8 +399,13 @@ export default function DashboardPage() {
             </div>
             <div className="space-y-2 mt-1 text-xs opacity-80 leading-tight">
                 <p>Fond: {formatCurrency(data.cashDrawer.startingCash)}</p>
-                <p>Espèces du jour: {formatCurrency(data.cashDrawer.currentRevenue)}</p>
-                <p>Dépenses caisse: {formatCurrency(data.cashDrawer.currentExpenses)}</p>
+                <p>Ventes espèces: +{formatCurrency(data.cashDrawer.currentRevenue)}</p>
+                {data.cashDrawer.cashRefunds > 0 && (
+                  <p className="opacity-100 text-red-200">Remboursements: -{formatCurrency(data.cashDrawer.cashRefunds)}</p>
+                )}
+                {data.cashDrawer.currentExpenses > 0 && (
+                  <p>Dépenses caisse: -{formatCurrency(data.cashDrawer.currentExpenses)}</p>
+                )}
                 {data.cashDrawer.isClosed ? (
                   <p>
                     Clôturée: {formatCurrency(data.cashDrawer.closingCash)} ({formatCurrency(data.cashDrawer.variance)} d&apos;écart)

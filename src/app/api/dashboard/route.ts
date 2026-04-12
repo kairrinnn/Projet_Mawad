@@ -164,16 +164,28 @@ export async function GET() {
 
     let dailyRevenueTotal = 0;
     let dailyProfitTotal = 0;
-    let dailyQuantityTotal = 0;
-    let revenueForCaisse = 0;
+    let dailyQuantitySold = 0;
+    let cashIn = 0;       // espèces reçues (ventes cash positives)
+    let cashRefunds = 0;  // espèces rendues (remboursements cash)
 
     for (const transaction of todaysTransactions) {
-      dailyRevenueTotal += Number(transaction.totalPrice);
-      dailyProfitTotal += Number(transaction.profit);
-      dailyQuantityTotal += transaction.quantity;
+      const totalPrice = Number(transaction.totalPrice);
+      const profit = Number(transaction.profit);
+
+      dailyRevenueTotal += totalPrice;
+      dailyProfitTotal += profit;
+
+      // Quantité : uniquement les ventes réelles (pas les remboursements, pas les ventes annulées)
+      if (transaction.type !== "REFUND" && !transaction.isRefunded) {
+        dailyQuantitySold += transaction.quantity;
+      }
 
       if (transaction.paymentMethod === "CASH") {
-        revenueForCaisse += Number(transaction.totalPrice);
+        if (totalPrice >= 0) {
+          cashIn += totalPrice;
+        } else {
+          cashRefunds += Math.abs(totalPrice);
+        }
       }
     }
 
@@ -221,7 +233,7 @@ export async function GET() {
     const netMonthlyProfit = grossMonthlyProfit - Number(monthlyExpenses._sum?.amount || 0);
     const currentExpenses = Number(dailyCashOut._sum?.amount || 0);
     const startingCash = Number(cashDrawer?.startingCash || 500);
-    const expectedCash = startingCash + revenueForCaisse - currentExpenses;
+    const expectedCash = startingCash + cashIn - cashRefunds - currentExpenses;
 
     // Previous period net profits
     const prevDay = {
@@ -246,7 +258,7 @@ export async function GET() {
         profit: dailyProfitTotal - Number(dailyExpenses._sum?.amount || 0),
         grossProfit: dailyProfitTotal,
         expenses: Number(dailyExpenses._sum?.amount || 0),
-        quantity: dailyQuantityTotal,
+        quantity: dailyQuantitySold,
         prev: prevDay,
       },
       weekly: {
@@ -275,7 +287,8 @@ export async function GET() {
       cashDrawer: {
         startingCash,
         expectedCash,
-        currentRevenue: revenueForCaisse,
+        currentRevenue: cashIn,
+        cashRefunds,
         currentExpenses,
         closingCash: Number(cashDrawer?.closingCash || 0),
         variance: Number(cashDrawer?.variance || 0),
