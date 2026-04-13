@@ -1,7 +1,7 @@
 "use client";
 
 import { Sidebar } from "./Sidebar";
-import { Menu } from "lucide-react";
+import { Menu, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
@@ -18,53 +18,82 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     const syncSettings = () => {
       setShopName(readLocalShopSettings().shopName);
     };
-
     syncSettings();
     window.addEventListener("shop-settings-updated", syncSettings);
     return () => window.removeEventListener("shop-settings-updated", syncSettings);
   }, []);
 
-  if (pathname === '/login') {
-    return <main className="h-screen bg-slate-50">{children}</main>;
+  if (pathname === "/login") {
+    return <main className="h-screen">{children}</main>;
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex md:flex-shrink-0">
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* ── Desktop sidebar ─────────────────────── */}
+      <div className="hidden md:flex md:flex-shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.12)]">
         <Sidebar />
       </div>
 
-      {/* Main content */}
+      {/* ── Content area ────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile topbar */}
-        <header className="flex h-16 flex-shrink-0 items-center border-b bg-white px-4 md:hidden shadow-sm z-50">
+        <header
+          className="flex h-14 flex-shrink-0 items-center px-4 md:hidden z-50 border-b border-border/60"
+          style={{
+            background: "linear-gradient(180deg, #0d0d1f 0%, #0a0a1b 100%)",
+          }}
+        >
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger render={(props) => (
-              <Button variant="ghost" size="icon" className="-ml-2 text-slate-600" {...props}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-ml-2 text-white/70 hover:text-white hover:bg-white/10"
+                {...props}
+              >
                 <span className="sr-only">Ouvrir le menu</span>
-                <Menu className="h-6 w-6" aria-hidden="true" />
+                <Menu className="h-5 w-5" aria-hidden="true" />
               </Button>
             )} />
             <SheetContent side="left" className="p-0 w-64 border-r-0">
-                <SheetHeader className="sr-only">
-                    <SheetTitle>Menu de navigation</SheetTitle>
-                </SheetHeader>
+              <SheetHeader className="sr-only">
+                <SheetTitle>Menu de navigation</SheetTitle>
+              </SheetHeader>
               <Sidebar onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
-          <div className="ml-4 flex grow items-center font-bold text-lg text-slate-900 tracking-tight">
-            {shopName}
+
+          <div className="ml-3 flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600">
+              <QrCode className="h-3.5 w-3.5 text-white" />
+            </div>
+            <span
+              className="text-sm font-semibold text-white tracking-tight"
+              style={{ fontFamily: "var(--font-heading, sans-serif)" }}
+            >
+              {shopName}
+            </span>
           </div>
         </header>
 
-        {/* Main section */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden focus:outline-none">
-          <div className="container mx-auto max-w-7xl px-4 py-8 pb-20 md:pb-8 sm:px-6 md:px-8">
+        {/* ── Main content ────────────────────────── */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-grid">
+          <div className="animate-fade-up mx-auto max-w-7xl px-4 py-8 pb-20 md:pb-8 sm:px-6 md:px-8">
             {children}
           </div>
         </main>
-        <Toaster position="top-right" richColors />
+
+        <Toaster
+          position="top-right"
+          richColors
+          toastOptions={{
+            style: {
+              borderRadius: "12px",
+              fontSize: "13px",
+              fontFamily: "var(--font-sans)",
+            },
+          }}
+        />
       </div>
     </div>
   );

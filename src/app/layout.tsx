@@ -1,10 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Providers } from "@/components/providers";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-heading",
+});
 
 export const viewport: Viewport = {
   themeColor: "#4f46e5",
@@ -31,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="h-full bg-slate-50 antialiased">
-      <body className={inter.className + " h-full overflow-hidden"}>
+    <html lang="fr" className={`h-full antialiased ${inter.variable} ${poppins.variable}`}>
+      <body className={`${inter.className} h-full overflow-hidden`}>
         <Providers>
           <MainLayout>{children}</MainLayout>
         </Providers>
