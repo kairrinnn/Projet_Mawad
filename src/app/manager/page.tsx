@@ -355,30 +355,47 @@ export default function ManagerPage() {
 
   // ── MAIN CONTENT ────────────────────────────────────────────
   return (
-    <div className="flex flex-col space-y-6 max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Espace Gérant</h1>
-          <p className="text-slate-500 mt-1">Gérez vos charges, vos salariés et suivez votre rentabilité.</p>
+      <div className="flex flex-wrap justify-between items-start gap-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-xl shadow-sm"
+            style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)" }}
+          >
+            <ShieldCheck className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Espace Gérant</h1>
+            <p className="text-sm text-slate-400">Charges, stock et rentabilité.</p>
+          </div>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsWithdrawalOpen(true)} className="bg-indigo-600 text-white border-none hover:bg-slate-900 shadow-sm">
-                <Lock className="h-4 w-4 mr-1.5" /> Retrait Gérant
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsExpDialogOpen(true)} className="text-slate-600 border-slate-200 hover:bg-white hover:border-slate-300">
-                <ShoppingCart className="h-4 w-4 mr-1.5" /> Dépense Caisse
-            </Button>
+          <Button
+            size="sm"
+            onClick={() => setIsWithdrawalOpen(true)}
+            className="rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white border-0 shadow-sm gap-1.5"
+          >
+            <Lock className="h-3.5 w-3.5" /> Retrait Gérant
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsExpDialogOpen(true)}
+            className="rounded-full border-slate-200 text-slate-600 hover:bg-slate-50 gap-1.5"
+          >
+            <ShoppingCart className="h-3.5 w-3.5" /> Dépense Caisse
+          </Button>
         </div>
       </div>
 
       <Tabs defaultValue="balance" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[680px] mb-6">
-          <TabsTrigger value="balance" className="flex gap-2"><TrendingUp className="h-4 w-4" /> Bilan</TabsTrigger>
-          <TabsTrigger value="expenses" className="flex gap-2"><Wallet className="h-4 w-4" /> Dépenses</TabsTrigger>
-          <TabsTrigger value="stock" className="flex gap-2"><PackageSearch className="h-4 w-4" /> Stock</TabsTrigger>
-          <TabsTrigger value="calendar" className="flex gap-2"><CalendarDays className="h-4 w-4" /> Calendrier</TabsTrigger>
-          <TabsTrigger value="logs" className="flex gap-2"><ShieldCheck className="h-4 w-4" /> Journaux</TabsTrigger>
+        <TabsList className="h-10 rounded-xl bg-slate-100/80 p-1 gap-0.5 w-full sm:w-auto sm:inline-flex mb-6">
+          <TabsTrigger value="balance" className="rounded-lg text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-700 flex gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Bilan</TabsTrigger>
+          <TabsTrigger value="expenses" className="rounded-lg text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-700 flex gap-1.5"><Wallet className="h-3.5 w-3.5" /> Dépenses</TabsTrigger>
+          <TabsTrigger value="stock" className="rounded-lg text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-700 flex gap-1.5"><PackageSearch className="h-3.5 w-3.5" /> Stock</TabsTrigger>
+          <TabsTrigger value="calendar" className="rounded-lg text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-700 flex gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Calendrier</TabsTrigger>
+          <TabsTrigger value="logs" className="rounded-lg text-xs font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-700 flex gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Journaux</TabsTrigger>
         </TabsList>
 
         <TabsContent value="balance">
@@ -394,9 +411,12 @@ export default function ManagerPage() {
 
         <TabsContent value="expenses">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-slate-800">Historique des Dépenses</h2>
-            <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => setAddExpOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Nouvelle Dépense
+            <h2 className="text-base font-semibold text-slate-800">Historique des Dépenses</h2>
+            <Button
+              onClick={() => setAddExpOpen(true)}
+              className="rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 border-0 gap-1.5"
+            >
+              <Plus className="h-4 w-4" /> Nouvelle Dépense
             </Button>
           </div>
           <ExpensesTab 
