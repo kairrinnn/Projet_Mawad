@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import NextImage from "next/image";
 import { apiRequest } from "@/lib/api";
-import { Search, AlertCircle, X, Plus, FileSpreadsheet } from "lucide-react";
+import { Search, AlertCircle, X, Plus, FileSpreadsheet, Package } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { CategoryManager } from "@/components/products/CategoryManager";
 import { StockHistoryDialog } from "@/components/products/StockHistoryDialog";
@@ -20,7 +20,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -80,12 +80,29 @@ interface ProductFormState {
   weightCostPrice: string;
 }
 
+const emptyForm: ProductFormState = {
+  name: "",
+  salePrice: "",
+  costPrice: "",
+  stock: "",
+  lowStockThreshold: "5",
+  category: "",
+  categoryId: "none",
+  description: "",
+  supplierId: "none",
+  image: "",
+  barcode: "",
+  canBeSoldByWeight: false,
+  weightSalePrice: "",
+  weightCostPrice: "",
+};
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [openAdd, setOpenAdd] = useState(false);
   const [openImport, setOpenImport] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
@@ -97,7 +114,7 @@ export default function ProductsPage() {
   const [openBarcodeScanner, setOpenBarcodeScanner] = useState(false);
   const [scanningBarcode, setScanningBarcode] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  
+
   const [searchTerm, setSearchTerm] = useState("");
   const [newCatName, setNewCatName] = useState("");
   const qrRef = useRef<SVGSVGElement>(null);
@@ -105,22 +122,7 @@ export default function ProductsPage() {
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedViewImage, setSelectedViewImage] = useState<string | null>(null);
-  const [formData, setFormData] = useState<ProductFormState>({
-    name: "", 
-    salePrice: "", 
-    costPrice: "", 
-    stock: "", 
-    lowStockThreshold: "5",
-    category: "", 
-    categoryId: "none",
-    description: "", 
-    supplierId: "none",
-    image: "",
-    barcode: "",
-    canBeSoldByWeight: false,
-    weightSalePrice: "",
-    weightCostPrice: ""
-  });
+  const [formData, setFormData] = useState<ProductFormState>(emptyForm);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -130,37 +132,24 @@ export default function ProductsPage() {
   const startBarcodeScanner = async () => {
     if (isInitializingScanner.current) return;
     isInitializingScanner.current = true;
-    
     try {
       setOpenBarcodeScanner(true);
       setScanningBarcode(true);
-      
-      // Petit délai pour laisser le modal s'ouvrir
       setTimeout(async () => {
-        // Nettoyage préventif pour éviter le dédoublage caméra
         const container = document.getElementById("barcode-scanner-ui");
         if (container) container.innerHTML = "";
-        
         if (html5QrCodeRef.current) {
           try {
             if (html5QrCodeRef.current.isScanning) await html5QrCodeRef.current.stop();
             html5QrCodeRef.current.clear();
           } catch (e) { console.warn(e); }
         }
-
         const scanner = new Html5Qrcode("barcode-scanner-ui");
         html5QrCodeRef.current = scanner;
-        
         await scanner.start(
           { facingMode: "environment" },
-          { 
-            fps: 20, 
-            qrbox: { width: 260, height: 180 }
-          },
-          (decodedText) => {
-            handleBarcodeDetected(decodedText);
-            stopBarcodeScanner();
-          },
+          { fps: 20, qrbox: { width: 260, height: 180 } },
+          (decodedText) => { handleBarcodeDetected(decodedText); stopBarcodeScanner(); },
           () => {}
         );
       }, 300);
@@ -186,40 +175,38 @@ export default function ProductsPage() {
     try {
       const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
       const data = await res.json();
-      
       if (data.status === 1 && data.product) {
         const prod = data.product;
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
           name: prod.product_name || prev.name,
           barcode: barcode || prev.barcode,
-          category: prod.categories_tags?.[0]?.split(':')[1]?.replace(/-/g, ' ') || prev.category,
+          category: prod.categories_tags?.[0]?.split(":")[1]?.replace(/-/g, " ") || prev.category,
           description: prod.generic_name || prev.description,
-          image: prod.image_url || prev.image
+          image: prod.image_url || prev.image,
         }));
         if (prod.image_url) setPreview(prod.image_url);
         toast.success("Produit trouvé sur Open Food Facts !");
       } else {
-        // Essayer Open Products Facts si pas trouvé sur Food
         const res2 = await fetch(`https://world.openproductsfacts.org/api/v0/product/${barcode}.json`);
         const data2 = await res2.json();
         if (data2.status === 1 && data2.product) {
           const prod = data2.product;
-        setFormData(prev => ({
-          ...prev,
-          name: prod.product_name || prev.name,
-          barcode: barcode || prev.barcode,
-          category: prev.category,
-          image: prod.image_url || prev.image
-        }));
+          setFormData((prev) => ({
+            ...prev,
+            name: prod.product_name || prev.name,
+            barcode: barcode || prev.barcode,
+            category: prev.category,
+            image: prod.image_url || prev.image,
+          }));
           if (prod.image_url) setPreview(prod.image_url);
           toast.success("Produit trouvé sur Open Products Facts !");
         } else {
-        toast.error("Produit non répertorié. Saisie manuelle requise.");
-        setFormData(prev => ({ ...prev, name: `Produit ${barcode}`, barcode: barcode }));
+          toast.error("Produit non répertorié. Saisie manuelle requise.");
+          setFormData((prev) => ({ ...prev, name: `Produit ${barcode}`, barcode }));
+        }
       }
-      }
-    } catch (error) {
+    } catch {
       toast.error("Erreur de recherche API.");
     }
   };
@@ -227,121 +214,60 @@ export default function ProductsPage() {
   const fetchData = async () => {
     setLoading(true);
     const [prodRes, suppRes, catRes] = await Promise.all([
-      apiRequest<Product[]>("/api/products", { cache: 'no-store' }),
-      apiRequest<Supplier[]>("/api/suppliers", { cache: 'no-store' }),
-      apiRequest<Category[]>("/api/categories", { cache: 'no-store' })
+      apiRequest<Product[]>("/api/products", { cache: "no-store" }),
+      apiRequest<Supplier[]>("/api/suppliers", { cache: "no-store" }),
+      apiRequest<Category[]>("/api/categories", { cache: "no-store" }),
     ]);
-    
     if (!prodRes.error && prodRes.data) setProducts(prodRes.data);
     if (!suppRes.error && suppRes.data) setSuppliers(suppRes.data);
     if (!catRes.error && catRes.data) setCategories(catRes.data);
-    
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const compressImage = (file: File): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
+  const compressImage = (file: File): Promise<Blob> =>
+    new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
         const img = new Image();
         img.src = event.target?.result as string;
         img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
+          const canvas = document.createElement("canvas");
+          let { width, height } = img;
           const maxWidth = 1024;
-          if (width > maxWidth) {
-            height = (maxWidth / width) * height;
-            width = maxWidth;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error("Compression failed"));
-          }, "image/jpeg", 0.7);
+          if (width > maxWidth) { height = (maxWidth / width) * height; width = maxWidth; }
+          canvas.width = width; canvas.height = height;
+          canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => { if (blob) resolve(blob); else reject(new Error("Compression failed")); }, "image/jpeg", 0.7);
         };
       };
       reader.onerror = (e) => reject(e);
     });
-  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setUploading(true);
     try {
-      // Compresser l'image avant l'upload (réduit la taille de ~90%)
       const compressedBlob = await compressImage(file);
       const formDataUpload = new FormData();
       formDataUpload.append("file", compressedBlob, "product.jpg");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formDataUpload,
-        cache: 'no-store'
-      });
+      const res = await fetch("/api/upload", { method: "POST", body: formDataUpload, cache: "no-store" });
       const data = await res.json();
-      if (res.ok) {
-        setFormData(prev => ({ ...prev, image: data.url }));
-        setPreview(data.url);
-        toast.success("Image optimisée et téléchargée !");
-      } else {
-        toast.error(data.error || "Erreur lors de l'upload");
-      }
-    } catch (error) {
-      console.error("Upload failed", error);
-      toast.error("Échec de l'upload");
-    } finally {
-      setUploading(false);
-    }
+      if (res.ok) { setFormData((prev) => ({ ...prev, image: data.url })); setPreview(data.url); toast.success("Image optimisée et téléchargée !"); }
+      else toast.error(data.error || "Erreur lors de l'upload");
+    } catch { toast.error("Échec de l'upload"); }
+    finally { setUploading(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
-    const payload = {
-        ...formData,
-        supplierId: formData.supplierId === "none" ? null : formData.supplierId
-    }
-
-    const { error } = await apiRequest("/api/products", {
-      method: "POST",
-      body: JSON.stringify(payload),
-      cache: 'no-store'
-    });
-
-    if (!error) {
-      setFormData({ 
-        name: "", 
-        salePrice: "", 
-        costPrice: "", 
-        stock: "", 
-        lowStockThreshold: "5",
-        category: "", 
-        categoryId: "none",
-        description: "", 
-        supplierId: "none", 
-        image: "",
-        barcode: "",
-        canBeSoldByWeight: false,
-        weightSalePrice: "",
-        weightCostPrice: ""
-      });
-      setPreview(null);
-      setOpenAdd(false);
-      toast.success("Produit ajouté !");
-      fetchData();
-    }
+    const payload = { ...formData, supplierId: formData.supplierId === "none" ? null : formData.supplierId };
+    const { error } = await apiRequest("/api/products", { method: "POST", body: JSON.stringify(payload), cache: "no-store" });
+    if (!error) { setFormData(emptyForm); setPreview(null); setOpenAdd(false); toast.success("Produit ajouté !"); fetchData(); }
     setSubmitting(false);
   };
 
@@ -349,85 +275,43 @@ export default function ProductsPage() {
     e.preventDefault();
     if (!selectedProduct) return;
     setSubmitting(true);
-
-    const payload = {
-        ...formData,
-        supplierId: formData.supplierId === "none" ? null : formData.supplierId
-    };
-
-    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-      cache: 'no-store'
-    });
-
-    if (!error) {
-      setOpenEdit(false);
-      toast.success("Produit mis à jour !");
-      fetchData();
-    }
+    const payload = { ...formData, supplierId: formData.supplierId === "none" ? null : formData.supplierId };
+    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, { method: "PATCH", body: JSON.stringify(payload), cache: "no-store" });
+    if (!error) { setOpenEdit(false); toast.success("Produit mis à jour !"); fetchData(); }
     setSubmitting(false);
   };
 
   const handleDelete = async () => {
     if (!selectedProduct) return;
     setSubmitting(true);
-
-    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, {
-      method: "DELETE",
-      cache: 'no-store'
-    });
-
-    if (!error) {
-      setOpenDelete(false);
-      toast.success("Produit archivé avec succès");
-      fetchData();
-    }
+    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, { method: "DELETE", cache: "no-store" });
+    if (!error) { setOpenDelete(false); toast.success("Produit archivé"); fetchData(); }
     setSubmitting(false);
   };
 
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return;
     setSubmitting(true);
-    const { error } = await apiRequest("/api/categories", {
-      method: "POST",
-      body: JSON.stringify({ name: newCatName.trim() }),
-      cache: "no-store",
-    });
-    if (!error) {
-      toast.success("Catégorie ajoutée !");
-      setNewCatName("");
-      fetchData();
-    }
+    const { error } = await apiRequest("/api/categories", { method: "POST", body: JSON.stringify({ name: newCatName.trim() }), cache: "no-store" });
+    if (!error) { toast.success("Catégorie ajoutée !"); setNewCatName(""); fetchData(); }
     setSubmitting(false);
   };
 
   const handleDeleteCategory = async (id: string) => {
     if (!confirm("Voulez-vous vraiment supprimer cette catégorie ?")) return;
     setSubmitting(true);
-    const { error } = await apiRequest(`/api/categories?id=${id}`, {
-      method: "DELETE",
-      cache: "no-store",
-    });
-    if (!error) {
-      toast.success("Catégorie supprimée !");
-      fetchData();
-    }
+    const { error } = await apiRequest(`/api/categories?id=${id}`, { method: "DELETE", cache: "no-store" });
+    if (!error) { toast.success("Catégorie supprimée !"); fetchData(); }
     setSubmitting(false);
   };
 
   const fetchStockHistory = async (productId: string) => {
     const { data: movements, error } = await apiRequest<StockMovement[]>(`/api/stock-movements?productId=${productId}`, { cache: "no-store" });
-    if (!error && movements) {
-      setStockHistory(movements);
-    }
+    if (!error && movements) setStockHistory(movements);
   };
 
   const openHistoryModal = (product: Product) => {
-    setSelectedProduct(product);
-    setStockHistory([]);
-    fetchStockHistory(product.id);
-    setOpenHistory(true);
+    setSelectedProduct(product); setStockHistory([]); fetchStockHistory(product.id); setOpenHistory(true);
   };
 
   const openEditModal = (product: Product) => {
@@ -446,7 +330,7 @@ export default function ProductsPage() {
       barcode: product.barcode || "",
       canBeSoldByWeight: product.canBeSoldByWeight || false,
       weightSalePrice: product.weightSalePrice?.toString() || "",
-      weightCostPrice: product.weightCostPrice?.toString() || ""
+      weightCostPrice: product.weightCostPrice?.toString() || "",
     });
     setPreview(product.image || null);
     setOpenEdit(true);
@@ -454,131 +338,85 @@ export default function ProductsPage() {
 
   const handlePrintQR = () => {
     if (!qrRef.current || !selectedProduct) return;
-    
-    // Convertir le SVG en URL de données (Data URI)
     const svgData = new XMLSerializer().serializeToString(qrRef.current);
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const img = new Image();
-    
     img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      
+      canvas.width = img.width; canvas.height = img.height;
       if (ctx) {
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        
-        // Créer l'URL du PNG et déclencher le téléchargement
+        ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);
         const pngFile = canvas.toDataURL("image/png");
         const downloadLink = document.createElement("a");
         downloadLink.download = `QR_${selectedProduct.name.replace(/\s+/g, "_")}.png`;
-        downloadLink.href = pngFile;
-        downloadLink.click();
+        downloadLink.href = pngFile; downloadLink.click();
       }
     };
-    
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
-  const filteredProducts = (Array.isArray(products) ? products : []).filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProducts = (Array.isArray(products) ? products : []).filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('fr-FR', { 
-      style: 'currency', 
-      currency: 'MAD' 
-    }).format(val);
-  };
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MAD" }).format(val);
+
+  const lowStockCount = products.filter((p) => p.stock <= p.lowStockThreshold).length;
 
   return (
-    <div className="flex-1 space-y-6">
+    <div className="space-y-6">
+
+      {/* ── Header ───────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Produits & Stock</h2>
-          <p className="text-slate-500">Gérez votre inventaire et générez vos QR codes.</p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm">
+            <Package className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Produits & Stock</h1>
+            <p className="text-sm text-slate-400">
+              {loading ? "Chargement…" : `${products.length} produit${products.length > 1 ? "s" : ""}${lowStockCount > 0 ? ` · ${lowStockCount} en alerte` : ""}`}
+            </p>
+          </div>
         </div>
-        
+
         <div className="flex gap-2">
           <Button
             type="button"
             variant="outline"
             onClick={() => setOpenImport(true)}
-            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-1.5"
           >
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Importer Excel
+            <FileSpreadsheet className="h-4 w-4" />
+            <span className="hidden sm:inline">Importer Excel</span>
           </Button>
           <Button
             type="button"
             onClick={() => setOpenAdd(true)}
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white border-0 shadow-sm gap-1.5"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="h-4 w-4" />
             Ajouter un produit
           </Button>
         </div>
+      </div>
 
-        <ProductFormDialog
-          open={openAdd}
-          onOpenChange={setOpenAdd}
-          title="Ajouter un produit"
-          description="Remplissez les informations essentielles du produit. Le QR code sera généré automatiquement."
-          formData={formData}
-          setFormData={setFormData}
-          onSubmit={handleSubmit}
-          submitting={submitting}
-          categories={categories}
-          suppliers={suppliers}
-          onStartScanner={startBarcodeScanner}
-          onFileUpload={handleFileUpload}
-          uploading={uploading}
-          preview={preview}
-          setPreview={setPreview}
-          fileInputRef={fileInputRef}
+      {/* ── Search ───────────────────────────────────────────── */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+        <Input
+          className="pl-9 rounded-xl bg-white border-border/60 focus-visible:ring-indigo-500/20 shadow-sm"
+          placeholder="Rechercher un produit ou catégorie…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
-
-        {/* Modal d'agrandissement d'image */}
-        <Dialog open={!!selectedViewImage} onOpenChange={() => setSelectedViewImage(null)}>
-          <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-none shadow-none flex items-center justify-center">
-            {selectedViewImage && (
-              <div className="relative group min-h-[300px] w-full max-h-[80vh]">
-                <NextImage 
-                  src={selectedViewImage} 
-                  alt="Agrandissement" 
-                  fill
-                  className="rounded-lg shadow-2xl object-contain bg-white" 
-                />
-                <Button 
-                  onClick={() => setSelectedViewImage(null)}
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute top-2 right-2 bg-white/50 hover:bg-white text-slate-900 rounded-full"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
 
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-          <Input 
-            className="pl-9 bg-white" 
-            placeholder="Rechercher un produit..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <ProductTable 
+      {/* ── Table ────────────────────────────────────────────── */}
+      <ProductTable
         products={filteredProducts}
         loading={loading}
         onViewQR={(p) => { setSelectedProduct(p); setOpenQR(true); }}
@@ -589,118 +427,151 @@ export default function ProductsPage() {
         formatCurrency={formatCurrency}
       />
 
-      {/* Modal QR Code */}
+      {/* ── Add form ─────────────────────────────────────────── */}
+      <ProductFormDialog
+        open={openAdd}
+        onOpenChange={setOpenAdd}
+        title="Ajouter un produit"
+        description="Remplissez les informations essentielles. Le QR code sera généré automatiquement."
+        formData={formData}
+        setFormData={setFormData}
+        onSubmit={handleSubmit}
+        submitting={submitting}
+        categories={categories}
+        suppliers={suppliers}
+        onStartScanner={startBarcodeScanner}
+        onFileUpload={handleFileUpload}
+        uploading={uploading}
+        preview={preview}
+        setPreview={setPreview}
+        fileInputRef={fileInputRef}
+      />
+
+      {/* ── Edit form ────────────────────────────────────────── */}
+      <ProductFormDialog
+        open={openEdit}
+        onOpenChange={setOpenEdit}
+        title="Modifier le produit"
+        description="Mettez à jour les informations. Les changements seront instantanés."
+        formData={formData}
+        setFormData={setFormData}
+        onSubmit={handleEdit}
+        submitting={submitting}
+        categories={categories}
+        suppliers={suppliers}
+        onStartScanner={startBarcodeScanner}
+        onFileUpload={handleFileUpload}
+        uploading={uploading}
+        preview={preview}
+        setPreview={setPreview}
+        fileInputRef={editFileInputRef}
+      />
+
+      {/* ── Image viewer ─────────────────────────────────────── */}
+      <Dialog open={!!selectedViewImage} onOpenChange={() => setSelectedViewImage(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-none shadow-none flex items-center justify-center">
+          {selectedViewImage && (
+            <div className="relative group min-h-[300px] w-full max-h-[80vh]">
+              <NextImage src={selectedViewImage} alt="Agrandissement" fill className="rounded-2xl shadow-2xl object-contain bg-white" />
+              <Button
+                onClick={() => setSelectedViewImage(null)}
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 bg-white/70 hover:bg-white text-slate-900 rounded-full backdrop-blur-sm"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── QR Code ──────────────────────────────────────────── */}
       <Dialog open={openQR} onOpenChange={setOpenQR}>
-        <DialogContent className="sm:max-w-md flex flex-col items-center justify-center py-10">
-          <DialogHeader className="text-center mb-6">
-            <DialogTitle className="text-2xl text-center">QR Code Produit</DialogTitle>
+        <DialogContent className="sm:max-w-sm flex flex-col items-center py-8">
+          <DialogHeader className="text-center w-full mb-4">
+            <DialogTitle className="text-xl text-center">QR Code Produit</DialogTitle>
             <DialogDescription className="text-center">
-              {selectedProduct?.name} ({formatCurrency(selectedProduct?.salePrice || 0)})
+              {selectedProduct?.name} · {formatCurrency(selectedProduct?.salePrice || 0)}
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="bg-white p-8 rounded-xl shadow-md border-2 border-slate-100 mb-6 flex flex-col items-center justify-center">
-            {selectedProduct && selectedProduct.id && (
+
+          <div className="rounded-2xl bg-white p-6 shadow-card border border-border/50 flex flex-col items-center gap-3 mb-4">
+            {selectedProduct?.id && (
               <>
-                <div className="mb-4">
-                  <QRCodeSVG 
-                    value={selectedProduct.id} 
-                    size={220}
-                    level="H"
-                    includeMargin={true}
-                    ref={qrRef}
-                  />
-                </div>
-                <div className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded">
-                  ID: {selectedProduct.id}
-                </div>
+                <QRCodeSVG value={selectedProduct.id} size={200} level="H" includeMargin ref={qrRef} />
+                <p className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
+                  {selectedProduct.id}
+                </p>
               </>
             )}
           </div>
-          
-          <DialogFooter className="w-full gap-2 sm:flex-row !flex-col !items-stretch">
-            <Button onClick={handlePrintQR} className="bg-indigo-600 hover:bg-indigo-700">
+
+          <DialogFooter className="w-full flex flex-col gap-2">
+            <Button onClick={handlePrintQR} className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
               Télécharger l&apos;étiquette
             </Button>
-            <Button variant="outline" onClick={() => setOpenQR(false)}>
+            <Button variant="outline" onClick={() => setOpenQR(false)} className="w-full rounded-xl">
               Fermer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal Édition */}
-        <ProductFormDialog
-          open={openEdit}
-          onOpenChange={setOpenEdit}
-          title="Modifier le produit"
-          description="Mettez à jour les informations du produit. Les changements seront instantanés."
-          formData={formData}
-          setFormData={setFormData}
-          onSubmit={handleEdit}
-          submitting={submitting}
-          categories={categories}
-          suppliers={suppliers}
-          onStartScanner={startBarcodeScanner}
-          onFileUpload={handleFileUpload}
-          uploading={uploading}
-          preview={preview}
-          setPreview={setPreview}
-          fileInputRef={editFileInputRef}
-        />
-
-      {/* Modal Archivage */}
+      {/* ── Archive confirm ──────────────────────────────────── */}
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <div className="flex justify-center mb-4">
-              <div className="rounded-full bg-amber-100 p-3">
+              <div className="rounded-2xl bg-amber-100 p-3.5">
                 <AlertCircle className="h-6 w-6 text-amber-600" />
               </div>
             </div>
             <DialogTitle className="text-center">Archiver le produit</DialogTitle>
-            <DialogDescription className="text-center pt-2">
-              Le produit <strong>{selectedProduct?.name}</strong> disparaîtra de la liste active et de la caisse. <br />
-              Son historique de ventes et de stock restera conservé pour garder des chiffres fiables.
+            <DialogDescription className="text-center pt-1">
+              <strong>{selectedProduct?.name}</strong> disparaîtra de la liste active et de la caisse.
+              Son historique de ventes et de stock restera conservé.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-center mt-4">
-            <Button variant="outline" onClick={() => setOpenDelete(false)}>Annuler</Button>
-            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleDelete} disabled={submitting}>
-              {submitting ? "Archivage..." : "Archiver le produit"}
+          <DialogFooter className="gap-2 sm:justify-center mt-2">
+            <Button variant="outline" onClick={() => setOpenDelete(false)} className="rounded-xl">Annuler</Button>
+            <Button
+              onClick={handleDelete}
+              disabled={submitting}
+              className="bg-amber-600 hover:bg-amber-700 rounded-xl"
+            >
+              {submitting ? "Archivage…" : "Archiver"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-        {/* Modal Scanner de Code-Barres Universel */}
-        <BarcodeScannerDialog
-          open={openBarcodeScanner}
-          onOpenChange={(val) => { if(!val) stopBarcodeScanner(); }}
-          onStop={stopBarcodeScanner}
-          scanning={scanningBarcode}
-        />
 
-        <CategoryManager 
-          open={openCategories}
-          onOpenChange={setOpenCategories}
-          categories={categories}
-          onAddCategory={handleAddCategory}
-          onDeleteCategory={handleDeleteCategory}
-          submitting={submitting}
-        />
-
-        <StockHistoryDialog
-          open={openHistory}
-          onOpenChange={setOpenHistory}
-          productName={selectedProduct?.name}
-          history={stockHistory}
-        />
-
-        <ProductImportDialog
-          open={openImport}
-          onOpenChange={setOpenImport}
-          onImportComplete={fetchData}
-        />
+      {/* ── Subcomponent dialogs ─────────────────────────────── */}
+      <BarcodeScannerDialog
+        open={openBarcodeScanner}
+        onOpenChange={(val) => { if (!val) stopBarcodeScanner(); }}
+        onStop={stopBarcodeScanner}
+        scanning={scanningBarcode}
+      />
+      <CategoryManager
+        open={openCategories}
+        onOpenChange={setOpenCategories}
+        categories={categories}
+        onAddCategory={handleAddCategory}
+        onDeleteCategory={handleDeleteCategory}
+        submitting={submitting}
+      />
+      <StockHistoryDialog
+        open={openHistory}
+        onOpenChange={setOpenHistory}
+        productName={selectedProduct?.name}
+        history={stockHistory}
+      />
+      <ProductImportDialog
+        open={openImport}
+        onOpenChange={setOpenImport}
+        onImportComplete={fetchData}
+      />
     </div>
   );
 }
