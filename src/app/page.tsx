@@ -132,6 +132,7 @@ interface DashboardData {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [showProfits, setShowProfits] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [showPinDialog, setShowPinDialog] = useState(false);
@@ -168,6 +169,8 @@ export default function DashboardPage() {
     }
     setLoading(false);
   };
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (status === "authenticated" && userRole === "CASHIER") {
@@ -355,8 +358,8 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tableau de bord</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+          <p className="text-sm text-slate-500 mt-0.5" suppressHydrationWarning>
+            {mounted ? new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : ""}
           </p>
         </div>
 
@@ -614,7 +617,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.chartData} barCategoryGap="35%">
+              <BarChart data={data.chartData ?? []} barCategoryGap="35%">
                 <defs>
                   <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
@@ -679,13 +682,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {data.topSales.length === 0 ? (
+            {(data.topSales ?? []).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                 <ShoppingCart className="h-8 w-8 mb-2 opacity-40" />
                 <p className="text-sm">Aucune vente enregistrée</p>
               </div>
             ) : (
-              data.topSales.map((sale, i) => (
+              (data.topSales ?? []).map((sale, i) => (
                 <div key={i} className="flex items-center gap-3 group">
                   <div
                     className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
