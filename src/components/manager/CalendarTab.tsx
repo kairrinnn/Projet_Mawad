@@ -107,7 +107,7 @@ export function CalendarTab({
               const day = i + 1;
               const exps = calendarGrid.dayMap[day];
               const hasPayment = !!exps;
-              const total = hasPayment ? exps.reduce((s, e) => s + e.amount, 0) : 0;
+              const total = hasPayment ? exps.reduce((s, e) => s + Number(e.amount), 0) : 0;
               const isToday = day === new Date().getDate() && calMonth.getMonth() === new Date().getMonth() && calMonth.getFullYear() === new Date().getFullYear();
               const uniqueTypes = hasPayment ? [...new Set(exps.map(e => e.type))] : [];
               const hasOnlyProjected = hasPayment && exps.every(e => e.id.startsWith("proj-"));

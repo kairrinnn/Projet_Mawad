@@ -95,7 +95,7 @@ export default function SalesPage() {
 
   const totalRevenue = filteredSales
     .filter((s) => s.type === "SALE" && !s.isRefunded)
-    .reduce((acc, s) => acc + (s.totalPrice || s.salePrice * s.quantity - s.discount), 0);
+    .reduce((acc, s) => acc + (Number(s.totalPrice) || Number(s.salePrice) * Number(s.quantity) - Number(s.discount)), 0);
 
   const totalPages = Math.max(1, Math.ceil(filteredSales.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
@@ -177,7 +177,7 @@ export default function SalesPage() {
             {paginatedSales.map((sale) => {
               const isRefunded = sale.isRefunded;
               const isReturn = sale.type === "REFUND";
-              const net = sale.totalPrice || sale.salePrice * sale.quantity - sale.discount;
+              const net = Number(sale.totalPrice) || Number(sale.salePrice) * Number(sale.quantity) - Number(sale.discount);
               const payColor = sale.paymentMethod
                 ? (PAYMENT_COLORS[sale.paymentMethod] ?? "bg-slate-50 text-slate-600 ring-slate-200")
                 : "";
