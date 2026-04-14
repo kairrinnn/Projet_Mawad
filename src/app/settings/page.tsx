@@ -11,11 +11,11 @@ import {
   ReceiptText,
   Save,
   ShieldCheck,
+  Settings,
   Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -59,6 +59,14 @@ function getBackupFilename(prefix: string) {
   return `${prefix}_${new Date().toISOString().split("T")[0]}`;
 }
 
+function SectionCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl bg-white border border-border/50 shadow-card p-5 ${className ?? ""}`}>
+      {children}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [shopName, setShopName] = useState(DEFAULT_SHOP_SETTINGS.shopName);
   const [currency, setCurrency] = useState<ShopSettingsPayload["currency"]>(DEFAULT_SHOP_SETTINGS.currency);
@@ -74,17 +82,17 @@ export default function SettingsPage() {
   const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
-    const settings = readLocalShopSettings();
-    setShopName(settings.shopName);
-    setCurrency(settings.currency);
-    setPhone(settings.phone);
-    setAddress(settings.address);
-    setReceiptFooter(settings.receiptFooter);
-    setDefaultCashFund(String(settings.defaultCashFund));
+    const s = readLocalShopSettings();
+    setShopName(s.shopName);
+    setCurrency(s.currency);
+    setPhone(s.phone);
+    setAddress(s.address);
+    setReceiptFooter(s.receiptFooter);
+    setDefaultCashFund(String(s.defaultCashFund));
     setLoading(false);
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     setSaving(true);
     saveLocalShopSettings({
       shopName: shopName.trim() || DEFAULT_SHOP_SETTINGS.shopName,
@@ -94,43 +102,27 @@ export default function SettingsPage() {
       receiptFooter: receiptFooter.trim() || DEFAULT_SHOP_SETTINGS.receiptFooter,
       defaultCashFund: Number(defaultCashFund) || DEFAULT_SHOP_SETTINGS.defaultCashFund,
     });
-    toast.success("Parametres du poste enregistres avec succes");
+    toast.success("Paramètres enregistrés");
     setSaving(false);
   };
 
   const fetchFullExport = async () => {
     const response = await fetch("/api/reports/full-export", { cache: "no-store" });
-
     if (!response.ok) {
       const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(payload?.error || "Impossible de generer la sauvegarde");
+      throw new Error(payload?.error || "Impossible de générer la sauvegarde");
     }
-
     return (await response.json()) as FullExportResponse;
   };
 
   const handleExcelBackup = async () => {
     setBackupLoading(true);
-
     try {
       const snapshot = await fetchFullExport();
       exportWorkbook({
         filename: getBackupFilename("Sauvegarde_Mawad"),
         sheets: [
-          {
-            name: "Resume",
-            data: [
-              {
-                generatedAt: snapshot.generatedAt,
-                products: snapshot.counts.products ?? 0,
-                sales: snapshot.counts.sales ?? 0,
-                expenses: snapshot.counts.expenses ?? 0,
-                stockEntries: snapshot.counts.stockEntries ?? 0,
-                stockMovements: snapshot.counts.stockMovements ?? 0,
-                auditLogs: snapshot.counts.auditLogs ?? 0,
-              },
-            ],
-          },
+          { name: "Resume", data: [{ generatedAt: snapshot.generatedAt, products: snapshot.counts.products ?? 0, sales: snapshot.counts.sales ?? 0, expenses: snapshot.counts.expenses ?? 0, stockEntries: snapshot.counts.stockEntries ?? 0, stockMovements: snapshot.counts.stockMovements ?? 0, auditLogs: snapshot.counts.auditLogs ?? 0 }] },
           { name: "Produits", data: snapshot.products },
           { name: "Categories", data: snapshot.categories },
           { name: "Fournisseurs", data: snapshot.suppliers },
@@ -141,7 +133,7 @@ export default function SettingsPage() {
           { name: "Audit", data: snapshot.auditLogs },
         ],
       });
-      toast.success("Sauvegarde Excel exportee");
+      toast.success("Sauvegarde Excel exportée");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export impossible");
     } finally {
@@ -151,14 +143,10 @@ export default function SettingsPage() {
 
   const handleJsonBackup = async () => {
     setBackupLoading(true);
-
     try {
       const snapshot = await fetchFullExport();
-      downloadJsonFile({
-        filename: getBackupFilename("Sauvegarde_Mawad_JSON"),
-        data: snapshot,
-      });
-      toast.success("Sauvegarde JSON exportee");
+      downloadJsonFile({ filename: getBackupFilename("Sauvegarde_Mawad_JSON"), data: snapshot });
+      toast.success("Sauvegarde JSON exportée");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export impossible");
     } finally {
@@ -171,30 +159,19 @@ export default function SettingsPage() {
       toast.error("Tape RESET pour confirmer.");
       return;
     }
-
     setResetting(true);
-
     try {
-      const response = await fetch("/api/settings/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
+      const response = await fetch("/api/settings/reset", { method: "POST", headers: { "Content-Type": "application/json" } });
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error || "Impossible de reinitialiser les donnees");
+        throw new Error(payload?.error || "Impossible de réinitialiser");
       }
-
       saveLocalShopSettings(DEFAULT_SHOP_SETTINGS);
-      setShopName(DEFAULT_SHOP_SETTINGS.shopName);
-      setCurrency(DEFAULT_SHOP_SETTINGS.currency);
-      setPhone(DEFAULT_SHOP_SETTINGS.phone);
-      setAddress(DEFAULT_SHOP_SETTINGS.address);
-      setReceiptFooter(DEFAULT_SHOP_SETTINGS.receiptFooter);
-      setDefaultCashFund(String(DEFAULT_SHOP_SETTINGS.defaultCashFund));
-      setResetConfirmText("");
-      setResetDialogOpen(false);
-      toast.success("Toutes les donnees du compte ont ete reinitialisees.");
+      setShopName(DEFAULT_SHOP_SETTINGS.shopName); setCurrency(DEFAULT_SHOP_SETTINGS.currency);
+      setPhone(DEFAULT_SHOP_SETTINGS.phone); setAddress(DEFAULT_SHOP_SETTINGS.address);
+      setReceiptFooter(DEFAULT_SHOP_SETTINGS.receiptFooter); setDefaultCashFund(String(DEFAULT_SHOP_SETTINGS.defaultCashFund));
+      setResetConfirmText(""); setResetDialogOpen(false);
+      toast.success("Données réinitialisées.");
       window.setTimeout(() => window.location.reload(), 900);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Reset impossible");
@@ -212,39 +189,50 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex-1 space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6">
+
+      {/* ── Header ───────────────────────────────────────────── */}
+      <div className="flex items-center gap-4">
+        <div
+          className="flex h-11 w-11 items-center justify-center rounded-xl flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)", boxShadow: "0 4px 16px rgba(79,70,229,0.25)" }}
+        >
+          <Settings className="h-5 w-5 text-white" />
+        </div>
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Parametres</h2>
-          <p className="text-slate-500">
-            Reglages du poste et outils utiles pour un premier client en production.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Paramètres</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Configuration du poste et outils de sauvegarde</p>
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Store className="h-5 w-5 text-indigo-600" />
-                Identite boutique
-              </CardTitle>
-              <CardDescription>
-                Ces reglages sont appliques sur ce poste pour les tickets et l&apos;affichage local.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="shopName">Nom de la boutique</Label>
-                <Input id="shopName" value={shopName} onChange={(event) => setShopName(event.target.value)} />
+      {/* ── Two-column layout ─────────────────────────────────── */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
+
+        {/* Left — boutique settings */}
+        <div className="space-y-4">
+
+          <SectionCard>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+                <Store className="h-4 w-4 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Identité boutique</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Appliqué sur ce poste pour les tickets et l&apos;affichage local.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Nom de la boutique</Label>
+                <Input value={shopName} onChange={(e) => setShopName(e.target.value)} className="rounded-xl" />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="currency">Devise par defaut</Label>
-                <Select value={currency} onValueChange={(value) => setCurrency((value as ShopSettingsPayload["currency"]) || "MAD")}>
-                  <SelectTrigger id="currency">
-                    <SelectValue placeholder="Selectionner une devise" />
+              <div className="space-y-1.5">
+                <Label>Devise par défaut</Label>
+                <Select value={currency} onValueChange={(v) => setCurrency((v as ShopSettingsPayload["currency"]) || "MAD")}>
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="Sélectionner une devise" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MAD">Dirham Marocain (DH)</SelectItem>
@@ -254,180 +242,181 @@ export default function SettingsPage() {
                 </Select>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telephone boutique</Label>
-                  <Input id="phone" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Ex: 06 12 34 56 78" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Téléphone boutique</Label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex: 06 12 34 56 78" className="rounded-xl" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Adresse courte</Label>
-                  <Input id="address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Ex: Quartier, ville" />
+                <div className="space-y-1.5">
+                  <Label>Adresse courte</Label>
+                  <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Ex: Quartier, ville" className="rounded-xl" />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="receiptFooter">Message ticket</Label>
-                <Input
-                  id="receiptFooter"
-                  value={receiptFooter}
-                  onChange={(event) => setReceiptFooter(event.target.value)}
-                  placeholder="Ex: Merci pour votre visite."
-                />
+              <div className="space-y-1.5">
+                <Label>Message ticket</Label>
+                <Input value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} placeholder="Ex: Merci pour votre visite." className="rounded-xl" />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="defaultCashFund">Fond de caisse par défaut (MAD)</Label>
-                <Input
-                  id="defaultCashFund"
-                  type="number"
-                  min="0"
-                  value={defaultCashFund}
-                  onChange={(event) => setDefaultCashFund(event.target.value)}
-                  placeholder="Ex: 500"
-                />
+              <div className="space-y-1.5">
+                <Label>Fond de caisse par défaut (MAD)</Label>
+                <Input type="number" min="0" value={defaultCashFund} onChange={(e) => setDefaultCashFund(e.target.value)} placeholder="Ex: 500" className="rounded-xl" />
                 <p className="text-xs text-slate-400">Utilisé à l&apos;ouverture si aucune clôture précédente n&apos;existe.</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
-          <Card className="border-indigo-100 bg-indigo-50/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-indigo-900">
-                <ReceiptText className="h-5 w-5" />
-                Effet visible immediat
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-indigo-800/80">
-              <p>Le nom, le contact, l&apos;adresse et le message ticket alimentent l&apos;encaissement sur ce poste.</p>
-              <p>Pratique si tu prepares un poste caisse dedie pour le client final.</p>
-            </CardContent>
-          </Card>
+          {/* Info hint */}
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 flex items-start gap-3">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 flex-shrink-0 mt-0.5">
+              <ReceiptText className="h-3.5 w-3.5 text-indigo-600" />
+            </div>
+            <p className="text-sm text-indigo-800/80 leading-relaxed">
+              Le nom, contact, adresse et message ticket alimentent les tickets d&apos;encaissement. Pratique pour préparer un poste caisse dédié.
+            </p>
+          </div>
 
           <div className="flex justify-end">
-            <Button onClick={() => void handleSave()} className="bg-indigo-600 hover:bg-indigo-700" disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Enregistrer les parametres
+            <Button onClick={handleSave} disabled={saving} className="rounded-full bg-indigo-600 hover:bg-indigo-700 gap-2">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Enregistrer les paramètres
             </Button>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileArchive className="h-5 w-5 text-emerald-600" />
-                Sauvegarde complete
-              </CardTitle>
-              <CardDescription>
-                Exporte les donnees metier utiles avant intervention, support ou migration.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                Contient: produits, ventes, depenses, fournisseurs, categories, entrees stock, mouvements stock et journaux d&apos;audit.
+        {/* Right — backup + danger */}
+        <div className="space-y-4">
+
+          <SectionCard>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
+                <FileArchive className="h-4 w-4 text-emerald-600" />
               </div>
-              <div className="flex flex-col gap-3">
-                <Button onClick={() => void handleExcelBackup()} disabled={backupLoading} className="justify-start bg-emerald-600 hover:bg-emerald-500">
-                  <Download className="mr-2 h-4 w-4" />
-                  Exporter la sauvegarde Excel
-                </Button>
-                <Button onClick={() => void handleJsonBackup()} disabled={backupLoading} variant="outline" className="justify-start border-slate-300">
-                  <FileJson className="mr-2 h-4 w-4" />
-                  Exporter la sauvegarde JSON
-                </Button>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Sauvegarde complète</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Exporte toutes les données avant migration ou support.</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-slate-700" />
-                Rappel exploitation
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-600">
-              <p>Fais une sauvegarde avant les grosses modifications de catalogue ou de stock.</p>
-              <p>Garde au moins un export Excel hebdomadaire et un export JSON mensuel.</p>
-              <p>Les exports PDF/Excel de bilan, depenses, stock et audit sont aussi disponibles dans l&apos;espace gerant.</p>
-            </CardContent>
-          </Card>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-500 mb-4 leading-relaxed">
+              Produits · Ventes · Dépenses · Fournisseurs · Catégories · Entrées stock · Mouvements · Journaux d&apos;audit
+            </div>
 
-          <Card className="border-slate-200 bg-slate-50/70">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-slate-900">
-                <Info className="h-5 w-5" />
-                A propos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-slate-700/80">
-              <p><strong>Mawad Scan v1.0.0</strong></p>
-              <p>Application de gestion de stock orientee scan et caisse rapide.</p>
-              <p className="pt-2 text-xs text-slate-500">
-                Configuration de poste + outillage de sauvegarde pour un premier client.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-red-200 bg-red-50/70">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-900">
-                <AlertTriangle className="h-5 w-5" />
-                Zone dangereuse
-              </CardTitle>
-              <CardDescription className="text-red-800/80">
-                Remet le compte courant a zero comme pour un nouveau client, sans supprimer la connexion.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-red-900/80">
-                Cette action supprime produits, ventes, depenses, categories, fournisseurs, stock, caisse et journaux d&apos;audit du compte courant.
-              </p>
-              <Button variant="destructive" className="w-full sm:w-auto" onClick={() => setResetDialogOpen(true)}>
-                Reinitialiser toutes les donnees
+            <div className="space-y-2.5">
+              <Button
+                onClick={() => void handleExcelBackup()}
+                disabled={backupLoading}
+                className="w-full justify-start rounded-xl bg-emerald-600 hover:bg-emerald-500 gap-2"
+              >
+                {backupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Exporter la sauvegarde Excel
               </Button>
-            </CardContent>
-          </Card>
+              <Button
+                onClick={() => void handleJsonBackup()}
+                disabled={backupLoading}
+                variant="outline"
+                className="w-full justify-start rounded-xl gap-2"
+              >
+                {backupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileJson className="h-4 w-4" />}
+                Exporter la sauvegarde JSON
+              </Button>
+            </div>
+          </SectionCard>
+
+          <SectionCard>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                <ShieldCheck className="h-4 w-4 text-slate-600" />
+              </div>
+              <h2 className="text-sm font-semibold text-slate-900">Rappel exploitation</h2>
+            </div>
+            <ul className="space-y-2 text-sm text-slate-500">
+              <li className="flex items-start gap-2"><span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 flex-shrink-0" />Fais une sauvegarde avant les grosses modifications de catalogue ou de stock.</li>
+              <li className="flex items-start gap-2"><span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 flex-shrink-0" />Garde un export Excel hebdomadaire et un export JSON mensuel.</li>
+              <li className="flex items-start gap-2"><span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 flex-shrink-0" />Les exports PDF/Excel de bilan et stock sont dans l&apos;espace gérant.</li>
+            </ul>
+          </SectionCard>
+
+          <SectionCard>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                <Info className="h-4 w-4 text-slate-500" />
+              </div>
+              <h2 className="text-sm font-semibold text-slate-900">À propos</h2>
+            </div>
+            <p className="text-sm font-semibold text-slate-700">MawadScan v2.0</p>
+            <p className="text-sm text-slate-500 mt-1">Application de gestion de stock orientée scan et caisse rapide.</p>
+          </SectionCard>
+
+          {/* Danger zone */}
+          <div className="rounded-2xl border border-red-200 bg-red-50/60 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-red-900">Zone dangereuse</h2>
+                <p className="text-xs text-red-700/70 mt-0.5">Remet le compte à zéro sans supprimer la connexion.</p>
+              </div>
+            </div>
+            <p className="text-xs text-red-800/70 mb-4 leading-relaxed">
+              Supprime produits, ventes, dépenses, catégories, fournisseurs, stock, caisse et journaux d&apos;audit.
+            </p>
+            <Button
+              variant="destructive"
+              className="rounded-full w-full sm:w-auto"
+              onClick={() => setResetDialogOpen(true)}
+            >
+              Réinitialiser toutes les données
+            </Button>
+          </div>
         </div>
       </div>
 
+      {/* ── Reset Dialog ──────────────────────────────────────── */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
-        <DialogContent className="sm:max-w-[460px]">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Reinitialiser totalement le compte</DialogTitle>
-            <DialogDescription>
-              Pour confirmer, tape <strong>RESET</strong>. L&apos;authentification reste active, mais toutes les donnees metier du compte seront effacees.
+            <div className="flex justify-center mb-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
+                <AlertTriangle className="h-7 w-7 text-red-500" />
+              </div>
+            </div>
+            <DialogTitle className="text-center">Réinitialiser totalement le compte</DialogTitle>
+            <DialogDescription className="text-center">
+              Pour confirmer, tape <strong>RESET</strong>. Toutes les données métier seront effacées.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900/80">
-              Pense a exporter une sauvegarde Excel ou JSON avant de continuer.
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-900/80 leading-relaxed">
+              Exporte une sauvegarde Excel ou JSON avant de continuer.
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="resetConfirm">Confirmation</Label>
+            <div className="space-y-1.5">
+              <Label>Confirmation</Label>
               <Input
-                id="resetConfirm"
                 value={resetConfirmText}
-                onChange={(event) => setResetConfirmText(event.target.value)}
+                onChange={(e) => setResetConfirmText(e.target.value)}
                 placeholder="Tape RESET"
+                className="rounded-xl font-mono"
               />
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => void handleJsonBackup()} disabled={backupLoading || resetting}>
-              Exporter JSON d&apos;abord
+          <DialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+            <Button variant="outline" onClick={() => void handleJsonBackup()} disabled={backupLoading || resetting} className="rounded-xl gap-2">
+              <FileJson className="h-4 w-4" /> Export JSON
             </Button>
-            <Button variant="outline" onClick={() => setResetDialogOpen(false)} disabled={resetting}>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)} disabled={resetting} className="rounded-xl">
               Annuler
             </Button>
-            <Button variant="destructive" onClick={() => void handleResetAllData()} disabled={resetting}>
-              {resetting ? "Reinitialisation..." : "Tout effacer"}
+            <Button variant="destructive" onClick={() => void handleResetAllData()} disabled={resetting} className="rounded-xl">
+              {resetting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Réinitialisation…</> : "Tout effacer"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
