@@ -227,12 +227,33 @@
   .stagger-children > *:nth-child(5) { animation-delay: 240ms; }
   .stagger-children > *:nth-child(6) { animation-delay: 300ms; }
 
+  /* Shimmer skeleton */
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to   { background-position:  200% 0; }
+  }
+  .sk {
+    background: linear-gradient(90deg, #f1f5f9 25%, #eaeff6 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s infinite linear;
+    border-radius: 10px;
+  }
+
+  /* Card hover lift */
+  .card-lift {
+    transition: transform 180ms ease, box-shadow 180ms ease;
+    cursor: default;
+  }
+  .card-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.09), 0 2px 8px rgba(0,0,0,0.05);
+  }
+
   /* Prefers reduced motion */
   @media (prefers-reduced-motion: reduce) {
     .animate-fade-up,
-    .stagger-children > * {
-      animation: none;
-      opacity: 1;
-    }
+    .stagger-children > * { animation: none; opacity: 1; }
+    .sk { animation: none; }
+    .card-lift:hover { transform: none; }
   }
 }
