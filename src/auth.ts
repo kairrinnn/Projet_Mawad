@@ -48,7 +48,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               name: user.name,
               email: normalizedEmail,
               image: user.image,
-              role: "CASHIER" 
+              role: "MANAGER" 
             },
           });
         }
@@ -60,7 +60,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
-        session.user.role = token.role as string || "CASHIER";
+        session.user.role = token.role as string || "MANAGER";
       }
       return session;
     },
@@ -80,19 +80,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
           
           token.sub = dbUser ? dbUser.id : user.id;
-          token.role = dbUser ? dbUser.role : "CASHIER";
+          token.role = dbUser ? dbUser.role : "MANAGER";
         } catch (error) {
           console.error("Error in JWT callback user sync:", error);
           token.sub = user.id;
-          token.role = "CASHIER";
+          token.role = "MANAGER";
         }
       } else if (token.sub && !token.role) {
           try {
             const { prisma } = await import("@/lib/prisma");
             const dbUser = await prisma.user.findUnique({ where: { id: token.sub as string } });
-            token.role = dbUser?.role || "CASHIER";
+            token.role = dbUser?.role || "MANAGER";
           } catch (e) {
-            token.role = "CASHIER";
+            token.role = "MANAGER";
           }
       }
       return token;
