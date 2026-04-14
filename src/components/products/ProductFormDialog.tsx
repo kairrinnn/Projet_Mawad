@@ -189,7 +189,7 @@ export function ProductFormDialog({
                     setFormData({
                       ...formData, 
                       categoryId: val, 
-                      category: selected ? selected.name : formData.category 
+                      category: selected ? selected.name : ""
                     });
                   }}
                 >

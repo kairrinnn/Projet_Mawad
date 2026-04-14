@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordAuditLog } from "@/lib/audit";
-import { isBuildPhase, requireSession } from "@/lib/server/auth";
+import { isBuildPhase, requireRole } from "@/lib/server/auth";
 
 export async function POST(
   _request: Request,
@@ -11,7 +11,7 @@ export async function POST(
     return NextResponse.json([]);
   }
 
-  const sessionResult = await requireSession();
+  const sessionResult = await requireRole("MANAGER");
   if ("response" in sessionResult) {
     return sessionResult.response;
   }
@@ -69,6 +69,7 @@ export async function POST(
           discount: originalSale.discount,
           cashReceived: null,
           changeGiven: 0,
+          soldByWeight: originalSale.soldByWeight,
           refundReason: "Full refund",
           type: "REFUND",
           parentId: originalSale.id,

@@ -127,6 +127,9 @@ export default function ScanPage() {
     void fetchShopSettings();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
+      const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
+      if (tag === "input" || tag === "textarea" || tag === "select" || isEditable) return;
       const now = Date.now();
       const diff = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;
