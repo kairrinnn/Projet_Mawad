@@ -106,7 +106,7 @@ export default function SuppliersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full gap-6">
 
       {/* ── Header ───────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -159,16 +159,17 @@ export default function SuppliersPage() {
       </div>
 
       {/* ── Table ─────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-white border border-border/50 shadow-card overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white border border-border/50 shadow-card overflow-hidden">
 
         {/* Header row */}
-        <div className="grid grid-cols-[1fr_1fr_80px_80px] px-5 py-3 border-b border-slate-100 bg-slate-50/60">
+        <div className="flex-shrink-0 grid grid-cols-[1fr_1fr_80px_80px] px-5 py-3 border-b border-slate-100 bg-slate-50/60">
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Fournisseur</span>
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Contact</span>
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">Produits</span>
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-right">Actions</span>
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto">
         {loading ? (
           <div className="divide-y divide-slate-100">
             {[...Array(4)].map((_, i) => (
@@ -241,10 +242,11 @@ export default function SuppliersPage() {
             ))}
           </div>
         )}
+        </div>
 
         {/* Footer */}
         {!loading && suppliers.length > 0 && (
-          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40">
+          <div className="flex-shrink-0 px-5 py-3 border-t border-slate-100 bg-slate-50/40">
             <p className="text-[11px] text-slate-400">
               {suppliers.length} fournisseur{suppliers.length > 1 ? "s" : ""} · {suppliers.reduce((a, s) => a + s._count.products, 0)} produit{suppliers.reduce((a, s) => a + s._count.products, 0) > 1 ? "s" : ""} associé{suppliers.reduce((a, s) => a + s._count.products, 0) > 1 ? "s" : ""}
             </p>

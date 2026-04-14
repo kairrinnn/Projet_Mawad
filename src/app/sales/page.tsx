@@ -104,7 +104,7 @@ export default function SalesPage() {
   const handleSearch = (val: string) => { setSearchTerm(val); setCurrentPage(1); };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full gap-6">
 
       {/* ── Header ───────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -147,10 +147,10 @@ export default function SalesPage() {
       </div>
 
       {/* ── Table ────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-white border border-border/50 shadow-card overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white border border-border/50 shadow-card overflow-hidden">
 
         {/* Header row */}
-        <div className="grid grid-cols-[1.4fr_1.6fr_0.8fr_0.9fr_60px_0.9fr_1fr_90px] px-4 py-2.5 bg-slate-50/80 border-b border-border/50 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="flex-shrink-0 grid grid-cols-[1.4fr_1.6fr_0.8fr_0.9fr_60px_0.9fr_1fr_90px] px-4 py-2.5 bg-slate-50/80 border-b border-border/50 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
           <span>Date & Heure</span>
           <span>Produit</span>
           <span>Ticket</span>
@@ -162,6 +162,7 @@ export default function SalesPage() {
         </div>
 
         {/* Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
             <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
@@ -283,10 +284,11 @@ export default function SalesPage() {
             })}
           </div>
         )}
+        </div>
 
         {/* Footer */}
         {!loading && filteredSales.length > 0 && (
-          <div className="px-4 py-2.5 border-t border-border/40 bg-slate-50/50">
+          <div className="flex-shrink-0 px-4 py-2.5 border-t border-border/40 bg-slate-50/50">
             <p className="text-[11px] text-slate-400">
               {filteredSales.length} transaction{filteredSales.length > 1 ? "s" : ""} au total
             </p>

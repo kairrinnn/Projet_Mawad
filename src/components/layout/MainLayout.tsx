@@ -77,8 +77,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* ── Main content ────────────────────────── */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-grid">
-          <div className="animate-fade-up mx-auto max-w-7xl px-4 py-8 pb-20 md:pb-8 sm:px-6 md:px-8">
+        <main className="flex-1 flex flex-col overflow-hidden bg-grid">
+          <div className="animate-fade-up flex-1 min-h-0 w-full mx-auto max-w-7xl px-4 py-8 pb-20 md:pb-8 sm:px-6 md:px-8 overflow-y-auto">
             {children}
           </div>
         </main>
