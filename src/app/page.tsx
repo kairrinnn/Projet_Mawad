@@ -1,12 +1,12 @@
 "use client";
-// Redesign v3 — Premium Dashboard with animations
+// v4 — Complete Dark Glass Dashboard
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { apiRequest } from "@/lib/api";
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -25,11 +25,10 @@ import {
   Loader2,
   ShoppingCart,
   ArrowUpRight,
-  ArrowDownRight,
-  BarChart2,
   Trophy,
   ChevronRight,
   Minus,
+  Sparkles,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,7 +48,7 @@ import { useRouter } from "next/navigation";
 import { readLocalShopSettings } from "@/lib/shop-settings";
 import { cn } from "@/lib/utils";
 
-/* ─── Types ─────────────────────────────────────────────────── */
+/* ─── Types ──────────────────────────────────────────────── */
 
 interface DashboardMetric {
   revenue: number;
@@ -127,29 +126,22 @@ interface DashboardData {
   chartData: ChartPoint[];
 }
 
-/* ─── Hooks ─────────────────────────────────────────────────── */
+/* ─── Hooks ──────────────────────────────────────────────── */
 
-/** Animates a number from 0 → end over `duration` ms */
-function useCountUp(end: number, duration = 750) {
+function useCountUp(end: number, duration = 800) {
   const [value, setValue] = useState(0);
   const rafRef = useRef<number | null>(null);
-  const endRef = useRef(end);
 
   useEffect(() => {
-    endRef.current = end;
     const startTime = performance.now();
-    const startVal = value;
-
+    const startVal = 0;
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-
     function tick(now: number) {
       const t = Math.min((now - startTime) / duration, 1);
-      const ease = 1 - Math.pow(1 - t, 3); // cubic ease-out
-      const cur = startVal + (endRef.current - startVal) * ease;
-      setValue(Math.round(cur));
+      const ease = 1 - Math.pow(1 - t, 3);
+      setValue(Math.round(startVal + (end - startVal) * ease));
       if (t < 1) rafRef.current = requestAnimationFrame(tick);
     }
-
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,7 +150,6 @@ function useCountUp(end: number, duration = 750) {
   return value;
 }
 
-/** Returns a live Date that updates every second */
 function useLiveClock() {
   const [time, setTime] = useState<Date | null>(null);
   useEffect(() => {
@@ -169,7 +160,54 @@ function useLiveClock() {
   return time;
 }
 
-/* ─── Page ───────────────────────────────────────────────────── */
+/* ─── Glass helpers ──────────────────────────────────────── */
+
+const glass = {
+  card: {
+    background: "rgba(255,255,255,0.04)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "20px",
+  } as React.CSSProperties,
+  cardHover: "hover:border-white/15 transition-all duration-300",
+};
+
+/* ─── Custom Tooltip ─────────────────────────────────────── */
+
+function DarkTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: { value: number; name: string; color: string }[];
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: "rgba(10,4,30,0.95)",
+      border: "1px solid rgba(139,92,246,0.35)",
+      borderRadius: "14px",
+      padding: "10px 14px",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+      fontSize: "12px",
+      color: "#e2e8f0",
+    }}>
+      <p style={{ color: "rgba(255,255,255,0.5)", marginBottom: 6, fontSize: 11 }}>
+        {label ? new Date(label).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }) : ""}
+      </p>
+      {payload.map((p) => (
+        <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+          <span style={{ color: "rgba(255,255,255,0.6)" }}>
+            {p.name === "revenue" ? "Chiffre d'affaire" : "Bénéfice"}
+          </span>
+          <span style={{ marginLeft: "auto", fontWeight: 700, color: "#fff" }}>{p.value} DH</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Page ───────────────────────────────────────────────── */
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -214,13 +252,9 @@ export default function DashboardPage() {
   };
 
   useEffect(() => { setMounted(true); }, []);
-
   useEffect(() => {
-    if (status === "authenticated" && userRole === "CASHIER") {
-      router.push("/products");
-    }
+    if (status === "authenticated" && userRole === "CASHIER") router.push("/products");
   }, [status, userRole, router]);
-
   useEffect(() => {
     if (status === "authenticated" && userRole !== "CASHIER") {
       const id = window.setTimeout(() => void fetchData(), 0);
@@ -231,32 +265,21 @@ export default function DashboardPage() {
   const handlePinSubmit = async () => {
     setPinSubmitting(true);
     const { data: result, error } = await apiRequest<VerifyPinResponse>("/api/auth/verify-pin", {
-      method: "POST",
-      body: JSON.stringify({ pin: pinInput }),
+      method: "POST", body: JSON.stringify({ pin: pinInput }),
     });
     if (!error && result?.success) {
-      setShowProfits(true);
-      setShowPinDialog(false);
-      setPinInput("");
+      setShowProfits(true); setShowPinDialog(false); setPinInput("");
       toast.success("Mode Gérant activé");
-    } else {
-      setPinInput("");
-    }
+    } else { setPinInput(""); }
     setPinSubmitting(false);
   };
 
   const updateCashDrawer = async () => {
     setCashSubmitting(true);
     const { error } = await apiRequest("/api/cash-drawer", {
-      method: "POST",
-      body: JSON.stringify({ startingCash: Number(newStartingCash) }),
-      cache: "no-store",
+      method: "POST", body: JSON.stringify({ startingCash: Number(newStartingCash) }), cache: "no-store",
     });
-    if (!error) {
-      toast.success("Fond de caisse mis à jour");
-      setShowCashDialog(false);
-      fetchData();
-    }
+    if (!error) { toast.success("Fond de caisse mis à jour"); setShowCashDialog(false); fetchData(); }
     setCashSubmitting(false);
   };
 
@@ -266,686 +289,646 @@ export default function DashboardPage() {
     const { error } = await apiRequest("/api/cash-drawer", {
       method: "PATCH",
       body: JSON.stringify({
-        closingCash: Number(closingCash),
-        expectedCash: data.cashDrawer.balance,
-        startingCash: data.cashDrawer.startingCash,
-        notes: closingNotes,
-      }),
-      cache: "no-store",
+        closingCash: Number(closingCash), expectedCash: data.cashDrawer.balance,
+        startingCash: data.cashDrawer.startingCash, notes: closingNotes,
+      }), cache: "no-store",
     });
-    if (!error) {
-      toast.success("Caisse clôturée");
-      setShowCloseCashDialog(false);
-      setClosingNotes("");
-      fetchData();
-    }
+    if (!error) { toast.success("Caisse clôturée"); setShowCloseCashDialog(false); setClosingNotes(""); fetchData(); }
     setCloseCashSubmitting(false);
   };
 
   const submitQuickExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setExpSubmitting(true);
+    e.preventDefault(); setExpSubmitting(true);
     const { error } = await apiRequest("/api/expenses", {
       method: "POST",
-      body: JSON.stringify({
-        type: "Daily",
-        amount: quickExpense.amount,
-        description: quickExpense.description,
-        date: new Date().toISOString(),
-      }),
+      body: JSON.stringify({ type: "Daily", amount: quickExpense.amount, description: quickExpense.description, date: new Date().toISOString() }),
     });
-    if (!error) {
-      toast.success("Dépense enregistrée");
-      setQuickExpense({ amount: "", description: "" });
-      setShowExpenseDialog(false);
-      fetchData();
-    }
+    if (!error) { toast.success("Dépense enregistrée"); setQuickExpense({ amount: "", description: "" }); setShowExpenseDialog(false); fetchData(); }
     setExpSubmitting(false);
   };
 
   const handleManagerWithdrawal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setExpSubmitting(true);
+    e.preventDefault(); setExpSubmitting(true);
     const { data: pinResult, error: pinError } = await apiRequest<VerifyPinResponse>("/api/auth/verify-pin", {
-      method: "POST",
-      body: JSON.stringify({ pin: withdrawalForm.code }),
+      method: "POST", body: JSON.stringify({ pin: withdrawalForm.code }),
     });
     if (pinError || !pinResult?.success) {
       if (!pinError) toast.error("Code manager incorrect");
-      setExpSubmitting(false);
-      return;
+      setExpSubmitting(false); return;
     }
     const { error: expError } = await apiRequest("/api/expenses", {
       method: "POST",
-      body: JSON.stringify({
-        type: "Withdrawal",
-        amount: parseFloat(withdrawalForm.amount),
-        description: withdrawalForm.description || "Retrait Gérant",
-      }),
+      body: JSON.stringify({ type: "Withdrawal", amount: parseFloat(withdrawalForm.amount), description: withdrawalForm.description || "Retrait Gérant" }),
     });
-    if (!expError) {
-      toast.success("Retrait validé");
-      setWithdrawalForm({ amount: "", description: "", code: "" });
-      setIsWithdrawalOpen(false);
-      fetchData();
-    }
+    if (!expError) { toast.success("Retrait validé"); setWithdrawalForm({ amount: "", description: "", code: "" }); setIsWithdrawalOpen(false); fetchData(); }
     setExpSubmitting(false);
   };
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MAD" }).format(value);
 
-  /* ── Auth loading ─────────────────────────── */
+  /* ── Auth loading ────────────────────────── */
   if (status === "loading" || userRole === "CASHIER") {
     return (
-      <div className="flex h-full w-full items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      <div className="flex h-full w-full items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin" style={{ color: "#8b5cf6" }} />
       </div>
     );
   }
 
-  /* ── Skeleton ─────────────────────────── */
+  /* ── Skeleton ───────────────────────────── */
   if (loading) {
     return (
-      <div className="space-y-6">
-        {/* Header skeleton */}
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="h-8 w-52 rounded-xl shimmer" />
-            <div className="h-4 w-36 rounded-lg shimmer" />
-          </div>
-          <div className="flex gap-2">
-            <div className="h-9 w-36 rounded-full shimmer" />
-            <div className="h-9 w-32 rounded-full shimmer" />
-            <div className="h-9 w-36 rounded-full shimmer" />
-          </div>
-        </div>
-        {/* Metric cards skeleton */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white border border-border/50 p-5 space-y-4 overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="h-4 w-28 rounded-lg shimmer" />
-                <div className="h-9 w-9 rounded-xl shimmer" />
-              </div>
-              <div className="h-9 w-32 rounded-lg shimmer" />
-              <div className="h-3.5 w-24 rounded-lg shimmer" />
+      <PageWrapper>
+        <div className="space-y-6 animate-pulse">
+          <div className="flex justify-between items-center">
+            <div className="space-y-2">
+              <div className="h-7 w-48 rounded-xl" style={{ background: "rgba(255,255,255,0.08)" }} />
+              <div className="h-4 w-32 rounded-lg" style={{ background: "rgba(255,255,255,0.05)" }} />
             </div>
-          ))}
-        </div>
-        {/* Chart skeleton */}
-        <div className="grid gap-4 lg:grid-cols-7">
-          <div className="lg:col-span-4 rounded-2xl bg-white border border-border/50 p-5 space-y-4">
-            <div className="h-6 w-44 rounded-lg shimmer" />
-            <div className="h-[300px] w-full rounded-xl shimmer" />
+            <div className="flex gap-2">
+              {[120, 100, 110].map((w, i) => (
+                <div key={i} className="h-9 rounded-full" style={{ width: w, background: "rgba(255,255,255,0.06)" }} />
+              ))}
+            </div>
           </div>
-          <div className="lg:col-span-3 rounded-2xl bg-white border border-border/50 p-5 space-y-5">
-            <div className="h-6 w-28 rounded-lg shimmer" />
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="h-6 w-6 rounded-full shimmer flex-shrink-0" />
-                <div className="h-9 w-9 rounded-xl shimmer flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3.5 w-32 rounded-lg shimmer" />
-                  <div className="h-2.5 w-full rounded-full shimmer" />
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="rounded-2xl p-5 space-y-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", height: 140 }}>
+                <div className="flex justify-between">
+                  <div className="h-3.5 w-24 rounded-lg" style={{ background: "rgba(255,255,255,0.08)" }} />
+                  <div className="h-8 w-8 rounded-xl" style={{ background: "rgba(255,255,255,0.08)" }} />
                 </div>
-                <div className="h-5 w-10 rounded-lg shimmer" />
+                <div className="h-8 w-36 rounded-lg" style={{ background: "rgba(255,255,255,0.08)" }} />
+                <div className="h-3 w-20 rounded-lg" style={{ background: "rgba(255,255,255,0.05)" }} />
               </div>
             ))}
           </div>
+          <div className="grid gap-4 lg:grid-cols-7">
+            <div className="lg:col-span-4 rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", height: 380 }} />
+            <div className="lg:col-span-3 rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", height: 380 }} />
+          </div>
         </div>
-      </div>
+      </PageWrapper>
     );
   }
 
-  if (!data) return <div className="text-slate-500 p-8">Erreur de chargement.</div>;
+  if (!data) return (
+    <PageWrapper>
+      <p style={{ color: "rgba(255,255,255,0.4)" }} className="p-8 text-sm">Erreur de chargement.</p>
+    </PageWrapper>
+  );
 
-  /* ─── Derived values ──────────────────────────────────────── */
   const maxTopQty = Math.max(...(data.topSales ?? []).map(s => s._sum.quantity ?? 0), 1);
+  const isDrawerLive = data.cashDrawer.isOpened && !data.cashDrawer.isClosed;
 
-  /* ─── JSX ──────────────────────────────────────────────────── */
   return (
-    <div className="space-y-6 stagger-children">
+    <PageWrapper>
+      <div className="space-y-6">
 
-      {/* ── Header ───────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tableau de bord</h1>
-          <div className="flex items-center gap-2 mt-0.5" suppressHydrationWarning>
-            {mounted && clock ? (
-              <>
-                <span className="text-sm text-slate-400 capitalize">
-                  {clock.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
-                </span>
-                <span className="text-slate-200">·</span>
-                <span className="text-sm font-mono text-slate-500 tabular-nums">
-                  {clock.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                </span>
-              </>
+        {/* ── Header ─────────────────────────────────── */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#f1f5f9", fontFamily: "var(--font-heading)" }}>
+              Tableau de bord
+            </h1>
+            <div className="flex items-center gap-2 mt-1" suppressHydrationWarning>
+              {mounted && clock ? (
+                <>
+                  <span className="text-sm capitalize" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {clock.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                  </span>
+                  <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
+                  <span className="text-sm font-mono tabular-nums" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    {clock.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                </>
+              ) : <div className="h-4 w-48 rounded-lg" style={{ background: "rgba(255,255,255,0.06)" }} />}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Retrait Gérant */}
+            <Dialog open={isWithdrawalOpen} onOpenChange={setIsWithdrawalOpen}>
+              <DialogTrigger render={(props) => (
+                <button
+                  className="flex items-center gap-1.5 px-4 h-9 rounded-full text-sm font-semibold text-white cursor-pointer transition-all duration-200 hover:opacity-90 hover:scale-[1.02]"
+                  style={{ background: "linear-gradient(135deg, #7c3aed, #5b21b6)", boxShadow: "0 0 20px rgba(124,58,237,0.4)" }}
+                  {...props}
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Retrait Gérant</span>
+                </button>
+              )} />
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Retrait Gérant</DialogTitle>
+                  <DialogDescription>Retirer des fonds de la caisse (non affecté au bénéfice).</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleManagerWithdrawal} className="space-y-4 pt-2">
+                  <div className="space-y-1.5"><Label>Montant (DH)</Label><Input type="number" required placeholder="0.00" value={withdrawalForm.amount} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, amount: e.target.value })} className="text-lg font-bold" /></div>
+                  <div className="space-y-1.5"><Label>Motif</Label><Input placeholder="Ex: Dépôt banque" value={withdrawalForm.description} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, description: e.target.value })} /></div>
+                  <div className="space-y-1.5"><Label>Code Manager</Label><Input type="password" required placeholder="****" value={withdrawalForm.code} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, code: e.target.value })} /></div>
+                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={expSubmitting}>
+                    {expSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Confirmer le retrait
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Dépense */}
+            <button
+              onClick={() => setShowExpenseDialog(true)}
+              className="flex items-center gap-1.5 px-4 h-9 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 hover:border-white/20"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Dépense Caisse</span>
+            </button>
+
+            {/* Mode Gérant */}
+            {!showProfits ? (
+              <button
+                onClick={() => setShowPinDialog(true)}
+                className="flex items-center gap-1.5 px-4 h-9 rounded-full text-sm font-medium cursor-pointer transition-all duration-200"
+                style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.3)", color: "#a78bfa" }}
+              >
+                <Lock className="h-3.5 w-3.5" />
+                Mode Gérant
+              </button>
             ) : (
-              <div className="h-4 w-48 rounded-lg shimmer" />
+              <button
+                onClick={() => setShowProfits(false)}
+                className="flex items-center gap-1.5 px-4 h-9 rounded-full text-sm font-medium cursor-pointer transition-all duration-200"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
+              >
+                <Unlock className="h-3.5 w-3.5" />
+                Quitter
+              </button>
             )}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Retrait Gérant */}
-          <Dialog open={isWithdrawalOpen} onOpenChange={setIsWithdrawalOpen}>
-            <DialogTrigger render={(props) => (
-              <Button
-                size="sm"
-                className="rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-sm border-0 gap-1.5 cursor-pointer"
-                {...props}
-              >
-                <Lock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Retrait Gérant</span>
-              </Button>
-            )} />
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Retrait Gérant</DialogTitle>
-                <DialogDescription>Retirer des fonds de la caisse (non affecté au bénéfice).</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleManagerWithdrawal} className="space-y-4 pt-2">
-                <div className="space-y-1.5">
-                  <Label>Montant (DH)</Label>
-                  <Input type="number" required placeholder="0.00" value={withdrawalForm.amount} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, amount: e.target.value })} className="text-lg font-bold" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Motif</Label>
-                  <Input placeholder="Ex: Dépôt banque" value={withdrawalForm.description} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, description: e.target.value })} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Code Manager</Label>
-                  <Input type="password" required placeholder="****" value={withdrawalForm.code} onChange={(e) => setWithdrawalForm({ ...withdrawalForm, code: e.target.value })} />
-                </div>
-                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={expSubmitting}>
-                  {expSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  Confirmer le retrait
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+        {/* ── KPI Cards ──────────────────────────────── */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
 
-          {/* Dépense Caisse */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowExpenseDialog(true)}
-            className="rounded-full gap-1.5 border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
-          >
-            <ShoppingCart className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Dépense Caisse</span>
-          </Button>
+          {/* Caisse Live */}
+          <CashCard
+            cashDrawer={data.cashDrawer}
+            isLive={isDrawerLive}
+            formatCurrency={formatCurrency}
+            onOpen={() => setShowCashDialog(true)}
+            onClose={() => setShowCloseCashDialog(true)}
+          />
 
-          {/* Mode Gérant toggle */}
-          {!showProfits ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowPinDialog(true)}
-              className="rounded-full gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 bg-indigo-50/50 cursor-pointer"
-            >
-              <Lock className="h-3.5 w-3.5" />
-              Mode Gérant
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowProfits(false)}
-              className="rounded-full gap-1.5 text-slate-500 hover:text-slate-700 cursor-pointer"
-            >
-              <Unlock className="h-3.5 w-3.5" />
-              Quitter
-            </Button>
-          )}
+          {/* Ventes Aujourd'hui */}
+          <KpiCard
+            label={showProfits ? "Bénéfice Auj." : "Ventes Aujourd'hui"}
+            rawValue={showProfits ? data.daily.profit : data.daily.revenue}
+            formatter={formatCurrency}
+            sub={formatSoldLabel(data.daily.quantity, data.daily.weightKg ?? 0)}
+            icon={showProfits ? TrendingUp : CreditCard}
+            accentColor="#10b981"
+            glowColor="rgba(16,185,129,0.25)"
+            trend={showProfits ? "up" : "neutral"}
+          />
+
+          {/* Ventes Hebdo */}
+          <KpiCard
+            label={showProfits ? "Bénéfice Hebdo" : "Ventes Semaine"}
+            rawValue={showProfits ? data.weekly.profit : data.weekly.revenue}
+            formatter={formatCurrency}
+            sub={formatSoldLabel(data.weekly.quantity, data.weekly.weightKg ?? 0)}
+            icon={Activity}
+            accentColor="#818cf8"
+            glowColor="rgba(129,140,248,0.2)"
+            trend="neutral"
+          />
+
+          {/* Stock Alerts */}
+          <StockCard count={data.lowStockCount} products={data.lowStockProducts} />
         </div>
-      </div>
 
-      {/* ── Metric cards ─────────────────────────────────────── */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* ── Chart + Top Ventes ─────────────────────── */}
+        <div className="grid gap-4 lg:grid-cols-7">
 
-        {/* Caisse en Direct */}
-        <CashDrawerCard
-          data={data.cashDrawer}
-          formatCurrency={formatCurrency}
-          onOpenCash={() => setShowCashDialog(true)}
-          onCloseCash={() => setShowCloseCashDialog(true)}
-        />
-
-        {/* Ventes Aujourd'hui */}
-        <MetricCard
-          label={showProfits ? "Bénéfice Aujourd'hui" : "Ventes Aujourd'hui"}
-          rawValue={showProfits ? data.daily.profit : data.daily.revenue}
-          formatter={formatCurrency}
-          sub={formatSoldLabel(data.daily.quantity, data.daily.weightKg ?? 0)}
-          icon={showProfits ? TrendingUp : CreditCard}
-          iconColor="text-emerald-600"
-          iconBg="bg-emerald-50"
-          trend={showProfits ? "up" : undefined}
-        />
-
-        {/* Ventes Hebdo */}
-        <MetricCard
-          label={showProfits ? "Bénéfice Hebdo" : "Ventes Hebdo"}
-          rawValue={showProfits ? data.weekly.profit : data.weekly.revenue}
-          formatter={formatCurrency}
-          sub={formatSoldLabel(data.weekly.quantity, data.weekly.weightKg ?? 0)}
-          icon={Activity}
-          iconColor="text-violet-600"
-          iconBg="bg-violet-50"
-        />
-
-        {/* Alertes Stock */}
-        <LowStockCard
-          count={data.lowStockCount}
-          products={data.lowStockProducts}
-        />
-      </div>
-
-      {/* ── Chart + Top Ventes ───────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-7">
-
-        {/* Chart */}
-        <div className="lg:col-span-4 rounded-2xl bg-white border border-border/50 shadow-card p-5 card-lift">
-          <div className="flex items-start justify-between mb-5">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">
-                {showProfits ? "Analyse des Bénéfices" : "Chiffre d'Affaire"}
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">Performance des 7 derniers jours</p>
-            </div>
-            <div className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
-              showProfits ? "bg-indigo-50" : "bg-slate-50"
-            )}>
-              {showProfits
-                ? <BarChart2 className="h-4 w-4 text-indigo-500" />
-                : <Lock className="h-4 w-4 text-slate-300" />
-              }
-            </div>
-          </div>
-
-          {!showProfits ? (
-            <div className="h-[300px] flex flex-col items-center justify-center rounded-xl bg-gradient-to-br from-slate-50 to-indigo-50/30 border border-dashed border-slate-200">
-              <div className="h-14 w-14 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4">
-                <Lock className="h-6 w-6 text-indigo-500" />
+          {/* Chart */}
+          <div
+            className="lg:col-span-4 p-5 transition-all duration-300 hover:border-white/12"
+            style={glass.card}
+          >
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: "#f1f5f9" }}>
+                  {showProfits ? "Revenus & Bénéfices" : "Chiffre d'Affaire"}
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  {showProfits ? "7 derniers jours (gérant)" : "7 derniers jours"}
+                </p>
               </div>
-              <p className="font-semibold text-slate-800 text-sm">Graphique verrouillé</p>
-              <p className="text-xs text-slate-400 px-8 text-center mt-1 mb-4">
-                Activez le Mode Gérant pour visualiser les courbes de performance.
-              </p>
-              <Button
-                size="sm"
-                onClick={() => setShowPinDialog(true)}
-                className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-5 cursor-pointer"
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-xl"
+                style={{ background: showProfits ? "rgba(139,92,246,0.2)" : "rgba(255,255,255,0.06)" }}
               >
-                Déverrouiller
-              </Button>
+                {showProfits
+                  ? <Sparkles className="h-4 w-4" style={{ color: "#a78bfa" }} />
+                  : <Lock className="h-4 w-4" style={{ color: "rgba(255,255,255,0.25)" }} />
+                }
+              </div>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.chartData ?? []} barCategoryGap="35%">
+
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={data.chartData ?? []} margin={{ top: 10, right: 4, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.85} />
+                  <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="barGradientRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#059669" stopOpacity={0.85} />
+                  <linearGradient id="gradProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="2" result="blur" />
+                    <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                 <XAxis
                   dataKey="date"
-                  stroke="#CBD5E1"
+                  stroke="rgba(255,255,255,0.1)"
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
+                  tick={{ fill: "rgba(255,255,255,0.35)" }}
                   tickFormatter={(val) => {
                     const d = new Date(val);
                     return `${d.getDate()}/${d.getMonth() + 1}`;
                   }}
                 />
                 <YAxis
-                  stroke="#CBD5E1"
+                  stroke="rgba(255,255,255,0.1)"
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v) => `${v}`}
+                  tick={{ fill: "rgba(255,255,255,0.35)" }}
                 />
-                <Tooltip
-                  formatter={(value: number | string, name: string) => [
-                    `${value} DH`,
-                    name === "profit" ? "Bénéfice" : "Chiffre d'Affaire",
-                  ]}
-                  labelFormatter={(label) => new Date(label).toLocaleDateString("fr-FR")}
-                  cursor={{ fill: "rgba(99,102,241,0.06)", radius: 8 }}
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid #E2E8F0",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
-                    fontSize: "12px",
-                    padding: "8px 12px",
-                  }}
+                <Tooltip content={<DarkTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#8b5cf6"
+                  strokeWidth={2.5}
+                  fill="url(#gradRevenue)"
+                  dot={false}
+                  activeDot={{ r: 5, fill: "#8b5cf6", stroke: "rgba(139,92,246,0.3)", strokeWidth: 6 }}
+                  filter="url(#glow)"
                 />
-                <Bar
-                  dataKey={showProfits ? "profit" : "revenue"}
-                  fill={showProfits ? "url(#barGradient)" : "url(#barGradientRevenue)"}
-                  radius={[6, 6, 0, 0]}
-                  animationDuration={800}
-                />
-              </BarChart>
+                {showProfits && (
+                  <Area
+                    type="monotone"
+                    dataKey="profit"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#gradProfit)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: "#10b981", stroke: "rgba(16,185,129,0.3)", strokeWidth: 6 }}
+                  />
+                )}
+              </AreaChart>
             </ResponsiveContainer>
-          )}
-        </div>
 
-        {/* Top Ventes */}
-        <div className="lg:col-span-3 rounded-2xl bg-white border border-border/50 shadow-card p-5 card-lift">
-          <div className="flex items-start justify-between mb-5">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">Top Ventes</h2>
-              <p className="text-xs text-slate-400 mt-0.5">5 produits les plus vendus</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50">
-              <Trophy className="h-4 w-4 text-amber-500" />
-            </div>
+            {!showProfits && (
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-3 text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-3 h-0.5 rounded-full" style={{ background: "#8b5cf6" }} />
+                    Chiffre d&apos;affaire
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowPinDialog(true)}
+                  className="flex items-center gap-1 text-[11px] font-medium cursor-pointer transition-colors hover:opacity-90"
+                  style={{ color: "#a78bfa" }}
+                >
+                  <Lock className="h-3 w-3" />
+                  Voir bénéfices
+                </button>
+              </div>
+            )}
+
+            {showProfits && (
+              <div className="mt-3 flex items-center gap-4 text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-0.5 rounded-full" style={{ background: "#8b5cf6" }} />
+                  Chiffre d&apos;affaire
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-0.5 rounded-full" style={{ background: "#10b981" }} />
+                  Bénéfice
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3.5">
+          {/* Top Ventes */}
+          <div
+            className="lg:col-span-3 p-5 transition-all duration-300"
+            style={glass.card}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: "#f1f5f9" }}>Top Ventes</h2>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>5 produits les plus vendus</p>
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: "rgba(251,191,36,0.15)" }}>
+                <Trophy className="h-4 w-4" style={{ color: "#fbbf24" }} />
+              </div>
+            </div>
+
             {(data.topSales ?? []).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <div className="flex flex-col items-center justify-center py-14" style={{ color: "rgba(255,255,255,0.25)" }}>
                 <ShoppingCart className="h-8 w-8 mb-2 opacity-40" />
                 <p className="text-sm">Aucune vente enregistrée</p>
               </div>
             ) : (
-              (data.topSales ?? []).map((sale, i) => {
-                const qty = sale._sum.quantity ?? 0;
-                const pct = Math.round((qty / maxTopQty) * 100);
-                const rankColors = [
-                  "from-amber-400 to-amber-500 text-white",
-                  "from-slate-400 to-slate-500 text-white",
-                  "from-amber-600 to-amber-700 text-white",
-                ];
-                return (
-                  <div key={i} className="group">
-                    <div className="flex items-center gap-3 mb-1.5">
-                      <div className={cn(
-                        "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold bg-gradient-to-br",
-                        i < 3 ? rankColors[i] : "bg-slate-100 text-slate-400"
-                      )}>
-                        {i + 1}
+              <div className="space-y-4">
+                {(data.topSales ?? []).map((sale, i) => {
+                  const qty = sale._sum.quantity ?? 0;
+                  const pct = Math.round((qty / maxTopQty) * 100);
+                  const medals = [
+                    { gradient: "linear-gradient(135deg, #f59e0b, #d97706)", glow: "rgba(245,158,11,0.4)" },
+                    { gradient: "linear-gradient(135deg, #94a3b8, #64748b)", glow: "rgba(148,163,184,0.3)" },
+                    { gradient: "linear-gradient(135deg, #cd7c2f, #92400e)", glow: "rgba(180,83,9,0.35)" },
+                  ];
+                  const barColors = ["#f59e0b", "#94a3b8", "#cd7c2f", "#8b5cf6", "#8b5cf6"];
+
+                  return (
+                    <div key={i}>
+                      <div className="flex items-center gap-3 mb-1.5">
+                        {/* Rank badge */}
+                        <div
+                          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                          style={{
+                            background: i < 3 ? medals[i].gradient : "rgba(255,255,255,0.06)",
+                            color: i < 3 ? "white" : "rgba(255,255,255,0.3)",
+                            boxShadow: i < 3 ? `0 0 12px ${medals[i].glow}` : "none",
+                          }}
+                        >
+                          {i + 1}
+                        </div>
+                        {/* Image */}
+                        <div className="h-9 w-9 relative rounded-xl overflow-hidden flex-shrink-0" style={{ background: "rgba(255,255,255,0.06)" }}>
+                          {sale.product?.image ? (
+                            <Image src={sale.product.image} alt={sale.product?.name ?? ""} fill className="object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center">
+                              <Box className="h-4 w-4" style={{ color: "rgba(255,255,255,0.25)" }} />
+                            </div>
+                          )}
+                        </div>
+                        {/* Name */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate leading-tight" style={{ color: "#f1f5f9" }}>
+                            {sale.product?.name || "Produit inconnu"}
+                          </p>
+                          <p className="text-[10px] truncate" style={{ color: "rgba(255,255,255,0.35)" }}>
+                            {sale.product?.category || "Sans catégorie"}
+                          </p>
+                        </div>
+                        {/* Qty */}
+                        <div className="flex-shrink-0 text-right">
+                          <div className="text-sm font-bold tabular-nums" style={{ color: barColors[i] }}>{qty}</div>
+                          <div className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>vendu(s)</div>
+                        </div>
                       </div>
-                      <div className="h-9 w-9 relative rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
-                        {sale.product?.image ? (
-                          <Image src={sale.product.image} alt={sale.product?.name ?? ""} fill className="object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <Box className="h-4 w-4 text-slate-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
-                          {sale.product?.name || "Produit inconnu"}
-                        </p>
-                        <p className="text-[10px] text-slate-400 truncate">
-                          {sale.product?.category || "Sans catégorie"}
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0 text-right">
-                        <div className="text-sm font-bold text-indigo-600 tabular-nums">{qty}</div>
-                        <div className="text-[9px] text-slate-400 uppercase tracking-wider">vendu(s)</div>
+                      {/* Progress bar */}
+                      <div className="ml-[60px] h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${pct}%`,
+                            background: i < 3 ? medals[i].gradient : "rgba(139,92,246,0.6)",
+                            boxShadow: i < 3 ? `0 0 8px ${medals[i].glow}` : "none",
+                            transition: "width 1s cubic-bezier(0.4,0,0.2,1)",
+                          }}
+                        />
                       </div>
                     </div>
-                    {/* Progress bar */}
-                    <div className="ml-[60px] h-1 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-700",
-                          i === 0 ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                          : i === 1 ? "bg-gradient-to-r from-slate-400 to-slate-500"
-                          : i === 2 ? "bg-gradient-to-r from-amber-600 to-amber-700"
-                          : "bg-indigo-300"
-                        )}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* ── Dialogs ──────────────────────────────────────────── */}
+        {/* ── Dialogs ──────────────────────────────── */}
 
-      {/* PIN */}
-      <Dialog open={showPinDialog} onOpenChange={setShowPinDialog}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Accès Mode Gérant</DialogTitle>
-            <DialogDescription>Entrez votre code secret pour accéder aux données sensibles.</DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              type="password"
-              placeholder="Code PIN"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handlePinSubmit()}
-              className="text-center text-2xl tracking-[1em] h-14"
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={handlePinSubmit}
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
-              disabled={pinSubmitting}
-            >
-              {pinSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Confirmer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Fond de Caisse */}
-      <Dialog open={showCashDialog} onOpenChange={setShowCashDialog}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Modifier le Fond de Caisse</DialogTitle>
-            <DialogDescription>Ajustez le montant présent dans la caisse au début de la journée.</DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Label className="text-sm font-medium text-slate-700 mb-2 block">Montant Initial (MAD)</Label>
-            <Input
-              type="number"
-              value={newStartingCash}
-              onChange={(e) => setNewStartingCash(e.target.value)}
-              className="text-lg font-bold h-12"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={updateCashDrawer}
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
-              disabled={cashSubmitting}
-            >
-              {cashSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Enregistrer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Clôture Caisse */}
-      <Dialog open={showCloseCashDialog} onOpenChange={setShowCloseCashDialog}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Clôturer la Caisse</DialogTitle>
-            <DialogDescription>Comparez le montant théorique avec le cash compté en fin de journée.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 flex items-center justify-between">
-              <span className="text-sm text-slate-600">Montant attendu</span>
-              <span className="font-bold text-slate-900">{formatCurrency(data.cashDrawer.balance)}</span>
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-slate-700 mb-2 block">Cash compté (MAD)</Label>
-              <Input
-                type="number"
-                value={closingCash}
-                onChange={(e) => setClosingCash(e.target.value)}
-                className="text-lg font-bold h-12"
-              />
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-slate-700 mb-2 block">Notes</Label>
-              <Input
-                value={closingNotes}
-                onChange={(e) => setClosingNotes(e.target.value)}
-                placeholder="Ex: dépôt banque, écart justifié…"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={closeCashDrawer}
-              className="w-full bg-indigo-600 hover:bg-indigo-700"
-              disabled={closeCashSubmitting}
-            >
-              {closeCashSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Confirmer la clôture
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dépense Rapide */}
-      <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Dépense de Caisse</DialogTitle>
-            <DialogDescription>Enregistrer une sortie d&apos;espèces de la caisse.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitQuickExpense} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label>Montant (DH)</Label>
-              <Input
-                type="number"
-                required
-                value={quickExpense.amount}
-                onChange={(e) => setQuickExpense({ ...quickExpense, amount: e.target.value })}
-                placeholder="0.00"
-                className="text-lg font-bold h-12"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Input
-                required
-                value={quickExpense.description}
-                onChange={(e) => setQuickExpense({ ...quickExpense, description: e.target.value })}
-                placeholder="Ex: Pain, taxi, réparation…"
-              />
+        {/* PIN */}
+        <Dialog open={showPinDialog} onOpenChange={setShowPinDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Accès Mode Gérant</DialogTitle>
+              <DialogDescription>Entrez votre code secret pour accéder aux données sensibles.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input type="password" placeholder="Code PIN" value={pinInput} onChange={(e) => setPinInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handlePinSubmit()} className="text-center text-2xl tracking-[1em] h-14" autoFocus />
             </div>
             <DialogFooter>
-              <Button
-                type="submit"
-                className="w-full bg-red-600 hover:bg-red-700"
-                disabled={expSubmitting}
-              >
-                {expSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Enregistrer la dépense
+              <Button onClick={handlePinSubmit} className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={pinSubmitting}>
+                {pinSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Confirmer
               </Button>
             </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
 
+        {/* Fond de Caisse */}
+        <Dialog open={showCashDialog} onOpenChange={setShowCashDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Modifier le Fond de Caisse</DialogTitle>
+              <DialogDescription>Ajustez le montant présent dans la caisse au début de la journée.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label className="text-sm font-medium text-slate-700 mb-2 block">Montant Initial (MAD)</Label>
+              <Input type="number" value={newStartingCash} onChange={(e) => setNewStartingCash(e.target.value)} className="text-lg font-bold h-12" />
+            </div>
+            <DialogFooter>
+              <Button onClick={updateCashDrawer} className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={cashSubmitting}>
+                {cashSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Enregistrer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Clôture Caisse */}
+        <Dialog open={showCloseCashDialog} onOpenChange={setShowCloseCashDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Clôturer la Caisse</DialogTitle>
+              <DialogDescription>Comparez le montant théorique avec le cash compté en fin de journée.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 flex items-center justify-between">
+                <span className="text-sm text-slate-600">Montant attendu</span>
+                <span className="font-bold text-slate-900">{formatCurrency(data.cashDrawer.balance)}</span>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-slate-700 mb-2 block">Cash compté (MAD)</Label>
+                <Input type="number" value={closingCash} onChange={(e) => setClosingCash(e.target.value)} className="text-lg font-bold h-12" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-slate-700 mb-2 block">Notes</Label>
+                <Input value={closingNotes} onChange={(e) => setClosingNotes(e.target.value)} placeholder="Ex: dépôt banque, écart justifié…" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={closeCashDrawer} className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={closeCashSubmitting}>
+                {closeCashSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Confirmer la clôture
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dépense Rapide */}
+        <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Dépense de Caisse</DialogTitle>
+              <DialogDescription>Enregistrer une sortie d&apos;espèces de la caisse.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={submitQuickExpense} className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Montant (DH)</Label>
+                <Input type="number" required value={quickExpense.amount} onChange={(e) => setQuickExpense({ ...quickExpense, amount: e.target.value })} placeholder="0.00" className="text-lg font-bold h-12" autoFocus />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description</Label>
+                <Input required value={quickExpense.description} onChange={(e) => setQuickExpense({ ...quickExpense, description: e.target.value })} placeholder="Ex: Pain, taxi, réparation…" />
+              </div>
+              <DialogFooter>
+                <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={expSubmitting}>
+                  {expSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Enregistrer la dépense
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+      </div>
+    </PageWrapper>
+  );
+}
+
+/* ─── PageWrapper — full-bleed dark bg ───────────────────── */
+
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="-mx-4 sm:-mx-6 md:-mx-8 -mt-8 -mb-20 md:-mb-8 px-4 sm:px-6 md:px-8 pt-8 pb-20 md:pb-8 min-h-full"
+      style={{
+        background: "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(109,40,217,0.18) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 60%, rgba(79,46,220,0.1) 0%, transparent 60%), #07070e",
+      }}
+    >
+      {children}
     </div>
   );
 }
 
-/* ─── CashDrawerCard ──────────────────────────────────────────── */
+/* ─── CashCard ───────────────────────────────────────────── */
 
-function CashDrawerCard({
-  data,
-  formatCurrency,
-  onOpenCash,
-  onCloseCash,
+function CashCard({
+  cashDrawer, isLive, formatCurrency, onOpen, onClose,
 }: {
-  data: DashboardData["cashDrawer"];
+  cashDrawer: DashboardData["cashDrawer"];
+  isLive: boolean;
   formatCurrency: (v: number) => string;
-  onOpenCash: () => void;
-  onCloseCash: () => void;
+  onOpen: () => void;
+  onClose: () => void;
 }) {
-  const animatedBalance = useCountUp(data.balance);
-  const isLive = data.isOpened && !data.isClosed;
+  const animatedBalance = useCountUp(cashDrawer.balance);
 
   return (
     <div
-      className="relative rounded-2xl p-5 overflow-hidden text-white card-lift"
+      className="col-span-2 lg:col-span-1 relative rounded-[20px] p-5 overflow-hidden text-white cursor-default"
       style={{
-        background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-        boxShadow: "0 8px 32px rgba(79,70,229,0.30), 0 2px 8px rgba(79,70,229,0.20)",
+        background: "linear-gradient(145deg, #4c1d95 0%, #3730a3 50%, #1e1b4b 100%)",
+        boxShadow: "0 0 40px rgba(109,40,217,0.35), 0 1px 0 rgba(255,255,255,0.1) inset",
+        border: "1px solid rgba(255,255,255,0.12)",
       }}
     >
-      {/* Background orbs */}
-      <div className="absolute -top-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-      <div className="absolute -bottom-10 -left-4 h-24 w-24 rounded-full bg-violet-400/20 blur-2xl pointer-events-none" />
-
-      <div className="relative flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-white/80">Caisse en Direct</span>
-          {isLive && (
-            <span className="relative flex items-center gap-1 text-[10px] font-bold text-emerald-300 uppercase tracking-wide">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="live-dot absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              </span>
-              Live
-            </span>
-          )}
-          {data.isClosed && (
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wide">Clôturée</span>
-          )}
-        </div>
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-          <Wallet className="h-[18px] w-[18px] text-white" />
-        </div>
-      </div>
+      {/* Orbs */}
+      <div className="absolute -top-10 -right-10 h-36 w-36 rounded-full pointer-events-none" style={{ background: "rgba(167,139,250,0.15)", filter: "blur(30px)" }} />
+      <div className="absolute -bottom-8 -left-6 h-28 w-28 rounded-full pointer-events-none" style={{ background: "rgba(79,46,220,0.2)", filter: "blur(24px)" }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-40 w-40 rounded-full pointer-events-none" style={{ background: "rgba(99,102,241,0.08)", filter: "blur(40px)" }} />
 
       <div className="relative">
-        <div className="text-3xl font-bold tracking-tight mb-2 tabular-nums">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.55)" }}>
+              Caisse
+            </span>
+            {isLive && (
+              <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color: "#86efac" }}>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                </span>
+                LIVE
+              </span>
+            )}
+            {cashDrawer.isClosed && (
+              <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.3)" }}>Clôturée</span>
+            )}
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}>
+            <Wallet className="h-[18px] w-[18px]" style={{ color: "rgba(255,255,255,0.9)" }} />
+          </div>
+        </div>
+
+        {/* Balance */}
+        <div className="text-3xl font-bold tracking-tight tabular-nums mb-3" style={{ textShadow: "0 0 20px rgba(167,139,250,0.5)" }}>
           {formatCurrency(animatedBalance)}
         </div>
-        <div className="space-y-1 text-[11px] text-white/70 leading-relaxed">
-          <p>Fond: <span className="text-white/90">{formatCurrency(data.startingCash)}</span></p>
-          <p>Entrées: <span className="text-emerald-300">+{formatCurrency(data.currentRevenue)}</span></p>
-          {data.cashRefunds > 0 && (
-            <p>Remboursements: <span className="text-red-300">-{formatCurrency(data.cashRefunds)}</span></p>
+
+        {/* Breakdown */}
+        <div className="space-y-1 mb-4">
+          <div className="flex justify-between text-[11px]">
+            <span style={{ color: "rgba(255,255,255,0.45)" }}>Fond initial</span>
+            <span style={{ color: "rgba(255,255,255,0.8)" }}>{formatCurrency(cashDrawer.startingCash)}</span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span style={{ color: "rgba(255,255,255,0.45)" }}>Entrées cash</span>
+            <span style={{ color: "#86efac" }}>+{formatCurrency(cashDrawer.currentRevenue)}</span>
+          </div>
+          {cashDrawer.cashRefunds > 0 && (
+            <div className="flex justify-between text-[11px]">
+              <span style={{ color: "rgba(255,255,255,0.45)" }}>Remboursements</span>
+              <span style={{ color: "#fca5a5" }}>-{formatCurrency(cashDrawer.cashRefunds)}</span>
+            </div>
           )}
-          {data.currentExpenses > 0 && (
-            <p>Dépenses: <span className="text-orange-300">-{formatCurrency(data.currentExpenses)}</span></p>
+          {cashDrawer.currentExpenses > 0 && (
+            <div className="flex justify-between text-[11px]">
+              <span style={{ color: "rgba(255,255,255,0.45)" }}>Dépenses</span>
+              <span style={{ color: "#fdba74" }}>-{formatCurrency(cashDrawer.currentExpenses)}</span>
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-4">
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
           <button
-            onClick={onOpenCash}
-            className="text-[11px] font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors cursor-pointer"
+            onClick={onOpen}
+            className="flex-1 text-[11px] font-semibold py-1.5 rounded-lg cursor-pointer transition-all hover:opacity-90"
+            style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)" }}
           >
-            {data.isOpened ? "Modifier fond" : "Ouvrir"}
+            {cashDrawer.isOpened ? "Modifier fond" : "Ouvrir"}
           </button>
           <button
-            onClick={onCloseCash}
-            className="text-[11px] font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors cursor-pointer"
+            onClick={onClose}
+            className="flex-1 text-[11px] font-semibold py-1.5 rounded-lg cursor-pointer transition-all hover:opacity-90"
+            style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
           >
             Clôturer
           </button>
@@ -955,132 +938,135 @@ function CashDrawerCard({
   );
 }
 
-/* ─── MetricCard ──────────────────────────────────────────────── */
+/* ─── KpiCard ────────────────────────────────────────────── */
 
-function MetricCard({
-  label,
-  rawValue,
-  formatter,
-  sub,
-  icon: Icon,
-  iconColor,
-  iconBg,
-  trend,
+function KpiCard({
+  label, rawValue, formatter, sub, icon: Icon, accentColor, glowColor, trend,
 }: {
   label: string;
   rawValue: number;
   formatter: (v: number) => string;
   sub: string;
   icon: React.ElementType;
-  iconColor: string;
-  iconBg: string;
-  trend?: "up" | "down";
+  accentColor: string;
+  glowColor: string;
+  trend: "up" | "down" | "neutral";
 }) {
   const animated = useCountUp(rawValue);
 
   return (
-    <div className="rounded-2xl bg-white border border-border/50 p-5 shadow-card card-lift">
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-sm font-medium text-slate-500">{label}</span>
-        <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl transition-transform group-hover:scale-110", iconBg)}>
-          <Icon className={cn("h-[18px] w-[18px]", iconColor)} />
+    <div
+      className="rounded-[20px] p-5 transition-all duration-300 cursor-default group"
+      style={{
+        ...glass.card,
+        boxShadow: `0 0 0 0 ${glowColor}`,
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow = `0 0 30px ${glowColor}`;
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.12)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow = `0 0 0 0 ${glowColor}`;
+        (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.08)";
+      }}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+          {label}
+        </span>
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-xl"
+          style={{ background: `${accentColor}20` }}
+        >
+          <Icon className="h-4 w-4" style={{ color: accentColor }} />
         </div>
       </div>
-      <div className="text-3xl font-bold tracking-tight text-slate-900 mb-1 tabular-nums">
+
+      <div className="text-2xl font-bold tabular-nums mb-2" style={{ color: "#f1f5f9" }}>
         {formatter(animated)}
       </div>
+
       <div className="flex items-center gap-1.5">
-        {trend === "up" && <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />}
-        {trend === "down" && <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />}
-        {!trend && <Minus className="h-3 w-3 text-slate-300" />}
-        <p className="text-xs text-slate-400">{sub}</p>
+        {trend === "up" && <ArrowUpRight className="h-3 w-3" style={{ color: "#34d399" }} />}
+        {trend === "neutral" && <Minus className="h-3 w-3" style={{ color: "rgba(255,255,255,0.2)" }} />}
+        <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>{sub}</span>
       </div>
     </div>
   );
 }
 
-/* ─── LowStockCard ────────────────────────────────────────────── */
+/* ─── StockCard ──────────────────────────────────────────── */
 
-function LowStockCard({
-  count,
-  products,
-}: {
-  count: number;
-  products: LowStockProduct[];
-}) {
+function StockCard({ count, products }: { count: number; products: LowStockProduct[] }) {
   const hasAlert = count > 0;
 
   return (
-    <div className={cn(
-      "relative rounded-2xl bg-white border p-5 shadow-card card-lift overflow-hidden",
-      hasAlert ? "border-amber-200" : "border-border/50"
-    )}>
-      {hasAlert && (
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-50/60 to-transparent pointer-events-none" />
-      )}
-      <div className="relative flex items-start justify-between mb-3">
-        <span className="text-sm font-medium text-slate-500">Alertes Stock</span>
-        <div className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-xl relative",
-          hasAlert ? "bg-amber-50" : "bg-slate-50"
-        )}>
+    <div
+      className="rounded-[20px] p-5 transition-all duration-300 cursor-default"
+      style={{
+        ...glass.card,
+        borderColor: hasAlert ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.08)",
+      }}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+          Alertes Stock
+        </span>
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-xl" style={{ background: hasAlert ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.05)" }}>
           {hasAlert && (
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500" />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "#f59e0b" }} />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: "#f59e0b" }} />
             </span>
           )}
-          <AlertTriangle className={cn("h-4 w-4", hasAlert ? "text-amber-500" : "text-slate-400")} />
+          <AlertTriangle className="h-4 w-4" style={{ color: hasAlert ? "#fbbf24" : "rgba(255,255,255,0.25)" }} />
         </div>
       </div>
-      <div className={cn(
-        "relative text-3xl font-bold tracking-tight mb-1 tabular-nums",
-        hasAlert ? "text-amber-600" : "text-slate-900"
-      )}>
+
+      <div className="text-2xl font-bold tabular-nums mb-2" style={{ color: hasAlert ? "#fbbf24" : "#f1f5f9" }}>
         {count}
       </div>
-      <p className="relative text-xs text-slate-400">Produit(s) à réapprovisionner</p>
-      {hasAlert && (
-        <Dialog>
-          <DialogTrigger className="relative mt-3 flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700 transition-colors cursor-pointer">
-            Voir la liste <ChevronRight className="h-3 w-3" />
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Produits en alerte stock
-              </DialogTitle>
-              <DialogDescription>
-                Ces articles ont atteint ou sont sous leur seuil d&apos;alerte.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
-              {products?.map((p) => (
-                <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 relative rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
-                      {p.image ? (
-                        <Image src={p.image} alt={p.name} fill className="object-cover" />
-                      ) : (
-                        <Box className="h-full w-full p-2 text-slate-400" />
-                      )}
+
+      <div className="flex items-center justify-between">
+        <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+          Produit{count !== 1 ? "s" : ""} à réapprovisionner
+        </span>
+        {hasAlert && (
+          <Dialog>
+            <DialogTrigger className="flex items-center gap-0.5 text-[11px] font-medium cursor-pointer transition-colors hover:opacity-80" style={{ color: "#fbbf24" }}>
+              Voir <ChevronRight className="h-3 w-3" />
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Produits en alerte stock
+                </DialogTitle>
+                <DialogDescription>Ces articles ont atteint ou sont sous leur seuil d&apos;alerte.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
+                {products?.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 relative rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+                        {p.image ? <Image src={p.image} alt={p.name} fill className="object-cover" /> : <Box className="h-full w-full p-2 text-slate-400" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{p.name}</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Seuil: {p.lowStockThreshold}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{p.name}</p>
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Seuil: {p.lowStockThreshold}</p>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-red-600">{p.stock}</p>
+                      <p className="text-[9px] text-slate-400 uppercase tracking-wide">En stock</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-red-600">{p.stock}</p>
-                    <p className="text-[9px] text-slate-400 uppercase tracking-wide">En stock</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
     </div>
   );
 }
