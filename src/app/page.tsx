@@ -1,10 +1,9 @@
 "use client";
-// Redesign v2 — Modern SaaS Dashboard
+// Redesign v3 — Premium Dashboard with animations
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { apiRequest } from "@/lib/api";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
   Bar,
@@ -30,6 +29,7 @@ import {
   BarChart2,
   Trophy,
   ChevronRight,
+  Minus,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
@@ -127,6 +127,48 @@ interface DashboardData {
   chartData: ChartPoint[];
 }
 
+/* ─── Hooks ─────────────────────────────────────────────────── */
+
+/** Animates a number from 0 → end over `duration` ms */
+function useCountUp(end: number, duration = 750) {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const endRef = useRef(end);
+
+  useEffect(() => {
+    endRef.current = end;
+    const startTime = performance.now();
+    const startVal = value;
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
+    function tick(now: number) {
+      const t = Math.min((now - startTime) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3); // cubic ease-out
+      const cur = startVal + (endRef.current - startVal) * ease;
+      setValue(Math.round(cur));
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [end]);
+
+  return value;
+}
+
+/** Returns a live Date that updates every second */
+function useLiveClock() {
+  const [time, setTime] = useState<Date | null>(null);
+  useEffect(() => {
+    setTime(new Date());
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
+
 /* ─── Page ───────────────────────────────────────────────────── */
 
 export default function DashboardPage() {
@@ -153,6 +195,7 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const userRole = session?.user?.role;
+  const clock = useLiveClock();
 
   const fetchData = async () => {
     setLoading(true);
@@ -292,7 +335,7 @@ export default function DashboardPage() {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MAD" }).format(value);
 
-  /* ── Spinners ─────────────────────────── */
+  /* ── Auth loading ─────────────────────────── */
   if (status === "loading" || userRole === "CASHIER") {
     return (
       <div className="flex h-full w-full items-center justify-center p-8">
@@ -305,41 +348,48 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="space-y-6">
+        {/* Header skeleton */}
         <div className="flex items-center justify-between">
-          <Skeleton className="h-9 w-52" />
+          <div className="space-y-2">
+            <div className="h-8 w-52 rounded-xl shimmer" />
+            <div className="h-4 w-36 rounded-lg shimmer" />
+          </div>
           <div className="flex gap-2">
-            <Skeleton className="h-9 w-36" />
-            <Skeleton className="h-9 w-32" />
-            <Skeleton className="h-9 w-36" />
+            <div className="h-9 w-36 rounded-full shimmer" />
+            <div className="h-9 w-32 rounded-full shimmer" />
+            <div className="h-9 w-36 rounded-full shimmer" />
           </div>
         </div>
+        {/* Metric cards skeleton */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white shadow-card p-5 space-y-3 border border-border/50">
+            <div key={i} className="rounded-2xl bg-white border border-border/50 p-5 space-y-4 overflow-hidden">
               <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-9 w-9 rounded-xl" />
+                <div className="h-4 w-28 rounded-lg shimmer" />
+                <div className="h-9 w-9 rounded-xl shimmer" />
               </div>
-              <Skeleton className="h-9 w-32" />
-              <Skeleton className="h-4 w-24" />
+              <div className="h-9 w-32 rounded-lg shimmer" />
+              <div className="h-3.5 w-24 rounded-lg shimmer" />
             </div>
           ))}
         </div>
+        {/* Chart skeleton */}
         <div className="grid gap-4 lg:grid-cols-7">
-          <div className="lg:col-span-4 rounded-2xl bg-white shadow-card p-5 border border-border/50 space-y-4">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-[300px] w-full rounded-xl" />
+          <div className="lg:col-span-4 rounded-2xl bg-white border border-border/50 p-5 space-y-4">
+            <div className="h-6 w-44 rounded-lg shimmer" />
+            <div className="h-[300px] w-full rounded-xl shimmer" />
           </div>
-          <div className="lg:col-span-3 rounded-2xl bg-white shadow-card p-5 border border-border/50 space-y-4">
-            <Skeleton className="h-6 w-28" />
+          <div className="lg:col-span-3 rounded-2xl bg-white border border-border/50 p-5 space-y-5">
+            <div className="h-6 w-28 rounded-lg shimmer" />
             {[...Array(5)].map((_, i) => (
               <div key={i} className="flex items-center gap-3">
-                <Skeleton className="h-10 w-10 rounded-xl" />
-                <div className="flex-1 space-y-1.5">
-                  <Skeleton className="h-3.5 w-32" />
-                  <Skeleton className="h-3 w-20" />
+                <div className="h-6 w-6 rounded-full shimmer flex-shrink-0" />
+                <div className="h-9 w-9 rounded-xl shimmer flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 w-32 rounded-lg shimmer" />
+                  <div className="h-2.5 w-full rounded-full shimmer" />
                 </div>
-                <Skeleton className="h-5 w-10" />
+                <div className="h-5 w-10 rounded-lg shimmer" />
               </div>
             ))}
           </div>
@@ -350,6 +400,9 @@ export default function DashboardPage() {
 
   if (!data) return <div className="text-slate-500 p-8">Erreur de chargement.</div>;
 
+  /* ─── Derived values ──────────────────────────────────────── */
+  const maxTopQty = Math.max(...(data.topSales ?? []).map(s => s._sum.quantity ?? 0), 1);
+
   /* ─── JSX ──────────────────────────────────────────────────── */
   return (
     <div className="space-y-6 stagger-children">
@@ -358,9 +411,21 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tableau de bord</h1>
-          <p className="text-sm text-slate-500 mt-0.5" suppressHydrationWarning>
-            {mounted ? new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) : ""}
-          </p>
+          <div className="flex items-center gap-2 mt-0.5" suppressHydrationWarning>
+            {mounted && clock ? (
+              <>
+                <span className="text-sm text-slate-400 capitalize">
+                  {clock.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                </span>
+                <span className="text-slate-200">·</span>
+                <span className="text-sm font-mono text-slate-500 tabular-nums">
+                  {clock.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
+              </>
+            ) : (
+              <div className="h-4 w-48 rounded-lg shimmer" />
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -369,7 +434,7 @@ export default function DashboardPage() {
             <DialogTrigger render={(props) => (
               <Button
                 size="sm"
-                className="rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-sm border-0 gap-1.5"
+                className="rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-sm border-0 gap-1.5 cursor-pointer"
                 {...props}
               >
                 <Lock className="h-3.5 w-3.5" />
@@ -407,7 +472,7 @@ export default function DashboardPage() {
             size="sm"
             variant="outline"
             onClick={() => setShowExpenseDialog(true)}
-            className="rounded-full gap-1.5 border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="rounded-full gap-1.5 border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
           >
             <ShoppingCart className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Dépense Caisse</span>
@@ -419,7 +484,7 @@ export default function DashboardPage() {
               size="sm"
               variant="outline"
               onClick={() => setShowPinDialog(true)}
-              className="rounded-full gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 bg-indigo-50/50"
+              className="rounded-full gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 bg-indigo-50/50 cursor-pointer"
             >
               <Lock className="h-3.5 w-3.5" />
               Mode Gérant
@@ -429,7 +494,7 @@ export default function DashboardPage() {
               size="sm"
               variant="ghost"
               onClick={() => setShowProfits(false)}
-              className="rounded-full gap-1.5 text-slate-500 hover:text-slate-700"
+              className="rounded-full gap-1.5 text-slate-500 hover:text-slate-700 cursor-pointer"
             >
               <Unlock className="h-3.5 w-3.5" />
               Quitter
@@ -442,57 +507,18 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
 
         {/* Caisse en Direct */}
-        <div
-          className="relative rounded-2xl p-5 overflow-hidden text-white"
-          style={{
-            background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-            boxShadow: "0 8px 32px rgba(79,70,229,0.30), 0 2px 8px rgba(79,70,229,0.20)",
-          }}
-        >
-          {/* Background glow orb */}
-          <div className="absolute -top-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-
-          <div className="relative flex items-start justify-between mb-3">
-            <span className="text-sm font-medium text-white/80">Caisse en Direct</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-              <Wallet className="h-[18px] w-[18px] text-white" />
-            </div>
-          </div>
-          <div className="relative">
-            <div className="text-3xl font-bold tracking-tight mb-2">
-              {formatCurrency(data.cashDrawer.balance)}
-            </div>
-            <div className="space-y-1 text-[11px] text-white/70 leading-relaxed">
-              <p>Fond: <span className="text-white/90">{formatCurrency(data.cashDrawer.startingCash)}</span></p>
-              <p>Entrées: <span className="text-emerald-300">+{formatCurrency(data.cashDrawer.currentRevenue)}</span></p>
-              {data.cashDrawer.cashRefunds > 0 && (
-                <p>Remboursements: <span className="text-red-300">-{formatCurrency(data.cashDrawer.cashRefunds)}</span></p>
-              )}
-              {data.cashDrawer.currentExpenses > 0 && (
-                <p>Dépenses: <span className="text-orange-300">-{formatCurrency(data.cashDrawer.currentExpenses)}</span></p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-4">
-              <button
-                onClick={() => setShowCashDialog(true)}
-                className="text-[11px] font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
-              >
-                {data.cashDrawer.isOpened ? "Modifier fond" : "Ouvrir"}
-              </button>
-              <button
-                onClick={() => setShowCloseCashDialog(true)}
-                className="text-[11px] font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
-              >
-                Clôturer
-              </button>
-            </div>
-          </div>
-        </div>
+        <CashDrawerCard
+          data={data.cashDrawer}
+          formatCurrency={formatCurrency}
+          onOpenCash={() => setShowCashDialog(true)}
+          onCloseCash={() => setShowCloseCashDialog(true)}
+        />
 
         {/* Ventes Aujourd'hui */}
         <MetricCard
           label={showProfits ? "Bénéfice Aujourd'hui" : "Ventes Aujourd'hui"}
-          value={formatCurrency(showProfits ? data.daily.profit : data.daily.revenue)}
+          rawValue={showProfits ? data.daily.profit : data.daily.revenue}
+          formatter={formatCurrency}
           sub={formatSoldLabel(data.daily.quantity, data.daily.weightKg ?? 0)}
           icon={showProfits ? TrendingUp : CreditCard}
           iconColor="text-emerald-600"
@@ -503,7 +529,8 @@ export default function DashboardPage() {
         {/* Ventes Hebdo */}
         <MetricCard
           label={showProfits ? "Bénéfice Hebdo" : "Ventes Hebdo"}
-          value={formatCurrency(showProfits ? data.weekly.profit : data.weekly.revenue)}
+          rawValue={showProfits ? data.weekly.profit : data.weekly.revenue}
+          formatter={formatCurrency}
           sub={formatSoldLabel(data.weekly.quantity, data.weekly.weightKg ?? 0)}
           icon={Activity}
           iconColor="text-violet-600"
@@ -511,75 +538,17 @@ export default function DashboardPage() {
         />
 
         {/* Alertes Stock */}
-        <div className="relative rounded-2xl bg-white border border-border/50 p-5 shadow-card overflow-hidden">
-          <div className="flex items-start justify-between mb-3">
-            <span className="text-sm font-medium text-slate-500">Alertes Stock</span>
-            <div className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl",
-              data.lowStockCount > 0 ? "bg-amber-50" : "bg-slate-50"
-            )}>
-              <AlertTriangle className={cn(
-                "h-4 w-4",
-                data.lowStockCount > 0 ? "text-amber-500" : "text-slate-400"
-              )} />
-            </div>
-          </div>
-          <div className={cn(
-            "text-3xl font-bold tracking-tight mb-1",
-            data.lowStockCount > 0 ? "text-amber-600" : "text-slate-900"
-          )}>
-            {data.lowStockCount}
-          </div>
-          <p className="text-xs text-slate-400">Produit(s) à réapprovisionner</p>
-          {data.lowStockCount > 0 && (
-            <Dialog>
-              <DialogTrigger className="mt-3 flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700 transition-colors">
-                Voir la liste <ChevronRight className="h-3 w-3" />
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
-                    Produits en alerte stock
-                  </DialogTitle>
-                  <DialogDescription>
-                    Ces articles ont atteint ou sont sous leur seuil d&apos;alerte.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
-                  {data.lowStockProducts?.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 relative rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
-                          {p.image ? (
-                            <Image src={p.image} alt={p.name} fill className="object-cover" />
-                          ) : (
-                            <Box className="h-full w-full p-2 text-slate-400" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{p.name}</p>
-                          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Seuil: {p.lowStockThreshold}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-red-600">{p.stock}</p>
-                        <p className="text-[9px] text-slate-400 uppercase tracking-wide">En stock</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
+        <LowStockCard
+          count={data.lowStockCount}
+          products={data.lowStockProducts}
+        />
       </div>
 
       {/* ── Chart + Top Ventes ───────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-7">
 
         {/* Chart */}
-        <div className="lg:col-span-4 rounded-2xl bg-white border border-border/50 shadow-card p-5">
+        <div className="lg:col-span-4 rounded-2xl bg-white border border-border/50 shadow-card p-5 card-lift">
           <div className="flex items-start justify-between mb-5">
             <div>
               <h2 className="text-base font-semibold text-slate-900">
@@ -588,7 +557,7 @@ export default function DashboardPage() {
               <p className="text-xs text-slate-400 mt-0.5">Performance des 7 derniers jours</p>
             </div>
             <div className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg",
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
               showProfits ? "bg-indigo-50" : "bg-slate-50"
             )}>
               {showProfits
@@ -610,7 +579,7 @@ export default function DashboardPage() {
               <Button
                 size="sm"
                 onClick={() => setShowPinDialog(true)}
-                className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-5"
+                className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white px-5 cursor-pointer"
               >
                 Déverrouiller
               </Button>
@@ -622,6 +591,10 @@ export default function DashboardPage() {
                   <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
                     <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.85} />
+                  </linearGradient>
+                  <linearGradient id="barGradientRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#059669" stopOpacity={0.85} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
@@ -660,7 +633,7 @@ export default function DashboardPage() {
                 />
                 <Bar
                   dataKey={showProfits ? "profit" : "revenue"}
-                  fill="url(#barGradient)"
+                  fill={showProfits ? "url(#barGradient)" : "url(#barGradientRevenue)"}
                   radius={[6, 6, 0, 0]}
                   animationDuration={800}
                 />
@@ -670,7 +643,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Top Ventes */}
-        <div className="lg:col-span-3 rounded-2xl bg-white border border-border/50 shadow-card p-5">
+        <div className="lg:col-span-3 rounded-2xl bg-white border border-border/50 shadow-card p-5 card-lift">
           <div className="flex items-start justify-between mb-5">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Top Ventes</h2>
@@ -681,54 +654,68 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3.5">
             {(data.topSales ?? []).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400">
                 <ShoppingCart className="h-8 w-8 mb-2 opacity-40" />
                 <p className="text-sm">Aucune vente enregistrée</p>
               </div>
             ) : (
-              (data.topSales ?? []).map((sale, i) => (
-                <div key={i} className="flex items-center gap-3 group">
-                  <div
-                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
-                    style={{
-                      background: i === 0
-                        ? "linear-gradient(135deg, #f59e0b, #d97706)"
-                        : i === 1
-                        ? "linear-gradient(135deg, #94a3b8, #64748b)"
-                        : i === 2
-                        ? "linear-gradient(135deg, #cd7c2f, #a16207)"
-                        : "none",
-                      backgroundColor: i > 2 ? "#F1F5F9" : undefined,
-                      color: i <= 2 ? "white" : "#94A3B8",
-                    }}
-                  >
-                    {i + 1}
-                  </div>
-                  <div className="h-9 w-9 relative rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
-                    {sale.product?.image ? (
-                      <Image src={sale.product.image} alt={sale.product.name} fill className="object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center">
-                        <Box className="h-4 w-4 text-slate-400" />
+              (data.topSales ?? []).map((sale, i) => {
+                const qty = sale._sum.quantity ?? 0;
+                const pct = Math.round((qty / maxTopQty) * 100);
+                const rankColors = [
+                  "from-amber-400 to-amber-500 text-white",
+                  "from-slate-400 to-slate-500 text-white",
+                  "from-amber-600 to-amber-700 text-white",
+                ];
+                return (
+                  <div key={i} className="group">
+                    <div className="flex items-center gap-3 mb-1.5">
+                      <div className={cn(
+                        "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold bg-gradient-to-br",
+                        i < 3 ? rankColors[i] : "bg-slate-100 text-slate-400"
+                      )}>
+                        {i + 1}
                       </div>
-                    )}
+                      <div className="h-9 w-9 relative rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
+                        {sale.product?.image ? (
+                          <Image src={sale.product.image} alt={sale.product?.name ?? ""} fill className="object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Box className="h-4 w-4 text-slate-400" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
+                          {sale.product?.name || "Produit inconnu"}
+                        </p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {sale.product?.category || "Sans catégorie"}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <div className="text-sm font-bold text-indigo-600 tabular-nums">{qty}</div>
+                        <div className="text-[9px] text-slate-400 uppercase tracking-wider">vendu(s)</div>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="ml-[60px] h-1 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-700",
+                          i === 0 ? "bg-gradient-to-r from-amber-400 to-amber-500"
+                          : i === 1 ? "bg-gradient-to-r from-slate-400 to-slate-500"
+                          : i === 2 ? "bg-gradient-to-r from-amber-600 to-amber-700"
+                          : "bg-indigo-300"
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
-                      {sale.product?.name || "Produit inconnu"}
-                    </p>
-                    <p className="text-[10px] text-slate-400 truncate">
-                      {sale.product?.category || "Sans catégorie"}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0 text-right">
-                    <div className="text-sm font-bold text-indigo-600">{sale._sum.quantity}</div>
-                    <div className="text-[9px] text-slate-400 uppercase tracking-wider">vendu(s)</div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -886,11 +873,94 @@ export default function DashboardPage() {
   );
 }
 
-/* ─── MetricCard helper ────────────────────────────────────── */
+/* ─── CashDrawerCard ──────────────────────────────────────────── */
+
+function CashDrawerCard({
+  data,
+  formatCurrency,
+  onOpenCash,
+  onCloseCash,
+}: {
+  data: DashboardData["cashDrawer"];
+  formatCurrency: (v: number) => string;
+  onOpenCash: () => void;
+  onCloseCash: () => void;
+}) {
+  const animatedBalance = useCountUp(data.balance);
+  const isLive = data.isOpened && !data.isClosed;
+
+  return (
+    <div
+      className="relative rounded-2xl p-5 overflow-hidden text-white card-lift"
+      style={{
+        background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+        boxShadow: "0 8px 32px rgba(79,70,229,0.30), 0 2px 8px rgba(79,70,229,0.20)",
+      }}
+    >
+      {/* Background orbs */}
+      <div className="absolute -top-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+      <div className="absolute -bottom-10 -left-4 h-24 w-24 rounded-full bg-violet-400/20 blur-2xl pointer-events-none" />
+
+      <div className="relative flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-white/80">Caisse en Direct</span>
+          {isLive && (
+            <span className="relative flex items-center gap-1 text-[10px] font-bold text-emerald-300 uppercase tracking-wide">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="live-dot absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
+              Live
+            </span>
+          )}
+          {data.isClosed && (
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wide">Clôturée</span>
+          )}
+        </div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+          <Wallet className="h-[18px] w-[18px] text-white" />
+        </div>
+      </div>
+
+      <div className="relative">
+        <div className="text-3xl font-bold tracking-tight mb-2 tabular-nums">
+          {formatCurrency(animatedBalance)}
+        </div>
+        <div className="space-y-1 text-[11px] text-white/70 leading-relaxed">
+          <p>Fond: <span className="text-white/90">{formatCurrency(data.startingCash)}</span></p>
+          <p>Entrées: <span className="text-emerald-300">+{formatCurrency(data.currentRevenue)}</span></p>
+          {data.cashRefunds > 0 && (
+            <p>Remboursements: <span className="text-red-300">-{formatCurrency(data.cashRefunds)}</span></p>
+          )}
+          {data.currentExpenses > 0 && (
+            <p>Dépenses: <span className="text-orange-300">-{formatCurrency(data.currentExpenses)}</span></p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-4">
+          <button
+            onClick={onOpenCash}
+            className="text-[11px] font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors cursor-pointer"
+          >
+            {data.isOpened ? "Modifier fond" : "Ouvrir"}
+          </button>
+          <button
+            onClick={onCloseCash}
+            className="text-[11px] font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors cursor-pointer"
+          >
+            Clôturer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── MetricCard ──────────────────────────────────────────────── */
 
 function MetricCard({
   label,
-  value,
+  rawValue,
+  formatter,
   sub,
   icon: Icon,
   iconColor,
@@ -898,27 +968,119 @@ function MetricCard({
   trend,
 }: {
   label: string;
-  value: string;
+  rawValue: number;
+  formatter: (v: number) => string;
   sub: string;
   icon: React.ElementType;
   iconColor: string;
   iconBg: string;
   trend?: "up" | "down";
 }) {
+  const animated = useCountUp(rawValue);
+
   return (
-    <div className="rounded-2xl bg-white border border-border/50 p-5 shadow-card">
+    <div className="rounded-2xl bg-white border border-border/50 p-5 shadow-card card-lift">
       <div className="flex items-start justify-between mb-3">
         <span className="text-sm font-medium text-slate-500">{label}</span>
-        <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl", iconBg)}>
+        <div className={cn("flex h-9 w-9 items-center justify-center rounded-xl transition-transform group-hover:scale-110", iconBg)}>
           <Icon className={cn("h-[18px] w-[18px]", iconColor)} />
         </div>
       </div>
-      <div className="text-3xl font-bold tracking-tight text-slate-900 mb-1">{value}</div>
+      <div className="text-3xl font-bold tracking-tight text-slate-900 mb-1 tabular-nums">
+        {formatter(animated)}
+      </div>
       <div className="flex items-center gap-1.5">
         {trend === "up" && <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />}
         {trend === "down" && <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />}
+        {!trend && <Minus className="h-3 w-3 text-slate-300" />}
         <p className="text-xs text-slate-400">{sub}</p>
       </div>
+    </div>
+  );
+}
+
+/* ─── LowStockCard ────────────────────────────────────────────── */
+
+function LowStockCard({
+  count,
+  products,
+}: {
+  count: number;
+  products: LowStockProduct[];
+}) {
+  const hasAlert = count > 0;
+
+  return (
+    <div className={cn(
+      "relative rounded-2xl bg-white border p-5 shadow-card card-lift overflow-hidden",
+      hasAlert ? "border-amber-200" : "border-border/50"
+    )}>
+      {hasAlert && (
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-50/60 to-transparent pointer-events-none" />
+      )}
+      <div className="relative flex items-start justify-between mb-3">
+        <span className="text-sm font-medium text-slate-500">Alertes Stock</span>
+        <div className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-xl relative",
+          hasAlert ? "bg-amber-50" : "bg-slate-50"
+        )}>
+          {hasAlert && (
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-500" />
+            </span>
+          )}
+          <AlertTriangle className={cn("h-4 w-4", hasAlert ? "text-amber-500" : "text-slate-400")} />
+        </div>
+      </div>
+      <div className={cn(
+        "relative text-3xl font-bold tracking-tight mb-1 tabular-nums",
+        hasAlert ? "text-amber-600" : "text-slate-900"
+      )}>
+        {count}
+      </div>
+      <p className="relative text-xs text-slate-400">Produit(s) à réapprovisionner</p>
+      {hasAlert && (
+        <Dialog>
+          <DialogTrigger className="relative mt-3 flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700 transition-colors cursor-pointer">
+            Voir la liste <ChevronRight className="h-3 w-3" />
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Produits en alerte stock
+              </DialogTitle>
+              <DialogDescription>
+                Ces articles ont atteint ou sont sous leur seuil d&apos;alerte.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
+              {products?.map((p) => (
+                <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 relative rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+                      {p.image ? (
+                        <Image src={p.image} alt={p.name} fill className="object-cover" />
+                      ) : (
+                        <Box className="h-full w-full p-2 text-slate-400" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{p.name}</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wide">Seuil: {p.lowStockThreshold}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-red-600">{p.stock}</p>
+                    <p className="text-[9px] text-slate-400 uppercase tracking-wide">En stock</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
