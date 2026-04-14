@@ -1,9 +1,9 @@
-const CACHE_NAME = 'mawad-scan-v3-optimized'; // On passe en v3
+const CACHE_NAME = 'mawad-scan-v5'; // bump = purge tous les anciens caches
 const ASSETS_TO_CACHE = [
-  '/',
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png'
+  // NOTE: '/' retiré — les pages HTML doivent toujours venir du réseau (new deployments)
 ];
 
 self.addEventListener('install', (event) => {
@@ -28,15 +28,40 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. Ignorer ce qui n'est pas HTTP/HTTPS (extensions, etc.)
+  // Ignorer ce qui n'est pas HTTP/HTTPS
   if (!request.url.startsWith('http')) return;
 
-  // 2. Stratégie pour les assets statiques (JS, CSS, Images internes)
-  // Cache First pour une vitesse maximale sur les ressources qui ne changent pas (hachées par Next.js)
+  // Navigation requests (HTML pages) — TOUJOURS Network First
+  // Les pages HTML changent à chaque déploiement (nouveaux hash de chunks).
+  // Les mettre en Cache First causerait des versions stale après déploiement.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Assets statiques hachés par Next.js (immuables, Cache First)
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(request).then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, cacheCopy));
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
+
+  // Images/fonts statiques (Cache First)
   if (
-    url.pathname.startsWith('/_next/static/') || 
     url.pathname.match(/\.(png|jpg|jpeg|svg|gif|woff2|ttf)$/) ||
-    url.origin === self.location.origin && ASSETS_TO_CACHE.includes(url.pathname)
+    ASSETS_TO_CACHE.includes(url.pathname)
   ) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
@@ -53,15 +78,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Stratégie pour la Navigation et les APIs (Network First)
-  // On priorise le réseau pour avoir les données fraîches, mais on répond instantanément via le cache si ça échoue.
-  event.respondWith(
-    fetch(request).then((networkResponse) => {
-      if (networkResponse.status === 200) {
-        const cacheCopy = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, cacheCopy));
-      }
-      return networkResponse;
-    }).catch(() => caches.match(request))
-  );
+  // API et tout le reste — Network First, sans mise en cache
+  event.respondWith(fetch(request));
 });
