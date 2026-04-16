@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`h-full antialiased ${inter.variable} ${poppins.variable}`}>
+    <html lang="fr" suppressHydrationWarning className={`h-full antialiased ${inter.variable} ${poppins.variable}`}>
       <body className={`${inter.className} h-full overflow-hidden`}>
         <Providers>
           <MainLayout>{children}</MainLayout>

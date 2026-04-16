@@ -1,18 +1,22 @@
 "use client";
 
 import { Sidebar } from "./Sidebar";
-import { Menu, QrCode } from "lucide-react";
+import { Menu, QrCode, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet";
 import { Toaster } from "@/components/ui/sonner";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import { readLocalShopSettings } from "@/lib/shop-settings";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [shopName, setShopName] = useState("Mawad Scan");
   const pathname = usePathname();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const syncSettings = () => {
@@ -73,6 +77,23 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             >
               {shopName}
             </span>
+          </div>
+
+          <div className="ml-auto">
+            {mounted && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white/70 hover:text-white hover:bg-white/10"
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                aria-label="Changer le thème"
+              >
+                {resolvedTheme === "dark"
+                  ? <Sun className="h-4 w-4" />
+                  : <Moon className="h-4 w-4" />
+                }
+              </Button>
+            )}
           </div>
         </header>
 

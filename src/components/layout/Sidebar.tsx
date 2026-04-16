@@ -16,8 +16,11 @@ import {
   User as UserIcon,
   ShieldCheck,
   Sparkles,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
+import { useTheme } from "next-themes";
 import { readLocalShopSettings } from "@/lib/shop-settings";
 
 const navItems = [
@@ -35,6 +38,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { data: session } = useSession();
   const userRole = session?.user?.role ?? "CASHIER";
   const [shopName, setShopName] = useState("Mawad Scan");
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const syncSettings = () => {
@@ -176,6 +182,19 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               {session?.user?.email}
             </span>
           </div>
+          {mounted && (
+            <button
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className="text-slate-500 hover:text-slate-300 p-1 rounded-lg hover:bg-white/[0.08] transition-colors"
+              title={resolvedTheme === "dark" ? "Mode clair" : "Mode sombre"}
+              aria-label="Changer le thème"
+            >
+              {resolvedTheme === "dark"
+                ? <Sun className="h-3.5 w-3.5" />
+                : <Moon className="h-3.5 w-3.5" />
+              }
+            </button>
+          )}
           <button
             onClick={() => signOut()}
             className="opacity-0 group-hover:opacity-100 transition-all duration-200 text-slate-500 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10"
