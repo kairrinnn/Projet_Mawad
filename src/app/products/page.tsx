@@ -1,28 +1,41 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import NextImage from "next/image";
-import { apiRequest } from "@/lib/api";
-import { Search, AlertCircle, X, Plus, FileSpreadsheet, Package } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
-import { CategoryManager } from "@/components/products/CategoryManager";
-import { StockHistoryDialog } from "@/components/products/StockHistoryDialog";
-import { ProductTable } from "@/components/products/ProductTable";
+import {
+  AlertCircle,
+  Boxes,
+  FileSpreadsheet,
+  Package,
+  Plus,
+  Scale,
+  Search,
+  Sparkles,
+  Tags,
+  TriangleAlert,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { apiRequest } from "@/lib/api";
 import { BarcodeScannerDialog } from "@/components/products/BarcodeScannerDialog";
+import { CategoryManager } from "@/components/products/CategoryManager";
 import { ProductFormDialog } from "@/components/products/ProductFormDialog";
 import { ProductImportDialog } from "@/components/products/ProductImportDialog";
+import { ProductTable } from "@/components/products/ProductTable";
+import { StockHistoryDialog } from "@/components/products/StockHistoryDialog";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { QRCodeSVG } from "qrcode.react";
+import { Input } from "@/components/ui/input";
 
 interface Supplier {
   id: string;
@@ -116,7 +129,6 @@ export default function ProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [newCatName, setNewCatName] = useState("");
   const qrRef = useRef<SVGSVGElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
@@ -132,29 +144,41 @@ export default function ProductsPage() {
   const startBarcodeScanner = async () => {
     if (isInitializingScanner.current) return;
     isInitializingScanner.current = true;
+
     try {
       setOpenBarcodeScanner(true);
       setScanningBarcode(true);
+
       setTimeout(async () => {
         const container = document.getElementById("barcode-scanner-ui");
         if (container) container.innerHTML = "";
+
         if (html5QrCodeRef.current) {
           try {
-            if (html5QrCodeRef.current.isScanning) await html5QrCodeRef.current.stop();
+            if (html5QrCodeRef.current.isScanning) {
+              await html5QrCodeRef.current.stop();
+            }
             html5QrCodeRef.current.clear();
-          } catch (e) { console.warn(e); }
+          } catch (error) {
+            console.warn(error);
+          }
         }
+
         const scanner = new Html5Qrcode("barcode-scanner-ui");
         html5QrCodeRef.current = scanner;
+
         await scanner.start(
           { facingMode: "environment" },
           { fps: 20, qrbox: { width: 260, height: 180 } },
-          (decodedText) => { handleBarcodeDetected(decodedText); stopBarcodeScanner(); },
+          (decodedText) => {
+            handleBarcodeDetected(decodedText);
+            stopBarcodeScanner();
+          },
           () => {}
         );
       }, 300);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       toast.error("Erreur d'accès à la caméra.");
       setOpenBarcodeScanner(false);
     } finally {
@@ -166,46 +190,62 @@ export default function ProductsPage() {
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
       await html5QrCodeRef.current.stop();
     }
+
     setOpenBarcodeScanner(false);
     setScanningBarcode(false);
   };
 
   const handleBarcodeDetected = async (barcode: string) => {
-    toast.info(`Code détecté: ${barcode}. Recherche...`);
+    toast.info(`Code détecté: ${barcode}. Recherche en cours...`);
+
     try {
-      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
-      const data = await res.json();
+      const response = await fetch(
+        `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
+      );
+      const data = await response.json();
+
       if (data.status === 1 && data.product) {
-        const prod = data.product;
-        setFormData((prev) => ({
-          ...prev,
-          name: prod.product_name || prev.name,
-          barcode: barcode || prev.barcode,
-          category: prod.categories_tags?.[0]?.split(":")[1]?.replace(/-/g, " ") || prev.category,
-          description: prod.generic_name || prev.description,
-          image: prod.image_url || prev.image,
+        const product = data.product;
+        setFormData((current) => ({
+          ...current,
+          name: product.product_name || current.name,
+          barcode: barcode || current.barcode,
+          category:
+            product.categories_tags?.[0]?.split(":")[1]?.replace(/-/g, " ") ||
+            current.category,
+          description: product.generic_name || current.description,
+          image: product.image_url || current.image,
         }));
-        if (prod.image_url) setPreview(prod.image_url);
-        toast.success("Produit trouvé sur Open Food Facts !");
-      } else {
-        const res2 = await fetch(`https://world.openproductsfacts.org/api/v0/product/${barcode}.json`);
-        const data2 = await res2.json();
-        if (data2.status === 1 && data2.product) {
-          const prod = data2.product;
-          setFormData((prev) => ({
-            ...prev,
-            name: prod.product_name || prev.name,
-            barcode: barcode || prev.barcode,
-            category: prev.category,
-            image: prod.image_url || prev.image,
-          }));
-          if (prod.image_url) setPreview(prod.image_url);
-          toast.success("Produit trouvé sur Open Products Facts !");
-        } else {
-          toast.error("Produit non répertorié. Saisie manuelle requise.");
-          setFormData((prev) => ({ ...prev, name: `Produit ${barcode}`, barcode }));
-        }
+        if (product.image_url) setPreview(product.image_url);
+        toast.success("Produit trouvé sur Open Food Facts.");
+        return;
       }
+
+      const fallbackResponse = await fetch(
+        `https://world.openproductsfacts.org/api/v0/product/${barcode}.json`
+      );
+      const fallbackData = await fallbackResponse.json();
+
+      if (fallbackData.status === 1 && fallbackData.product) {
+        const product = fallbackData.product;
+        setFormData((current) => ({
+          ...current,
+          name: product.product_name || current.name,
+          barcode: barcode || current.barcode,
+          category: current.category,
+          image: product.image_url || current.image,
+        }));
+        if (product.image_url) setPreview(product.image_url);
+        toast.success("Produit trouvé sur Open Products Facts.");
+        return;
+      }
+
+      toast.error("Produit non répertorié. Saisie manuelle requise.");
+      setFormData((current) => ({
+        ...current,
+        name: `Produit ${barcode}`,
+        barcode,
+      }));
     } catch {
       toast.error("Erreur de recherche API.");
     }
@@ -213,105 +253,219 @@ export default function ProductsPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [prodRes, suppRes, catRes] = await Promise.all([
+
+    const [productsResponse, suppliersResponse, categoriesResponse] = await Promise.all([
       apiRequest<Product[]>("/api/products", { cache: "no-store" }),
       apiRequest<Supplier[]>("/api/suppliers", { cache: "no-store" }),
       apiRequest<Category[]>("/api/categories", { cache: "no-store" }),
     ]);
-    if (!prodRes.error && prodRes.data) setProducts(prodRes.data);
-    if (!suppRes.error && suppRes.data) setSuppliers(suppRes.data);
-    if (!catRes.error && catRes.data) setCategories(catRes.data);
+
+    if (!productsResponse.error && productsResponse.data) {
+      setProducts(productsResponse.data);
+    }
+    if (!suppliersResponse.error && suppliersResponse.data) {
+      setSuppliers(suppliersResponse.data);
+    }
+    if (!categoriesResponse.error && categoriesResponse.data) {
+      setCategories(categoriesResponse.data);
+    }
+
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const compressImage = (file: File): Promise<Blob> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
+        const image = new Image();
+        image.src = event.target?.result as string;
+        image.onload = () => {
           const canvas = document.createElement("canvas");
-          let { width, height } = img;
+          let { width, height } = image;
           const maxWidth = 1024;
-          if (width > maxWidth) { height = (maxWidth / width) * height; width = maxWidth; }
-          canvas.width = width; canvas.height = height;
-          canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
-          canvas.toBlob((blob) => { if (blob) resolve(blob); else reject(new Error("Compression failed")); }, "image/jpeg", 0.7);
+
+          if (width > maxWidth) {
+            height = (maxWidth / width) * height;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d")?.drawImage(image, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error("Compression failed"));
+            },
+            "image/jpeg",
+            0.7
+          );
         };
       };
-      reader.onerror = (e) => reject(e);
+      reader.onerror = (error) => reject(error);
     });
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
+
     setUploading(true);
+
     try {
       const compressedBlob = await compressImage(file);
-      const formDataUpload = new FormData();
-      formDataUpload.append("file", compressedBlob, "product.jpg");
-      const res = await fetch("/api/upload", { method: "POST", body: formDataUpload, cache: "no-store" });
-      const data = await res.json();
-      if (res.ok) { setFormData((prev) => ({ ...prev, image: data.url })); setPreview(data.url); toast.success("Image optimisée et téléchargée !"); }
-      else toast.error(data.error || "Erreur lors de l'upload");
-    } catch { toast.error("Échec de l'upload"); }
-    finally { setUploading(false); }
+      const payload = new FormData();
+      payload.append("file", compressedBlob, "product.jpg");
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: payload,
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setFormData((current) => ({ ...current, image: data.url }));
+        setPreview(data.url);
+        toast.success("Image optimisée et téléversée.");
+      } else {
+        toast.error(data.error || "Erreur lors de l'upload");
+      }
+    } catch {
+      toast.error("Échec de l'upload");
+    } finally {
+      setUploading(false);
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setSubmitting(true);
-    const payload = { ...formData, supplierId: formData.supplierId === "none" ? null : formData.supplierId };
-    const { error } = await apiRequest("/api/products", { method: "POST", body: JSON.stringify(payload), cache: "no-store" });
-    if (!error) { setFormData(emptyForm); setPreview(null); setOpenAdd(false); toast.success("Produit ajouté !"); fetchData(); }
+
+    const payload = {
+      ...formData,
+      supplierId: formData.supplierId === "none" ? null : formData.supplierId,
+    };
+
+    const { error } = await apiRequest("/api/products", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!error) {
+      setFormData(emptyForm);
+      setPreview(null);
+      setOpenAdd(false);
+      toast.success("Produit ajouté.");
+      fetchData();
+    }
+
     setSubmitting(false);
   };
 
-  const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEdit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!selectedProduct) return;
+
     setSubmitting(true);
-    const payload = { ...formData, supplierId: formData.supplierId === "none" ? null : formData.supplierId };
-    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, { method: "PATCH", body: JSON.stringify(payload), cache: "no-store" });
-    if (!error) { setOpenEdit(false); toast.success("Produit mis à jour !"); fetchData(); }
+
+    const payload = {
+      ...formData,
+      supplierId: formData.supplierId === "none" ? null : formData.supplierId,
+    };
+
+    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+
+    if (!error) {
+      setOpenEdit(false);
+      toast.success("Produit mis à jour.");
+      fetchData();
+    }
+
     setSubmitting(false);
   };
 
   const handleDelete = async () => {
     if (!selectedProduct) return;
+
     setSubmitting(true);
-    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, { method: "DELETE", cache: "no-store" });
-    if (!error) { setOpenDelete(false); toast.success("Produit archivé"); fetchData(); }
+
+    const { error } = await apiRequest(`/api/products/${selectedProduct.id}`, {
+      method: "DELETE",
+      cache: "no-store",
+    });
+
+    if (!error) {
+      setOpenDelete(false);
+      toast.success("Produit archivé.");
+      fetchData();
+    }
+
     setSubmitting(false);
   };
 
-  const handleAddCategory = async () => {
-    if (!newCatName.trim()) return;
+  const handleAddCategory = async (name: string) => {
+    if (!name.trim()) return;
+
     setSubmitting(true);
-    const { error } = await apiRequest("/api/categories", { method: "POST", body: JSON.stringify({ name: newCatName.trim() }), cache: "no-store" });
-    if (!error) { toast.success("Catégorie ajoutée !"); setNewCatName(""); fetchData(); }
+
+    const { error } = await apiRequest("/api/categories", {
+      method: "POST",
+      body: JSON.stringify({ name: name.trim() }),
+      cache: "no-store",
+    });
+
+    if (!error) {
+      toast.success("Catégorie ajoutée.");
+      fetchData();
+    }
+
     setSubmitting(false);
   };
 
   const handleDeleteCategory = async (id: string) => {
     if (!confirm("Voulez-vous vraiment supprimer cette catégorie ?")) return;
+
     setSubmitting(true);
-    const { error } = await apiRequest(`/api/categories?id=${id}`, { method: "DELETE", cache: "no-store" });
-    if (!error) { toast.success("Catégorie supprimée !"); fetchData(); }
+
+    const { error } = await apiRequest(`/api/categories?id=${id}`, {
+      method: "DELETE",
+      cache: "no-store",
+    });
+
+    if (!error) {
+      toast.success("Catégorie supprimée.");
+      fetchData();
+    }
+
     setSubmitting(false);
   };
 
   const fetchStockHistory = async (productId: string) => {
-    const { data: movements, error } = await apiRequest<StockMovement[]>(`/api/stock-movements?productId=${productId}`, { cache: "no-store" });
-    if (!error && movements) setStockHistory(movements);
+    const { data, error } = await apiRequest<StockMovement[]>(
+      `/api/stock-movements?productId=${productId}`,
+      { cache: "no-store" }
+    );
+
+    if (!error && data) {
+      setStockHistory(data);
+    }
   };
 
   const openHistoryModal = (product: Product) => {
-    setSelectedProduct(product); setStockHistory([]); fetchStockHistory(product.id); setOpenHistory(true);
+    setSelectedProduct(product);
+    setStockHistory([]);
+    fetchStockHistory(product.id);
+    setOpenHistory(true);
   };
 
   const openEditModal = (product: Product) => {
@@ -338,96 +492,224 @@ export default function ProductsPage() {
 
   const handlePrintQR = () => {
     if (!qrRef.current || !selectedProduct) return;
+
     const svgData = new XMLSerializer().serializeToString(qrRef.current);
     const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
-    img.onload = () => {
-      canvas.width = img.width; canvas.height = img.height;
-      if (ctx) {
-        ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0);
+    const context = canvas.getContext("2d");
+    const image = new Image();
+
+    image.onload = () => {
+      canvas.width = image.width;
+      canvas.height = image.height;
+
+      if (context) {
+        context.fillStyle = "white";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0);
+
         const pngFile = canvas.toDataURL("image/png");
-        const downloadLink = document.createElement("a");
-        downloadLink.download = `QR_${selectedProduct.name.replace(/\s+/g, "_")}.png`;
-        downloadLink.href = pngFile; downloadLink.click();
+        const link = document.createElement("a");
+        link.download = `QR_${selectedProduct.name.replace(/\s+/g, "_")}.png`;
+        link.href = pngFile;
+        link.click();
       }
     };
-    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+
+    image.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
   };
 
-  const filteredProducts = (Array.isArray(products) ? products : []).filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.category?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProducts = (Array.isArray(products) ? products : []).filter((product) => {
+    const query = searchTerm.toLowerCase();
+
+    return (
+      product.name.toLowerCase().includes(query) ||
+      product.category?.toLowerCase().includes(query) ||
+      product.supplier?.name?.toLowerCase().includes(query) ||
+      product.barcode?.toLowerCase().includes(query)
+    );
+  });
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "MAD",
+    }).format(value);
+
+  const lowStockCount = products.filter((product) => product.stock <= product.lowStockThreshold).length;
+  const totalInventoryValue = products.reduce(
+    (sum, product) => sum + product.stock * product.costPrice,
+    0
   );
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MAD" }).format(val);
-
-  const lowStockCount = products.filter((p) => p.stock <= p.lowStockThreshold).length;
+  const totalPotentialRevenue = products.reduce(
+    (sum, product) => sum + product.stock * product.salePrice,
+    0
+  );
+  const weightedProductsCount = products.filter((product) => product.canBeSoldByWeight).length;
+  const visibleProductsCount = filteredProducts.length;
+  const grossPotentialMargin = totalPotentialRevenue - totalInventoryValue;
+  const heroMetrics = [
+    {
+      label: "Capital stock",
+      value: formatCurrency(totalInventoryValue),
+      icon: Boxes,
+      tone: "bg-white/12 text-white ring-1 ring-white/12",
+    },
+    {
+      label: "Marge potentielle",
+      value: formatCurrency(grossPotentialMargin),
+      icon: Sparkles,
+      tone: "bg-white/12 text-white ring-1 ring-white/12",
+    },
+    {
+      label: "Vente au poids",
+      value: `${weightedProductsCount} référence${weightedProductsCount > 1 ? "s" : ""}`,
+      icon: Scale,
+      tone: "bg-white/12 text-white ring-1 ring-white/12",
+    },
+    {
+      label: "Alertes stock",
+      value: `${lowStockCount} produit${lowStockCount > 1 ? "s" : ""}`,
+      icon: TriangleAlert,
+      tone:
+        lowStockCount > 0
+          ? "bg-rose-500/18 text-white ring-1 ring-rose-200/25"
+          : "bg-emerald-500/18 text-white ring-1 ring-emerald-200/25",
+    },
+  ];
 
   return (
     <div className="space-y-6">
+      <section className="surface-hero rounded-[2rem] px-6 py-6 text-white shadow-[0_28px_70px_rgba(79,70,229,0.28)] sm:px-7">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl space-y-4">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+              <Package className="size-3.5" />
+              Inventory control
+            </span>
 
-      {/* ── Header ───────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm">
-            <Package className="h-5 w-5 text-white" />
+            <div className="space-y-2">
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                Produits &amp; Stock
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-white/78 sm:text-base">
+                Orchestre le catalogue, les seuils critiques et les marges depuis une vue
+                unique pensée pour un usage retail rapide, lisible et premium.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <span className="command-pill border-white/15 bg-white/10 text-white/90">
+                {products.length} référence{products.length > 1 ? "s" : ""} au catalogue
+              </span>
+              <span className="command-pill border-white/15 bg-white/10 text-white/90">
+                {visibleProductsCount} visible{visibleProductsCount > 1 ? "s" : ""}
+              </span>
+              <span className="command-pill border-white/15 bg-white/10 text-white/90">
+                {lowStockCount > 0
+                  ? `${lowStockCount} produit${lowStockCount > 1 ? "s" : ""} en alerte`
+                  : "Aucune alerte critique"}
+              </span>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Produits & Stock</h1>
-            <p className="text-sm text-slate-400">
-              {loading ? "Chargement…" : `${products.length} produit${products.length > 1 ? "s" : ""}${lowStockCount > 0 ? ` · ${lowStockCount} en alerte` : ""}`}
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:w-[460px]">
+            {heroMetrics.map((metric) => {
+              const Icon = metric.icon;
+
+              return (
+                <div key={metric.label} className={`rounded-[1.5rem] p-4 ${metric.tone}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                      {metric.label}
+                    </p>
+                    <Icon className="size-4 text-white/85" />
+                  </div>
+                  <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
+                    {loading ? "--" : metric.value}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="surface-card rounded-[1.75rem] p-4 sm:p-5">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="w-full max-w-2xl space-y-3">
+            <div className="space-y-1">
+              <p className="eyebrow-label">Command center</p>
+              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                Pilote l&apos;inventaire en temps réel
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Recherche rapide, import, nouvelles références et gestion des catégories
+                depuis une seule barre de commande.
+              </p>
+            </div>
+
+            <div className="relative max-w-xl">
+              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                className="h-11 pl-11"
+                placeholder="Rechercher un produit, une catégorie ou un fournisseur..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
+
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {loading
+                ? "Chargement de l'inventaire..."
+                : searchTerm
+                  ? `${visibleProductsCount} résultat${visibleProductsCount > 1 ? "s" : ""} pour "${searchTerm}".`
+                  : `Vue complète de ${products.length} produit${products.length > 1 ? "s" : ""} avec alertes, marges et actions rapides.`}
             </p>
           </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenCategories(true)}
+            >
+              <Tags className="size-4" />
+              Catégories
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenImport(true)}
+              className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-200"
+            >
+              <FileSpreadsheet className="size-4" />
+              Importer Excel
+            </Button>
+            <Button type="button" onClick={() => setOpenAdd(true)}>
+              <Plus className="size-4" />
+              Ajouter un produit
+            </Button>
+          </div>
         </div>
+      </section>
 
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setOpenImport(true)}
-            className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-1.5"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            <span className="hidden sm:inline">Importer Excel</span>
-          </Button>
-          <Button
-            type="button"
-            onClick={() => setOpenAdd(true)}
-            className="rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white border-0 shadow-sm gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            Ajouter un produit
-          </Button>
-        </div>
-      </div>
-
-      {/* ── Search ───────────────────────────────────────────── */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-        <Input
-          className="pl-9 rounded-xl bg-white border-border/60 focus-visible:ring-indigo-500/20 shadow-sm"
-          placeholder="Rechercher un produit ou catégorie…"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      {/* ── Table ────────────────────────────────────────────── */}
       <ProductTable
         products={filteredProducts}
         loading={loading}
-        onViewQR={(p) => { setSelectedProduct(p); setOpenQR(true); }}
+        onViewQR={(product) => {
+          setSelectedProduct(product);
+          setOpenQR(true);
+        }}
         onHistory={openHistoryModal}
         onEdit={openEditModal}
-        onDelete={(p) => { setSelectedProduct(p); setOpenDelete(true); }}
+        onDelete={(product) => {
+          setSelectedProduct(product);
+          setOpenDelete(true);
+        }}
         onViewImage={setSelectedViewImage}
         formatCurrency={formatCurrency}
       />
 
-      {/* ── Add form ─────────────────────────────────────────── */}
       <ProductFormDialog
         open={openAdd}
         onOpenChange={setOpenAdd}
@@ -447,7 +729,6 @@ export default function ProductsPage() {
         fileInputRef={fileInputRef}
       />
 
-      {/* ── Edit form ────────────────────────────────────────── */}
       <ProductFormDialog
         open={openEdit}
         onOpenChange={setOpenEdit}
@@ -467,89 +748,115 @@ export default function ProductsPage() {
         fileInputRef={editFileInputRef}
       />
 
-      {/* ── Image viewer ─────────────────────────────────────── */}
-      <Dialog open={!!selectedViewImage} onOpenChange={() => setSelectedViewImage(null)}>
-        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-none shadow-none flex items-center justify-center">
-          {selectedViewImage && (
-            <div className="relative group min-h-[300px] w-full max-h-[80vh]">
-              <NextImage src={selectedViewImage} alt="Agrandissement" fill className="rounded-2xl shadow-2xl object-contain bg-white" />
+      <Dialog
+        open={!!selectedViewImage}
+        onOpenChange={() => setSelectedViewImage(null)}
+      >
+        <DialogContent className="flex max-w-3xl items-center justify-center overflow-hidden border-none bg-transparent p-0 shadow-none">
+          {selectedViewImage ? (
+            <div className="relative min-h-[320px] w-full max-h-[80vh]">
+              <NextImage
+                src={selectedViewImage}
+                alt="Agrandissement produit"
+                fill
+                className="rounded-[1.75rem] bg-white object-contain shadow-2xl"
+              />
               <Button
-                onClick={() => setSelectedViewImage(null)}
+                type="button"
                 variant="ghost"
                 size="icon"
-                className="absolute top-2 right-2 bg-white/70 hover:bg-white text-slate-900 rounded-full backdrop-blur-sm"
+                onClick={() => setSelectedViewImage(null)}
+                className="absolute right-3 top-3 rounded-full bg-white/85 text-slate-900 backdrop-blur-sm hover:bg-white"
               >
-                <X className="h-5 w-5" />
+                <X className="size-4" />
               </Button>
             </div>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
 
-      {/* ── QR Code ──────────────────────────────────────────── */}
       <Dialog open={openQR} onOpenChange={setOpenQR}>
-        <DialogContent className="sm:max-w-sm flex flex-col items-center py-8">
-          <DialogHeader className="text-center w-full mb-4">
-            <DialogTitle className="text-xl text-center">QR Code Produit</DialogTitle>
+        <DialogContent className="flex flex-col items-center py-8 sm:max-w-sm">
+          <DialogHeader className="mb-4 w-full text-center">
+            <DialogTitle className="text-center text-xl">QR Code produit</DialogTitle>
             <DialogDescription className="text-center">
               {selectedProduct?.name} · {formatCurrency(selectedProduct?.salePrice || 0)}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-2xl bg-white p-6 shadow-card border border-border/50 flex flex-col items-center gap-3 mb-4">
-            {selectedProduct?.id && (
+          <div className="flex flex-col items-center gap-3 rounded-[1.5rem] border border-border/50 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)] dark:bg-slate-50">
+            {selectedProduct?.id ? (
               <>
-                <QRCodeSVG value={selectedProduct.id} size={200} level="H" includeMargin ref={qrRef} />
-                <p className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
+                <QRCodeSVG
+                  value={selectedProduct.id}
+                  size={200}
+                  level="H"
+                  includeMargin
+                  ref={qrRef}
+                />
+                <p className="rounded-lg bg-slate-50 px-2 py-1 font-mono text-[10px] text-slate-500">
                   {selectedProduct.id}
                 </p>
               </>
-            )}
+            ) : null}
           </div>
 
-          <DialogFooter className="w-full flex flex-col gap-2">
-            <Button onClick={handlePrintQR} className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
+          <DialogFooter className="w-full gap-2">
+            <Button type="button" onClick={handlePrintQR} className="w-full">
               Télécharger l&apos;étiquette
             </Button>
-            <Button variant="outline" onClick={() => setOpenQR(false)} className="w-full rounded-xl">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenQR(false)}
+              className="w-full"
+            >
               Fermer
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Archive confirm ──────────────────────────────────── */}
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <div className="flex justify-center mb-4">
-              <div className="rounded-2xl bg-amber-100 p-3.5">
-                <AlertCircle className="h-6 w-6 text-amber-600" />
+            <div className="mb-4 flex justify-center">
+              <div className="rounded-2xl bg-amber-100 p-3.5 dark:bg-amber-500/20">
+                <AlertCircle className="size-6 text-amber-600 dark:text-amber-200" />
               </div>
             </div>
             <DialogTitle className="text-center">Archiver le produit</DialogTitle>
-            <DialogDescription className="text-center pt-1">
-              <strong>{selectedProduct?.name}</strong> disparaîtra de la liste active et de la caisse.
-              Son historique de ventes et de stock restera conservé.
+            <DialogDescription className="pt-1 text-center">
+              <strong>{selectedProduct?.name}</strong> disparaîtra de la liste active et de
+              la caisse. Son historique de ventes et de stock restera conservé.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-center mt-2">
-            <Button variant="outline" onClick={() => setOpenDelete(false)} className="rounded-xl">Annuler</Button>
+
+          <DialogFooter className="mt-2 gap-2 sm:justify-center">
             <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpenDelete(false)}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
               onClick={handleDelete}
               disabled={submitting}
-              className="bg-amber-600 hover:bg-amber-700 rounded-xl"
+              className="bg-amber-600 hover:bg-amber-700"
             >
-              {submitting ? "Archivage…" : "Archiver"}
+              {submitting ? "Archivage..." : "Archiver"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Subcomponent dialogs ─────────────────────────────── */}
       <BarcodeScannerDialog
         open={openBarcodeScanner}
-        onOpenChange={(val) => { if (!val) stopBarcodeScanner(); }}
+        onOpenChange={(value) => {
+          if (!value) stopBarcodeScanner();
+        }}
         onStop={stopBarcodeScanner}
         scanning={scanningBarcode}
       />
