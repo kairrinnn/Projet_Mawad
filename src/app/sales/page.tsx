@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -15,17 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/payments";
 
@@ -43,31 +34,14 @@ interface SaleRow {
   product?: { name?: string } | null;
 }
 
-const PAGE_SIZE = 20;
-
-function getPageNumbers(current: number, total: number): (number | "...")[] {
-  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
-
-  const pages: (number | "...")[] = [1];
-  if (current > 3) pages.push("...");
-  for (
-    let page = Math.max(2, current - 1);
-    page <= Math.min(total - 1, current + 1);
-    page += 1
-  ) {
-    pages.push(page);
-  }
-  if (current < total - 2) pages.push("...");
-  pages.push(total);
-
-  return pages;
-}
+/** Must match the height applied to each desktop row below */
+const ROW_H = 44;
 
 const PAYMENT_COLORS: Record<string, string> = {
-  CASH: "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
-  CARD: "bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200",
-  TRANSFER: "bg-violet-500/10 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200",
-  MIXED: "bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
+  CASH:     "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  CARD:     "bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+  TRANSFER: "bg-violet-500/10 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
+  MIXED:    "bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
 };
 
 function getNetAmount(sale: SaleRow) {
@@ -78,17 +52,30 @@ function getNetAmount(sale: SaleRow) {
 }
 
 export default function SalesPage() {
-  const [sales, setSales] = useState<SaleRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sales, setSales]           = useState<SaleRow[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize]     = useState(12);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  /* ── Dynamic page size: counts exactly how many rows fit ── */
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const calc = () => setPageSize(Math.max(5, Math.floor(el.clientHeight / ROW_H)));
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const fetchSales = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/sales", { cache: "no-store" });
-      const data = await response.json();
+      const res  = await fetch("/api/sales", { cache: "no-store" });
+      const data = await res.json();
       setSales(Array.isArray(data) ? data : []);
     } catch {
       setSales([]);
@@ -97,557 +84,320 @@ export default function SalesPage() {
     }
   };
 
-  useEffect(() => {
-    fetchSales();
-  }, []);
+  useEffect(() => { fetchSales(); }, []);
 
   const handleRefund = async (id: string) => {
     if (!confirm("Voulez-vous vraiment rembourser cet achat ?")) return;
-
     setRefundingId(id);
     try {
-      const response = await fetch(`/api/sales/${id}/refund`, { method: "POST" });
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Achat remboursé avec succès.");
-        fetchSales();
-      } else {
-        toast.error(data.error || "Erreur lors du remboursement");
-      }
-    } catch {
-      toast.error("Erreur réseau");
-    } finally {
-      setRefundingId(null);
-    }
+      const res  = await fetch(`/api/sales/${id}/refund`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) { toast.success("Achat remboursé avec succès."); fetchSales(); }
+      else toast.error(data.error || "Erreur lors du remboursement");
+    } catch { toast.error("Erreur réseau"); }
+    finally   { setRefundingId(null); }
   };
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "MAD",
-    }).format(value);
+  const fmt = (v: number) =>
+    new Intl.NumberFormat("fr-FR", { style: "currency", currency: "MAD" }).format(v);
 
-  const filteredSales = (Array.isArray(sales) ? sales : []).filter((sale) => {
-    const query = searchTerm.toLowerCase();
-    const paymentLabel = sale.paymentMethod
-      ? PAYMENT_METHOD_LABELS[sale.paymentMethod].toLowerCase()
-      : "";
-
+  const filtered = (Array.isArray(sales) ? sales : []).filter((s) => {
+    const q = searchTerm.toLowerCase();
     return (
-      (sale.product?.name?.toLowerCase() || "").includes(query) ||
-      (sale.ticketNumber?.toLowerCase() || "").includes(query) ||
-      paymentLabel.includes(query)
+      (s.product?.name?.toLowerCase() || "").includes(q) ||
+      (s.ticketNumber?.toLowerCase()  || "").includes(q) ||
+      (s.paymentMethod ? PAYMENT_METHOD_LABELS[s.paymentMethod].toLowerCase() : "").includes(q)
     );
   });
 
-  const totalRevenue = filteredSales
-    .filter((sale) => sale.type === "SALE" && !sale.isRefunded)
-    .reduce((sum, sale) => sum + getNetAmount(sale), 0);
-  const refundCount = filteredSales.filter(
-    (sale) => sale.isRefunded || sale.type === "REFUND"
-  ).length;
-  const refundAmount = filteredSales
-    .filter((sale) => sale.isRefunded || sale.type === "REFUND")
-    .reduce((sum, sale) => sum + getNetAmount(sale), 0);
-  const completedSalesCount = filteredSales.filter(
-    (sale) => sale.type === "SALE" && !sale.isRefunded
-  ).length;
-  const averageBasket = completedSalesCount > 0 ? totalRevenue / completedSalesCount : 0;
+  const salesCount  = filtered.filter(s => s.type === "SALE" && !s.isRefunded).length;
+  const totalRev    = filtered.filter(s => s.type === "SALE" && !s.isRefunded).reduce((a, s) => a + getNetAmount(s), 0);
+  const avgBasket   = salesCount > 0 ? totalRev / salesCount : 0;
+  const refundCount = filtered.filter(s => s.isRefunded || s.type === "REFUND").length;
+  const refundTotal = filtered.filter(s => s.isRefunded || s.type === "REFUND").reduce((a, s) => a + getNetAmount(s), 0);
 
-  const totalPages = Math.max(1, Math.ceil(filteredSales.length / PAGE_SIZE));
-  const safePage = Math.min(currentPage, totalPages);
-  const paginatedSales = filteredSales.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE
-  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage   = Math.min(currentPage, totalPages);
+  const paginated  = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  const metricCards = [
-    {
-      label: "Ventes nettes",
-      value: formatCurrency(totalRevenue),
-      accent: "bg-white/12 text-white ring-1 ring-white/12",
-      icon: TrendingUp,
-    },
-    {
-      label: "Transactions",
-      value: `${completedSalesCount}`,
-      accent: "bg-white/12 text-white ring-1 ring-white/12",
-      icon: ShoppingCart,
-    },
-    {
-      label: "Panier moyen",
-      value: formatCurrency(averageBasket),
-      accent: "bg-white/12 text-white ring-1 ring-white/12",
-      icon: Receipt,
-    },
+  const metrics = [
+    { label: "Ventes nettes",  value: fmt(totalRev),  icon: TrendingUp,  color: "text-indigo-500" },
+    { label: "Transactions",   value: `${salesCount}`, icon: ShoppingCart, color: "text-violet-500" },
+    { label: "Panier moyen",   value: fmt(avgBasket), icon: Receipt,      color: "text-emerald-500" },
     {
       label: "Remboursements",
-      value: `${refundCount} · ${formatCurrency(refundAmount)}`,
-      accent:
-        refundCount > 0
-          ? "bg-rose-500/18 text-white ring-1 ring-rose-200/25"
-          : "bg-emerald-500/18 text-white ring-1 ring-emerald-200/25",
+      value: refundCount > 0 ? `${refundCount} · ${fmt(refundTotal)}` : "—",
       icon: RotateCcw,
+      color: refundCount > 0 ? "text-rose-500" : "text-slate-400",
     },
   ];
 
   return (
-    <div className="space-y-6">
-      <section className="surface-hero rounded-[2rem] px-6 py-6 text-white shadow-[0_28px_70px_rgba(79,70,229,0.28)] sm:px-7">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl space-y-4">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
-              <ShoppingCart className="size-3.5" />
-              Revenue intelligence
-            </span>
+    <div className="flex h-full gap-4">
 
-            <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Historique des ventes
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-white/78 sm:text-base">
-                Analyse les tickets, les remboursements et la performance des ventes dans
-                une interface pensée pour la lecture rapide en desktop comme en mobile.
-              </p>
-            </div>
+      {/* ── LEFT: Stats + Search (desktop only) ──────────── */}
+      <div className="hidden lg:flex w-56 flex-shrink-0 flex-col gap-4">
 
-            <div className="flex flex-wrap gap-2">
-              <span className="command-pill border-white/15 bg-white/10 text-white/90">
-                {filteredSales.length} transaction{filteredSales.length > 1 ? "s" : ""}
-              </span>
-              <span className="command-pill border-white/15 bg-white/10 text-white/90">
-                {completedSalesCount} vente{completedSalesCount > 1 ? "s" : ""} active{completedSalesCount > 1 ? "s" : ""}
-              </span>
-              <span className="command-pill border-white/15 bg-white/10 text-white/90">
-                {refundCount > 0 ? `${refundCount} remboursement${refundCount > 1 ? "s" : ""}` : "Aucun remboursement"}
-              </span>
-            </div>
+        {/* Title */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-sm flex-shrink-0">
+            <ShoppingCart className="h-4 w-4 text-white" />
           </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:w-[460px]">
-            {metricCards.map((metric) => {
-              const Icon = metric.icon;
-
-              return (
-                <div key={metric.label} className={`rounded-[1.5rem] p-4 ${metric.accent}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-                      {metric.label}
-                    </p>
-                    <Icon className="size-4 text-white/85" />
-                  </div>
-                  <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
-                    {loading ? "--" : metric.value}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="surface-card rounded-[1.75rem] p-4 sm:p-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="w-full max-w-2xl space-y-3">
-            <div className="space-y-1">
-              <p className="eyebrow-label">Command center</p>
-              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                Recherche, suivi et remboursement
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Filtre par produit, ticket ou moyen de paiement et recharge la vue en un
-                clic.
-              </p>
-            </div>
-
-            <div className="relative max-w-xl">
-              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                className="h-11 pl-11"
-                placeholder="Rechercher un produit, un ticket ou un paiement..."
-                value={searchTerm}
-                onChange={(event) => {
-                  setSearchTerm(event.target.value);
-                  setCurrentPage(1);
-                }}
-              />
-            </div>
-
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {loading
-                ? "Chargement de l'historique..."
-                : searchTerm
-                  ? `${filteredSales.length} résultat${filteredSales.length > 1 ? "s" : ""} pour "${searchTerm}".`
-                  : `Vue complète de ${sales.length} transaction${sales.length > 1 ? "s" : ""} avec détail des tickets et remboursements.`}
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">Ventes</h1>
+            <p className="text-xs text-slate-400">
+              {loading ? "…" : `${filtered.length} transaction${filtered.length !== 1 ? "s" : ""}`}
             </p>
           </div>
+        </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={fetchSales}>
-              <RotateCcw className="size-4" />
-              Actualiser
+        {/* Metric cards */}
+        <div className="flex flex-col gap-2">
+          {metrics.map(({ label, value, icon: Icon, color }) => (
+            <div
+              key={label}
+              className="flex items-center gap-3 rounded-xl bg-white dark:bg-slate-800/60 border border-border/50 px-3.5 py-3 shadow-sm"
+            >
+              <Icon className={cn("h-4 w-4 flex-shrink-0", color)} />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-50 truncate">
+                  {loading ? "—" : value}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            className="pl-9 h-9 text-sm"
+            placeholder="Produit, ticket…"
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          />
+        </div>
+
+        {/* Refresh */}
+        <Button variant="outline" size="sm" onClick={fetchSales} className="gap-2 text-xs">
+          <RotateCcw className="h-3.5 w-3.5" />
+          Actualiser
+        </Button>
+      </div>
+
+      {/* ── RIGHT: Table ─────────────────────────────────── */}
+      <div className="flex-1 min-h-0 flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-border/50 shadow-card overflow-hidden">
+
+        {/* Mobile top bar */}
+        <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/50 lg:hidden">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex-shrink-0">
+            <ShoppingCart className="h-3.5 w-3.5 text-white" />
+          </div>
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-50 flex-1">Ventes</span>
+          <span className="text-xs text-slate-400">{filtered.length}</span>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={fetchSales}>
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {/* Mobile search */}
+        <div className="flex-shrink-0 px-4 py-2 border-b border-border/50 lg:hidden">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              className="pl-9 h-9 text-sm"
+              placeholder="Produit, ticket…"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+            />
+          </div>
+        </div>
+
+        {/* Desktop table column headers */}
+        <div className="flex-shrink-0 hidden lg:grid grid-cols-[1.4fr_1.6fr_0.8fr_0.9fr_56px_0.8fr_1fr_86px] px-4 py-2.5 bg-slate-50/80 dark:bg-slate-800/50 border-b border-border/50 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+          <span>Date</span>
+          <span>Produit</span>
+          <span>Ticket</span>
+          <span>Paiement</span>
+          <span className="text-center">Qté</span>
+          <span>Réduction</span>
+          <span className="text-right">Net</span>
+          <span className="text-right">Action</span>
+        </div>
+
+        {/* ── Body (fills remaining height, no scroll) ──── */}
+        <div ref={bodyRef} className="flex-1 min-h-0 overflow-hidden">
+          {loading ? (
+            <div className="flex h-full items-center justify-center gap-3 text-slate-400">
+              <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+              <span className="text-sm">Chargement…</span>
+            </div>
+          ) : paginated.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
+              <Receipt className="h-9 w-9 text-slate-300 dark:text-slate-600" />
+              <span className="text-sm">{searchTerm ? "Aucun résultat" : "Aucune vente"}</span>
+            </div>
+          ) : (
+            <>
+              {/* Mobile: card list (scrollable) */}
+              <div className="lg:hidden h-full overflow-y-auto divide-y divide-border/40 px-3">
+                {paginated.map((sale) => {
+                  const isRefunded = sale.isRefunded;
+                  const isReturn   = sale.type === "REFUND";
+                  const net        = getNetAmount(sale);
+                  const payColor   = sale.paymentMethod ? (PAYMENT_COLORS[sale.paymentMethod] ?? "") : "";
+                  return (
+                    <div key={sale.id} className={cn("py-3 flex items-center gap-3", isRefunded && "opacity-50")}>
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-sm font-semibold truncate", isRefunded ? "line-through text-slate-400" : "text-slate-900 dark:text-slate-50")}>
+                            {sale.product?.name || "Produit inconnu"}
+                          </span>
+                          {isReturn && <span className="text-[9px] font-bold uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 px-1.5 py-0.5 rounded-full flex-shrink-0">Retour</span>}
+                        </div>
+                        <p className="text-xs text-slate-400">{format(new Date(sale.createdAt), "dd MMM · HH:mm", { locale: fr })}</p>
+                      </div>
+                      <div className="flex-shrink-0 text-right space-y-0.5">
+                        <p className={cn("text-sm font-bold", isReturn ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-50")}>{fmt(net)}</p>
+                        {sale.paymentMethod && <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded-full", payColor)}>{PAYMENT_METHOD_LABELS[sale.paymentMethod]}</span>}
+                      </div>
+                      {sale.type !== "REFUND" && !sale.isRefunded && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0 text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10" onClick={() => handleRefund(sale.id)} disabled={refundingId === sale.id}>
+                          {refundingId === sale.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: fixed-height rows (no scroll) */}
+              <div className="hidden lg:block">
+                {paginated.map((sale) => {
+                  const isRefunded = sale.isRefunded;
+                  const isReturn   = sale.type === "REFUND";
+                  const net        = getNetAmount(sale);
+                  const payColor   = sale.paymentMethod
+                    ? (PAYMENT_COLORS[sale.paymentMethod] ?? "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300")
+                    : "";
+                  return (
+                    <div
+                      key={sale.id}
+                      style={{ height: ROW_H }}
+                      className={cn(
+                        "grid grid-cols-[1.4fr_1.6fr_0.8fr_0.9fr_56px_0.8fr_1fr_86px] items-center border-b border-border/30 px-4 text-sm last:border-0",
+                        isRefunded && "opacity-50 bg-slate-50/40 dark:bg-slate-800/20",
+                        isReturn && !isRefunded && "bg-amber-50/30 hover:bg-amber-50/50 dark:bg-amber-500/5 dark:hover:bg-amber-500/8",
+                        !isRefunded && !isReturn && "hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
+                      )}
+                    >
+                      {/* Date */}
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {format(new Date(sale.createdAt), "dd MMM yyyy · HH:mm", { locale: fr })}
+                      </span>
+
+                      {/* Product */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={cn("font-medium truncate", isRefunded ? "text-slate-400 line-through" : isReturn ? "text-amber-700 dark:text-amber-400" : "text-slate-800 dark:text-slate-100")}>
+                          {sale.product?.name || "Produit inconnu"}
+                        </span>
+                        {isReturn && <span className="flex-shrink-0 text-[9px] font-bold uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 px-1.5 py-0.5 rounded-full">Retour</span>}
+                        {isRefunded && !isReturn && <span className="flex-shrink-0 text-[9px] font-bold uppercase bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 px-1.5 py-0.5 rounded-full">Remboursé</span>}
+                      </div>
+
+                      {/* Ticket */}
+                      <span className="text-xs text-slate-400 font-mono">{sale.ticketNumber || "—"}</span>
+
+                      {/* Payment */}
+                      <div>
+                        {sale.paymentMethod ? (
+                          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", payColor)}>
+                            {PAYMENT_METHOD_LABELS[sale.paymentMethod]}
+                          </span>
+                        ) : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                      </div>
+
+                      {/* Qty */}
+                      <div className="flex justify-center">
+                        <span className={cn("inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded-full text-xs font-bold", isReturn ? "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400" : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200")}>
+                          {sale.quantity > 0 ? `+${sale.quantity}` : sale.quantity}
+                        </span>
+                      </div>
+
+                      {/* Discount */}
+                      <div className="text-xs">
+                        {sale.discount > 0
+                          ? <span className="text-amber-600 dark:text-amber-400 font-medium">-{fmt(sale.discount)}</span>
+                          : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                      </div>
+
+                      {/* Net */}
+                      <div className={cn("text-right font-bold tabular-nums", isRefunded ? "text-slate-400" : isReturn ? "text-amber-700 dark:text-amber-400" : "text-slate-900 dark:text-slate-50")}>
+                        {fmt(net)}
+                      </div>
+
+                      {/* Action */}
+                      <div className="flex justify-end">
+                        {sale.type !== "REFUND" && !sale.isRefunded && (
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-7 rounded-full text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-500/10 gap-1 text-xs px-2"
+                            onClick={() => handleRefund(sale.id)}
+                            disabled={refundingId === sale.id}
+                          >
+                            {refundingId === sale.id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <RotateCcw className="h-3 w-3" />
+                            }
+                            <span className="hidden xl:inline">Rembourser</span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Footer: arrows only ───────────────────────── */}
+        <div className="flex-shrink-0 flex items-center justify-between border-t border-border/40 bg-slate-50/50 dark:bg-slate-800/30 px-4 py-2">
+          <span className="text-[11px] text-slate-400 tabular-nums">
+            {loading
+              ? "…"
+              : filtered.length === 0
+                ? "0 résultat"
+                : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filtered.length)} / ${filtered.length}`
+            }
+          </span>
+          <div className="flex items-center gap-2">
+            {totalPages > 1 && (
+              <span className="text-xs text-slate-400 tabular-nums">
+                {safePage} / {totalPages}
+              </span>
+            )}
+            <Button
+              variant="outline" size="icon"
+              className="h-7 w-7 rounded-full border-border/60"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage === 1 || loading}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="outline" size="icon"
+              className="h-7 w-7 rounded-full border-border/60"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages || loading}
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
-      </section>
-
-      <section className="surface-card overflow-hidden rounded-[1.75rem]">
-        <div className="flex flex-col gap-2 border-b border-slate-200/70 px-5 py-5 dark:border-slate-800/80 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-1">
-            <p className="eyebrow-label">Transactions</p>
-            <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">
-              Journal de caisse
-            </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Chaque vente, retour ou remboursement reste visible avec son contexte.
-            </p>
-          </div>
-
-          {!loading && filteredSales.length > 0 ? (
-            <Badge className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-950">
-              {(safePage - 1) * PAGE_SIZE + 1}-
-              {Math.min(safePage * PAGE_SIZE, filteredSales.length)} / {filteredSales.length}
-            </Badge>
-          ) : null}
-        </div>
-
-        {loading ? (
-          <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-            <div className="flex size-14 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200">
-              <Loader2 className="size-6 animate-spin" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-base font-semibold text-slate-950 dark:text-slate-50">
-                Synchronisation des ventes
-              </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Les transactions sont en train d&apos;etre chargées.
-              </p>
-            </div>
-          </div>
-        ) : paginatedSales.length === 0 ? (
-          <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-            <div className="flex size-14 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-300">
-              <Receipt className="size-6" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-base font-semibold text-slate-950 dark:text-slate-50">
-                Aucune transaction trouvée
-              </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Ajuste ta recherche ou attends les prochaines ventes pour remplir cet écran.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="space-y-3 p-4 lg:hidden">
-              {paginatedSales.map((sale) => {
-                const isRefunded = sale.isRefunded;
-                const isReturn = sale.type === "REFUND";
-                const net = getNetAmount(sale);
-                const paymentColor = sale.paymentMethod
-                  ? PAYMENT_COLORS[sale.paymentMethod] ?? "bg-slate-100 text-slate-700"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
-
-                return (
-                  <article
-                    key={sale.id}
-                    className={cn(
-                      "rounded-[1.5rem] border p-4 shadow-[0_16px_32px_rgba(15,23,42,0.05)]",
-                      isRefunded
-                        ? "border-slate-200/70 bg-slate-50/70 dark:border-slate-800/80 dark:bg-slate-950/60"
-                        : isReturn
-                          ? "border-amber-200/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10"
-                          : "border-slate-200/70 bg-white/85 dark:border-slate-800/80 dark:bg-slate-950/70"
-                    )}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-base font-semibold text-slate-950 dark:text-slate-50">
-                            {sale.product?.name || "Produit inconnu"}
-                          </h3>
-                          {isReturn ? (
-                            <Badge className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
-                              Retour
-                            </Badge>
-                          ) : null}
-                          {isRefunded && !isReturn ? (
-                            <Badge className="rounded-full bg-slate-900/8 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-100/10 dark:text-slate-300">
-                              Remboursé
-                            </Badge>
-                          ) : null}
-                        </div>
-
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          {format(new Date(sale.createdAt), "dd MMM yyyy · HH:mm", {
-                            locale: fr,
-                          })}
-                        </p>
-                      </div>
-
-                      {sale.paymentMethod ? (
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                            paymentColor
-                          )}
-                        >
-                          {PAYMENT_METHOD_LABELS[sale.paymentMethod]}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-slate-900/80">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          Ticket
-                        </p>
-                        <p className="mt-1 font-mono text-sm text-slate-700 dark:text-slate-200">
-                          {sale.ticketNumber || "—"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-slate-900/80">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          Quantité
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-slate-50">
-                          {sale.quantity > 0 ? `+${sale.quantity}` : sale.quantity}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-slate-900/80">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          Net à payer
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-slate-50">
-                          {formatCurrency(net)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {sale.discount > 0
-                          ? `Réduction ${formatCurrency(sale.discount)}`
-                          : "Aucune réduction"}
-                      </p>
-
-                      {sale.type !== "REFUND" && !sale.isRefunded ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRefund(sale.id)}
-                          disabled={refundingId === sale.id}
-                          className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-200"
-                        >
-                          {refundingId === sale.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <RotateCcw className="size-3.5" />
-                          )}
-                          Rembourser
-                        </Button>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-
-            <div className="hidden lg:block">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-slate-200/70 bg-slate-50/80 hover:bg-slate-50/80 dark:border-slate-800/80 dark:bg-slate-950/40">
-                    <TableHead className="px-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Date
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Produit
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Ticket
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Paiement
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Quantité
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Réduction
-                    </TableHead>
-                    <TableHead className="text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Net à payer
-                    </TableHead>
-                    <TableHead className="pr-5 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Action
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedSales.map((sale) => {
-                    const isRefunded = sale.isRefunded;
-                    const isReturn = sale.type === "REFUND";
-                    const net = getNetAmount(sale);
-                    const paymentColor = sale.paymentMethod
-                      ? PAYMENT_COLORS[sale.paymentMethod] ?? "bg-slate-100 text-slate-700"
-                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200";
-
-                    return (
-                      <TableRow
-                        key={sale.id}
-                        className={cn(
-                          "border-slate-200/60 bg-transparent dark:border-slate-800/70",
-                          isRefunded
-                            ? "bg-slate-50/40 opacity-60 hover:bg-slate-50/40 dark:bg-slate-950/30"
-                            : isReturn
-                              ? "bg-amber-50/40 hover:bg-amber-50/60 dark:bg-amber-500/6 dark:hover:bg-amber-500/10"
-                              : "hover:bg-slate-50/70 dark:hover:bg-slate-950/40"
-                        )}
-                      >
-                        <TableCell className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
-                          {format(new Date(sale.createdAt), "dd MMM yyyy · HH:mm", {
-                            locale: fr,
-                          })}
-                        </TableCell>
-
-                        <TableCell className="py-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium text-slate-950 dark:text-slate-50">
-                              {sale.product?.name || "Produit inconnu"}
-                            </span>
-                            {isReturn ? (
-                              <Badge className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
-                                Retour
-                              </Badge>
-                            ) : null}
-                            {isRefunded && !isReturn ? (
-                              <Badge className="rounded-full bg-slate-900/8 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-100/10 dark:text-slate-300">
-                                Remboursé
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="py-4 font-mono text-sm text-slate-500 dark:text-slate-400">
-                          {sale.ticketNumber || "—"}
-                        </TableCell>
-
-                        <TableCell className="py-4">
-                          {sale.paymentMethod ? (
-                            <span
-                              className={cn(
-                                "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                                paymentColor
-                              )}
-                            >
-                              {PAYMENT_METHOD_LABELS[sale.paymentMethod]}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-slate-400">—</span>
-                          )}
-                        </TableCell>
-
-                        <TableCell className="py-4 text-sm font-semibold text-slate-950 dark:text-slate-50">
-                          {sale.quantity > 0 ? `+${sale.quantity}` : sale.quantity}
-                        </TableCell>
-
-                        <TableCell className="py-4 text-sm text-slate-500 dark:text-slate-400">
-                          {sale.discount > 0 ? formatCurrency(sale.discount) : "—"}
-                        </TableCell>
-
-                        <TableCell className="py-4 text-right text-sm font-semibold text-slate-950 dark:text-slate-50">
-                          {formatCurrency(net)}
-                        </TableCell>
-
-                        <TableCell className="py-4 pr-5">
-                          <div className="flex justify-end">
-                            {sale.type !== "REFUND" && !sale.isRefunded ? (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRefund(sale.id)}
-                                disabled={refundingId === sale.id}
-                                className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-200"
-                              >
-                                {refundingId === sale.id ? (
-                                  <Loader2 className="size-3.5 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="size-3.5" />
-                                )}
-                                Rembourser
-                              </Button>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </>
-        )}
-
-        {!loading && filteredSales.length > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-slate-200/70 px-5 py-4 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {(safePage - 1) * PAGE_SIZE + 1}-
-              {Math.min(safePage * PAGE_SIZE, filteredSales.length)} sur {filteredSales.length} transaction
-              {filteredSales.length > 1 ? "s" : ""}
-            </p>
-
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  disabled={safePage === 1}
-                  className="size-9 rounded-full"
-                >
-                  <ChevronLeft className="size-4" />
-                </Button>
-
-                {getPageNumbers(safePage, totalPages).map((page, index) =>
-                  page === "..." ? (
-                    <span key={`ellipsis-${index}`} className="px-2 text-slate-400">
-                      ...
-                    </span>
-                  ) : (
-                    <Button
-                      key={page}
-                      type="button"
-                      variant={safePage === page ? "default" : "outline"}
-                      size="icon"
-                      onClick={() => setCurrentPage(page)}
-                      className="size-9 rounded-full text-xs"
-                    >
-                      {page}
-                    </Button>
-                  )
-                )}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  disabled={safePage === totalPages}
-                  className="size-9 rounded-full"
-                >
-                  <ChevronRight className="size-4" />
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+      </div>
     </div>
   );
 }
