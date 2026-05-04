@@ -50,7 +50,7 @@
 
 :root {
   /* ── Core palette ─────────────────────────────── */
-  --background: oklch(0.984 0.003 247.9);   /* slate-50  #F8FAFC */
+  --background: oklch(0.966 0.006 247.9);   /* #F4F6FB cold white */
   --foreground: oklch(0.129 0.033 264.1);   /* slate-900 #0F172A */
 
   --card: oklch(1 0 0);                     /* white */
@@ -103,37 +103,38 @@
 }
 
 .dark {
-  --background: oklch(0.095 0.02 264);
-  --foreground: oklch(0.95 0.005 264);
-  --card: oklch(0.14 0.025 264);
-  --card-foreground: oklch(0.95 0.005 264);
-  --popover: oklch(0.14 0.025 264);
-  --popover-foreground: oklch(0.95 0.005 264);
-  --primary: oklch(0.62 0.22 264.1);
-  --primary-foreground: oklch(0.1 0.02 264);
-  --secondary: oklch(0.20 0.025 264);
+  /* ── Core dark palette — premium dark navy (#0D0F1A base) ── */
+  --background: oklch(0.09 0.023 264);          /* #0D0F1A */
+  --foreground: oklch(0.96 0.004 264);
+  --card: oklch(0.12 0.027 264);                /* #161929 */
+  --card-foreground: oklch(0.96 0.004 264);
+  --popover: oklch(0.12 0.027 264);
+  --popover-foreground: oklch(0.96 0.004 264);
+  --primary: oklch(0.58 0.24 293);              /* #7C3AED violet */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.16 0.030 264);           /* #1E2235 */
   --secondary-foreground: oklch(0.95 0.005 264);
-  --muted: oklch(0.20 0.025 264);
-  --muted-foreground: oklch(0.60 0.015 264);
-  --accent: oklch(0.25 0.04 264);
-  --accent-foreground: oklch(0.95 0.005 264);
+  --muted: oklch(0.16 0.030 264);
+  --muted-foreground: oklch(0.55 0.014 264);
+  --accent: oklch(0.58 0.24 293 / 20%);
+  --accent-foreground: oklch(0.78 0.16 293);    /* #A78BFA */
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.62 0.22 264.1);
-  --chart-1: oklch(0.65 0.22 264.1);
+  --border: oklch(1 0 0 / 6%);                  /* rgba(255,255,255,0.06) */
+  --input: oklch(1 0 0 / 8%);
+  --ring: oklch(0.58 0.24 293);
+  --chart-1: oklch(0.60 0.24 293);
   --chart-2: oklch(0.68 0.25 313);
   --chart-3: oklch(0.70 0.18 163);
   --chart-4: oklch(0.74 0.20 48);
   --chart-5: oklch(0.62 0.23 27);
-  --sidebar: oklch(0.095 0.025 264);
+  --sidebar: oklch(0.07 0.020 264);             /* #0A0C17 */
   --sidebar-foreground: oklch(0.88 0.01 264);
-  --sidebar-primary: oklch(0.62 0.22 264.1);
+  --sidebar-primary: oklch(0.58 0.24 293);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.16 0.03 264);
+  --sidebar-accent: oklch(0.14 0.027 264);
   --sidebar-accent-foreground: oklch(0.95 0.01 264);
-  --sidebar-border: oklch(0.18 0.02 264);
-  --sidebar-ring: oklch(0.62 0.22 264.1);
+  --sidebar-border: oklch(1 0 0 / 5%);
+  --sidebar-ring: oklch(0.58 0.24 293);
 }
 
 @layer base {
@@ -191,14 +192,9 @@
     background: linear-gradient(135deg, rgba(79, 70, 229, 0.9) 0%, rgba(124, 58, 237, 0.85) 100%);
   }
 
-  /* Subtle page bg pattern */
+  /* Page background — clean, no dots */
   .bg-grid {
-    background-image:
-      radial-gradient(circle at top left, rgba(99, 102, 241, 0.08), transparent 22%),
-      radial-gradient(circle at bottom right, rgba(45, 212, 191, 0.05), transparent 18%),
-      linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
-    background-size: 32px 32px;
+    background-color: #F4F6FB;
   }
 
   .surface-card {
@@ -344,93 +340,86 @@
 /* ── Dark mode compatibility layer ─────────────────────────────
    Overrides hardcoded Tailwind colors so all pages respond
    to the .dark class without touching every component.        */
-.dark .bg-white          { background-color: oklch(0.14 0.025 264); }
-.dark .bg-slate-50       { background-color: oklch(0.17 0.025 264); }
-.dark .bg-slate-50\/30   { background-color: oklch(0.17 0.025 264 / .30); }
-.dark .bg-slate-50\/40   { background-color: oklch(0.17 0.025 264 / .40); }
-.dark .bg-slate-50\/50   { background-color: oklch(0.17 0.025 264 / .50); }
-.dark .bg-slate-50\/60   { background-color: oklch(0.17 0.025 264 / .60); }
-.dark .bg-slate-50\/80   { background-color: oklch(0.17 0.025 264 / .80); }
 
-.dark .hover\:bg-slate-50\/60:hover  { background-color: oklch(1 0 0 / .05); }
-.dark .hover\:bg-slate-50\/50:hover  { background-color: oklch(1 0 0 / .04); }
-.dark .hover\:bg-amber-50\/50:hover  { background-color: oklch(0.48 0.12 84 / .12); }
+/* Core background overrides — premium dark navy */
+.dark .bg-white          { background-color: #161929; }
+.dark .bg-slate-50       { background-color: #1a1d2e; }
+.dark .bg-slate-50\/30   { background-color: rgba(26, 29, 46, .30); }
+.dark .bg-slate-50\/40   { background-color: rgba(26, 29, 46, .40); }
+.dark .bg-slate-50\/50   { background-color: rgba(26, 29, 46, .50); }
+.dark .bg-slate-50\/60   { background-color: rgba(26, 29, 46, .60); }
+.dark .bg-slate-50\/80   { background-color: rgba(26, 29, 46, .80); }
 
-.dark .text-slate-900    { color: oklch(0.95 0.005 264); }
-.dark .text-slate-800    { color: oklch(0.88 0.008 264); }
-.dark .text-slate-700    { color: oklch(0.80 0.012 264); }
-.dark .text-slate-600    { color: oklch(0.70 0.015 264); }
-.dark .text-slate-500    { color: oklch(0.58 0.015 264); }
-.dark .text-slate-400    { color: oklch(0.48 0.012 264); }
-.dark .text-slate-300    { color: oklch(0.38 0.010 264); }
+.dark .hover\:bg-slate-50\/60:hover  { background-color: rgba(255,255,255,0.05); }
+.dark .hover\:bg-slate-50\/50:hover  { background-color: rgba(255,255,255,0.04); }
+.dark .hover\:bg-amber-50\/50:hover  { background-color: rgba(251,146,60,0.12); }
 
-.dark .border-slate-100  { border-color: oklch(1 0 0 / .07); }
-.dark .border-slate-200  { border-color: oklch(1 0 0 / .11); }
+.dark .text-slate-900    { color: rgba(255,255,255,0.95); }
+.dark .text-slate-800    { color: rgba(255,255,255,0.85); }
+.dark .text-slate-700    { color: rgba(255,255,255,0.70); }
+.dark .text-slate-600    { color: rgba(255,255,255,0.55); }
+.dark .text-slate-500    { color: rgba(255,255,255,0.45); }
+.dark .text-slate-400    { color: rgba(255,255,255,0.35); }
+.dark .text-slate-300    { color: rgba(255,255,255,0.25); }
 
-.dark .divide-slate-100 > * + *  { border-color: oklch(1 0 0 / .07); }
+.dark .border-slate-100  { border-color: rgba(255,255,255,0.06); }
+.dark .border-slate-200  { border-color: rgba(255,255,255,0.08); }
 
-.dark .bg-indigo-50      { background-color: oklch(0.20 0.04 264); }
-.dark .bg-amber-50       { background-color: oklch(0.20 0.04 84); }
-.dark .bg-amber-50\/30   { background-color: oklch(0.20 0.04 84 / .30); }
-.dark .bg-emerald-50     { background-color: oklch(0.18 0.04 163); }
-.dark .bg-blue-50        { background-color: oklch(0.18 0.04 230); }
-.dark .bg-violet-50      { background-color: oklch(0.18 0.04 300); }
-.dark .bg-slate-100      { background-color: oklch(0.20 0.025 264); }
+.dark .divide-slate-100 > * + *  { border-color: rgba(255,255,255,0.06); }
 
-.dark .ring-indigo-200   { --tw-ring-color: oklch(0.30 0.08 264); }
+.dark .bg-indigo-50      { background-color: rgba(124,58,237,0.15); }
+.dark .bg-amber-50       { background-color: rgba(251,146,60,0.12); }
+.dark .bg-amber-50\/30   { background-color: rgba(251,146,60,0.08); }
+.dark .bg-emerald-50     { background-color: rgba(16,185,129,0.12); }
+.dark .bg-blue-50        { background-color: rgba(59,130,246,0.12); }
+.dark .bg-violet-50      { background-color: rgba(124,58,237,0.12); }
+.dark .bg-slate-100      { background-color: rgba(255,255,255,0.06); }
+
+.dark .ring-indigo-200   { --tw-ring-color: rgba(124,58,237,0.3); }
 
 .dark .shadow-card {
-  box-shadow: 0 1px 3px rgba(0,0,0,0.20), 0 4px 12px rgba(0,0,0,0.25);
+  box-shadow: 0 0 40px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset;
 }
 
+/* Clean dark base — no dot grid */
 .dark .bg-grid {
-  background-image:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.12), transparent 20%),
-    radial-gradient(circle at bottom right, rgba(45, 212, 191, 0.06), transparent 18%),
-    linear-gradient(rgba(99, 102, 241, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 102, 241, 0.06) 1px, transparent 1px);
+  background-color: #0D0F1A;
 }
 
 .dark .surface-card {
-  background:
-    linear-gradient(180deg, rgba(10, 15, 28, 0.92) 0%, rgba(9, 13, 23, 0.96) 100%);
-  border-color: rgba(71, 85, 105, 0.32);
-  box-shadow:
-    0 22px 55px rgba(2, 6, 23, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: #161929;
+  border-color: rgba(255,255,255,0.06);
+  box-shadow: 0 0 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .dark .surface-card::before {
   background:
-    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 35%);
+    radial-gradient(circle at top right, rgba(124, 58, 237, 0.10), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 35%);
 }
 
 .dark .surface-hero {
-  background:
-    linear-gradient(135deg, rgba(79, 70, 229, 0.94) 0%, rgba(109, 40, 217, 0.92) 55%, rgba(20, 184, 166, 0.4) 148%);
-  border-color: rgba(99, 102, 241, 0.26);
-  box-shadow:
-    0 26px 60px rgba(49, 46, 129, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, #1E1040 0%, #5B21B6 50%, #7C3AED 100%);
+  border-color: rgba(124, 58, 237, 0.25);
+  box-shadow: 0 24px 60px rgba(91,33,182,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 .dark .command-pill {
   color: rgba(226, 232, 240, 0.9);
-  background: rgba(15, 23, 42, 0.78);
-  border-color: rgba(71, 85, 105, 0.28);
-  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.3);
+  background: rgba(30, 34, 53, 0.9);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .dark .eyebrow-label {
-  color: rgba(148, 163, 184, 0.88);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .dark .soft-divider {
-  background: linear-gradient(90deg, transparent, rgba(71, 85, 105, 0.42), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
 }
 
 .dark .sk {
-  background: linear-gradient(90deg, oklch(0.17 0.025 264) 25%, oklch(0.21 0.028 264) 50%, oklch(0.17 0.025 264) 75%);
+  background: linear-gradient(90deg, #161929 25%, #1e2235 50%, #161929 75%);
   background-size: 200% 100%;
 }

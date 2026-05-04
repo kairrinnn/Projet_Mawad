@@ -194,33 +194,39 @@ export default function SalesPage() {
 
   return (
     <div className="space-y-6">
-      <section className="surface-hero rounded-[2rem] px-6 py-6 text-white shadow-[0_28px_70px_rgba(79,70,229,0.28)] sm:px-7">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl space-y-4">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/12 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+      <section
+        className="rounded-[2rem] px-6 py-6 text-white sm:px-7"
+        style={{
+          background: "linear-gradient(135deg, #1E1040 0%, #5B21B6 50%, #7C3AED 100%)",
+          boxShadow: "0 24px 60px rgba(91,33,182,0.4)",
+          border: "1px solid rgba(124,58,237,0.25)",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Subtle noise overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: "radial-gradient(circle at top right, rgba(255,255,255,0.12) 0%, transparent 60%), radial-gradient(circle at bottom left, rgba(255,255,255,0.06) 0%, transparent 50%)",
+          }}
+        />
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-3">
+            <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/90"
+              style={{ background: "rgba(0,0,0,0.20)", border: "1px solid rgba(255,255,255,0.15)" }}>
               <ShoppingCart className="size-3.5" />
-              Revenue intelligence
+              Journal de caisse
             </span>
-
-            <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Historique des ventes
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-white/78 sm:text-base">
-                Analyse les tickets, les remboursements et la performance des ventes dans
-                une interface pensée pour la lecture rapide en desktop comme en mobile.
-              </p>
-            </div>
-
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              Historique des ventes
+            </h1>
             <div className="flex flex-wrap gap-2">
-              <span className="command-pill border-white/15 bg-white/10 text-white/90">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(0,0,0,0.20)", border: "1px solid rgba(255,255,255,0.12)" }}>
                 {filteredSales.length} transaction{filteredSales.length > 1 ? "s" : ""}
               </span>
-              <span className="command-pill border-white/15 bg-white/10 text-white/90">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(0,0,0,0.20)", border: "1px solid rgba(255,255,255,0.12)" }}>
                 {completedSalesCount} vente{completedSalesCount > 1 ? "s" : ""} active{completedSalesCount > 1 ? "s" : ""}
-              </span>
-              <span className="command-pill border-white/15 bg-white/10 text-white/90">
-                {refundCount > 0 ? `${refundCount} remboursement${refundCount > 1 ? "s" : ""}` : "Aucun remboursement"}
               </span>
             </div>
           </div>
@@ -228,16 +234,26 @@ export default function SalesPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:w-[460px]">
             {metricCards.map((metric) => {
               const Icon = metric.icon;
-
               return (
-                <div key={metric.label} className={`rounded-[1.5rem] p-4 ${metric.accent}`}>
+                <div
+                  key={metric.label}
+                  className="rounded-2xl p-4"
+                  style={{
+                    background: "rgba(0,0,0,0.25)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.10em]" style={{ color: "rgba(255,255,255,0.55)" }}>
                       {metric.label}
                     </p>
-                    <Icon className="size-4 text-white/85" />
+                    <div className="flex items-center justify-center h-6 w-6 rounded-full" style={{ background: "rgba(255,255,255,0.10)" }}>
+                      <Icon className="size-3.5 text-white" />
+                    </div>
                   </div>
-                  <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
+                  <p className="mt-2.5 text-xl font-extrabold tracking-tight">
                     {loading ? "--" : metric.value}
                   </p>
                 </div>
@@ -247,68 +263,62 @@ export default function SalesPage() {
         </div>
       </section>
 
-      <section className="surface-card rounded-[1.75rem] p-4 sm:p-5">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="w-full max-w-2xl space-y-3">
-            <div className="space-y-1">
-              <p className="eyebrow-label">Command center</p>
-              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                Recherche, suivi et remboursement
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Filtre par produit, ticket ou moyen de paiement et recharge la vue en un
-                clic.
-              </p>
-            </div>
-
-            <div className="relative max-w-xl">
-              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                className="h-11 pl-11"
-                placeholder="Rechercher un produit, un ticket ou un paiement..."
-                value={searchTerm}
-                onChange={(event) => {
-                  setSearchTerm(event.target.value);
-                  setCurrentPage(1);
-                }}
-              />
-            </div>
-
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {loading
-                ? "Chargement de l'historique..."
-                : searchTerm
-                  ? `${filteredSales.length} résultat${filteredSales.length > 1 ? "s" : ""} pour "${searchTerm}".`
-                  : `Vue complète de ${sales.length} transaction${sales.length > 1 ? "s" : ""} avec détail des tickets et remboursements.`}
-            </p>
+      {/* Search bar */}
+      <div
+        className="rounded-2xl p-4 sm:p-5"
+        style={{ background: "#161929", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative max-w-xl flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400 dark:text-white/30" />
+            <Input
+              className="h-11 pl-11"
+              placeholder="Rechercher un produit, un ticket ou un paiement..."
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setCurrentPage(1);
+              }}
+            />
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={fetchSales}>
-              <RotateCcw className="size-4" />
-              Actualiser
-            </Button>
-          </div>
+          <Button type="button" variant="outline" onClick={fetchSales} className="flex-shrink-0">
+            <RotateCcw className="size-4" />
+            Actualiser
+          </Button>
         </div>
-      </section>
+      </div>
 
-      <section className="surface-card overflow-hidden rounded-[1.75rem]">
-        <div className="flex flex-col gap-2 border-b border-slate-200/70 px-5 py-5 dark:border-slate-800/80 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-1">
-            <p className="eyebrow-label">Transactions</p>
-            <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-50">
+      <section
+        className="overflow-hidden rounded-2xl"
+        style={{ background: "#161929", border: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div
+          className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          <div>
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+              style={{ color: "rgba(255,255,255,0.35)" }}
+            >
+              Transactions
+            </p>
+            <h2 className="text-base font-semibold text-white/90 mt-0.5">
               Journal de caisse
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Chaque vente, retour ou remboursement reste visible avec son contexte.
-            </p>
           </div>
 
           {!loading && filteredSales.length > 0 ? (
-            <Badge className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-950">
-              {(safePage - 1) * PAGE_SIZE + 1}-
-              {Math.min(safePage * PAGE_SIZE, filteredSales.length)} / {filteredSales.length}
-            </Badge>
+            <span
+              className="text-xs font-semibold px-3 py-1.5 rounded-full"
+              style={{
+                background: "#1E2235",
+                color: "#A78BFA",
+                border: "1px solid rgba(124,58,237,0.25)",
+              }}
+            >
+              {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredSales.length)} / {filteredSales.length}
+            </span>
           ) : null}
         </div>
 
@@ -460,31 +470,24 @@ export default function SalesPage() {
             <div className="hidden lg:block">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-slate-200/70 bg-slate-50/80 hover:bg-slate-50/80 dark:border-slate-800/80 dark:bg-slate-950/40">
-                    <TableHead className="px-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Date
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Produit
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Ticket
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Paiement
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Quantité
-                    </TableHead>
-                    <TableHead className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Réduction
-                    </TableHead>
-                    <TableHead className="text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Net à payer
-                    </TableHead>
-                    <TableHead className="pr-5 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Action
-                    </TableHead>
+                  <TableRow
+                    className="hover:bg-transparent border-0"
+                    style={{ background: "rgba(255,255,255,0.03)" }}
+                  >
+                    {["Date","Produit","Ticket","Paiement","Quantité","Réduction","Net à payer","Action"].map((h, i) => (
+                      <TableHead
+                        key={h}
+                        className={cn(
+                          "text-[11px] font-semibold uppercase tracking-[0.08em] border-0",
+                          i === 0 ? "px-5" : "",
+                          i >= 6 ? "text-right" : "",
+                          i === 7 ? "pr-5" : ""
+                        )}
+                        style={{ color: "rgba(255,255,255,0.40)" }}
+                      >
+                        {h}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -499,71 +502,61 @@ export default function SalesPage() {
                     return (
                       <TableRow
                         key={sale.id}
-                        className={cn(
-                          "border-slate-200/60 bg-transparent dark:border-slate-800/70",
-                          isRefunded
-                            ? "bg-slate-50/40 opacity-60 hover:bg-slate-50/40 dark:bg-slate-950/30"
-                            : isReturn
-                              ? "bg-amber-50/40 hover:bg-amber-50/60 dark:bg-amber-500/6 dark:hover:bg-amber-500/10"
-                              : "hover:bg-slate-50/70 dark:hover:bg-slate-950/40"
-                        )}
+                        className="border-0 hover:bg-white/[0.02] transition-colors"
+                        style={{
+                          borderBottom: "1px solid rgba(255,255,255,0.04)",
+                          opacity: (isRefunded || isReturn) ? 0.45 : 1,
+                        }}
                       >
-                        <TableCell className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
-                          {format(new Date(sale.createdAt), "dd MMM yyyy · HH:mm", {
-                            locale: fr,
-                          })}
+                        <TableCell className="px-5 py-3.5 text-sm" style={{ color: "rgba(255,255,255,0.50)" }}>
+                          {format(new Date(sale.createdAt), "dd MMM yyyy · HH:mm", { locale: fr })}
                         </TableCell>
 
-                        <TableCell className="py-4">
+                        <TableCell className="py-3.5">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium text-slate-950 dark:text-slate-50">
+                            <span className="font-medium text-white/85">
                               {sale.product?.name || "Produit inconnu"}
                             </span>
-                            {isReturn ? (
-                              <Badge className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+                            {isReturn && (
+                              <Badge className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
                                 Retour
                               </Badge>
-                            ) : null}
-                            {isRefunded && !isReturn ? (
-                              <Badge className="rounded-full bg-slate-900/8 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:bg-slate-100/10 dark:text-slate-300">
+                            )}
+                            {isRefunded && !isReturn && (
+                              <Badge className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.50)" }}>
                                 Remboursé
                               </Badge>
-                            ) : null}
+                            )}
                           </div>
                         </TableCell>
 
-                        <TableCell className="py-4 font-mono text-sm text-slate-500 dark:text-slate-400">
+                        <TableCell className="py-3.5" style={{ fontFamily: "monospace", fontSize: "12px", color: "rgba(255,255,255,0.40)" }}>
                           {sale.ticketNumber || "—"}
                         </TableCell>
 
-                        <TableCell className="py-4">
+                        <TableCell className="py-3.5">
                           {sale.paymentMethod ? (
-                            <span
-                              className={cn(
-                                "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                                paymentColor
-                              )}
-                            >
+                            <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold", paymentColor)}>
                               {PAYMENT_METHOD_LABELS[sale.paymentMethod]}
                             </span>
                           ) : (
-                            <span className="text-sm text-slate-400">—</span>
+                            <span className="text-sm" style={{ color: "rgba(255,255,255,0.30)" }}>—</span>
                           )}
                         </TableCell>
 
-                        <TableCell className="py-4 text-sm font-semibold text-slate-950 dark:text-slate-50">
+                        <TableCell className="py-3.5 text-sm font-semibold text-white/85">
                           {sale.quantity > 0 ? `+${sale.quantity}` : sale.quantity}
                         </TableCell>
 
-                        <TableCell className="py-4 text-sm text-slate-500 dark:text-slate-400">
+                        <TableCell className="py-3.5 text-sm" style={{ color: "rgba(255,255,255,0.40)" }}>
                           {sale.discount > 0 ? formatCurrency(sale.discount) : "—"}
                         </TableCell>
 
-                        <TableCell className="py-4 text-right text-sm font-semibold text-slate-950 dark:text-slate-50">
+                        <TableCell className="py-3.5 text-right text-sm font-bold text-white/90">
                           {formatCurrency(net)}
                         </TableCell>
 
-                        <TableCell className="py-4 pr-5">
+                        <TableCell className="py-3.5 pr-5">
                           <div className="flex justify-end">
                             {sale.type !== "REFUND" && !sale.isRefunded ? (
                               <Button
@@ -572,7 +565,7 @@ export default function SalesPage() {
                                 size="sm"
                                 onClick={() => handleRefund(sale.id)}
                                 disabled={refundingId === sale.id}
-                                className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-200"
+                                className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 text-xs"
                               >
                                 {refundingId === sale.id ? (
                                   <Loader2 className="size-3.5 animate-spin" />
@@ -594,8 +587,11 @@ export default function SalesPage() {
         )}
 
         {!loading && filteredSales.length > 0 ? (
-          <div className="flex flex-col gap-3 border-t border-slate-200/70 px-5 py-4 dark:border-slate-800/80 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+          <div
+            className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+            style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.40)" }}>
               {(safePage - 1) * PAGE_SIZE + 1}-
               {Math.min(safePage * PAGE_SIZE, filteredSales.length)} sur {filteredSales.length} transaction
               {filteredSales.length > 1 ? "s" : ""}

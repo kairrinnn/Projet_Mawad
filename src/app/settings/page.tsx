@@ -349,17 +349,17 @@ export default function SettingsPage() {
           </SectionCard>
 
           {/* Danger zone */}
-          <div className="rounded-2xl border border-red-200 bg-red-50/60 p-5">
+          <div className="rounded-2xl border border-red-200 dark:border-red-800/60 bg-red-50/60 dark:bg-red-950/30 p-5">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/50">
+                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-red-900">Zone dangereuse</h2>
-                <p className="text-xs text-red-700/70 mt-0.5">Remet le compte à zéro sans supprimer la connexion.</p>
+                <h2 className="text-sm font-semibold text-red-900 dark:text-red-300">Zone dangereuse</h2>
+                <p className="text-xs text-red-700/70 dark:text-red-400/80 mt-0.5">Remet le compte à zéro sans supprimer la connexion.</p>
               </div>
             </div>
-            <p className="text-xs text-red-800/70 mb-4 leading-relaxed">
+            <p className="text-xs text-red-800/70 dark:text-red-400/70 mb-4 leading-relaxed">
               Supprime produits, ventes, dépenses, catégories, fournisseurs, stock, caisse et journaux d&apos;audit.
             </p>
             <Button

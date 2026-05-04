@@ -55,36 +55,47 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div
-      className="flex h-full w-64 flex-col"
-      style={{ background: "linear-gradient(180deg, #0d0d1f 0%, #0a0a1b 100%)" }}
+      className="flex h-full w-64 flex-col border-r"
+      style={{
+        background: "#0A0C17",
+        borderRightColor: "rgba(255,255,255,0.05)",
+      }}
     >
       {/* ── Logo ───────────────────────────────────── */}
-      <div className="flex h-16 items-center px-5 border-b border-white/[0.06]">
+      <div className="flex h-16 items-center px-5">
         <Link
           href="/"
           className="flex items-center gap-3 group"
           onClick={onNavigate}
         >
-          <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25 transition-transform duration-200 group-hover:scale-105">
-            <QrCode className="h-4 w-4 text-white" />
-            <div className="absolute inset-0 rounded-lg bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+          <div
+            className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105"
+            style={{
+              background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
+              boxShadow: "0 0 20px rgba(124,58,237,0.35)",
+            }}
+          >
+            <QrCode className="h-4.5 w-4.5 text-white" />
           </div>
           <div className="flex flex-col leading-none">
             <span
-              className="text-sm font-semibold text-white tracking-tight"
+              className="text-sm font-bold text-white tracking-tight"
               style={{ fontFamily: "var(--font-heading, sans-serif)" }}
             >
               {shopName}
             </span>
-            <span className="text-[10px] text-indigo-400 font-medium tracking-wider uppercase">
+            <span className="text-[10px] font-medium tracking-wider uppercase" style={{ color: "rgba(167,139,250,0.7)" }}>
               POS · Gestion
             </span>
           </div>
         </Link>
       </div>
 
+      {/* Separator */}
+      <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+
       {/* ── Nav ────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+      <div className="flex-1 overflow-y-auto py-3 px-2.5 space-y-0.5">
         {filteredNav.map((item) => {
           const isActive =
             pathname === item.href ||
@@ -96,56 +107,68 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 overflow-hidden",
                 isActive
-                  ? "text-white shadow-lg nav-glow"
-                  : "text-slate-400 hover:text-white hover:bg-white/[0.06]"
+                  ? "text-white"
+                  : "hover:text-white"
               )}
               style={
                 isActive
                   ? {
-                      background:
-                        "linear-gradient(135deg, rgba(79,70,229,0.85) 0%, rgba(124,58,237,0.80) 100%)",
-                      boxShadow: "0 4px 20px rgba(99,102,241,0.25), inset 0 1px 0 rgba(255,255,255,0.1)",
+                      background: "linear-gradient(90deg, rgba(124,58,237,0.40) 0%, rgba(124,58,237,0.05) 100%)",
+                      color: "#fff",
                     }
                   : undefined
               }
             >
-              {/* Active indicator bar */}
+              {/* Active — left border bar */}
               {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-white/80" />
+                <span
+                  className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full"
+                  style={{ width: "3px", height: "20px", background: "#7C3AED" }}
+                />
               )}
               <item.icon
                 className={cn(
-                  "h-4 w-4 flex-shrink-0 transition-transform duration-200",
+                  "h-4 w-4 flex-shrink-0 transition-colors duration-200",
                   isActive
                     ? "text-white"
-                    : "text-slate-500 group-hover:text-slate-300 group-hover:scale-110"
+                    : "group-hover:text-white"
                 )}
+                style={!isActive ? { color: "rgba(255,255,255,0.35)" } : undefined}
               />
-              <span className="truncate">{item.name}</span>
+              <span
+                className="truncate"
+                style={!isActive ? { color: "rgba(255,255,255,0.45)" } : undefined}
+              >
+                {item.name}
+              </span>
 
-              {/* Hover shimmer for inactive */}
+              {/* Hover fill for inactive */}
               {!isActive && (
-                <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="absolute inset-0 rounded-xl bg-white/[0.04] opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               )}
             </Link>
           );
         })}
       </div>
 
-      {/* ── Upgrade hint (visual flair) ─────────────── */}
-      <div className="mx-3 mb-3">
+      {/* ── Upgrade hint ─────────────────────────────── */}
+      <div className="mx-2.5 mb-3">
         <div
           className="rounded-xl px-3 py-2.5 flex items-center gap-2.5"
           style={{
-            background: "linear-gradient(135deg, rgba(79,70,229,0.12) 0%, rgba(124,58,237,0.08) 100%)",
-            border: "1px solid rgba(99,102,241,0.15)",
+            background: "rgba(124,58,237,0.12)",
+            border: "1px solid rgba(124,58,237,0.20)",
+            borderRadius: "10px",
           }}
         >
-          <Sparkles className="h-3.5 w-3.5 text-indigo-400 flex-shrink-0" />
-          <span className="text-[11px] text-indigo-300 font-medium">MawadScan Pro</span>
-          <span className="ml-auto text-[10px] text-indigo-400/70 bg-indigo-500/20 px-1.5 py-0.5 rounded-full">
+          <Sparkles className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#A78BFA" }} />
+          <span className="text-[11px] font-medium" style={{ color: "#A78BFA" }}>MawadScan Pro</span>
+          <span
+            className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full"
+            style={{ color: "rgba(167,139,250,0.7)", background: "rgba(124,58,237,0.20)" }}
+          >
             v2
           </span>
         </div>
